@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <mavlink>
-  <dialect>0</dialect>
-  <version>1</version>
   <include>common.xml</include>
+  <version>1</version>
+  <dialect>0</dialect>
 
   <enums>
 
@@ -133,12 +133,12 @@
       <field type="float"    name="vx"            units="m/s" >Velocity north component (NED).</field>
       <field type="float"    name="vy"            units="m/s" >Velocity east component (NED).</field>
       <field type="float"    name="vz"            units="m/s" >Velocity down component (NED).</field>
-      <field type="float"    name="cov_pos_x"     units="m^2" >Position covariance, north axis.</field>
-      <field type="float"    name="cov_pos_y"     units="m^2" >Position covariance, east axis.</field>
-      <field type="float"    name="cov_pos_z"     units="m^2" >Position covariance, down axis.</field>
-      <field type="float"    name="cov_vel_x"     units="m^2/s^2">Velocity covariance, north axis.</field>
-      <field type="float"    name="cov_vel_y"     units="m^2/s^2">Velocity covariance, east axis.</field>
-      <field type="float"    name="cov_vel_z"     units="m^2/s^2">Velocity covariance, down axis.</field>
+      <field type="float"    name="cov_pos_x"      >Position covariance, north axis (m^2).</field>
+      <field type="float"    name="cov_pos_y"      >Position covariance, east axis (m^2).</field>
+      <field type="float"    name="cov_pos_z"      >Position covariance, down axis (m^2).</field>
+      <field type="float"    name="cov_vel_x"      >Velocity covariance, north axis (m^2/s^2).</field>
+      <field type="float"    name="cov_vel_y"      >Velocity covariance, east axis (m^2/s^2).</field>
+      <field type="float"    name="cov_vel_z"      >Velocity covariance, down axis (m^2/s^2).</field>
       <field type="float"    name="cep_desired"   units="m"   >Desired circular error probable.</field>
       <field type="float"    name="cep_max"       units="m"   >Maximum acceptable circular error probable.</field>
       <field type="uint8_t"  name="target_class"  enum="TARGET_CLASS">Target classification.</field>
@@ -179,12 +179,12 @@
       <field type="float"     name="vx"                units="m/s" >Velocity north component (NED).</field>
       <field type="float"     name="vy"                units="m/s" >Velocity east component (NED).</field>
       <field type="float"     name="vz"                units="m/s" >Velocity down component (NED).</field>
-      <field type="float"     name="cov_pos_x"         units="m^2" >Position covariance, north axis.</field>
-      <field type="float"     name="cov_pos_y"         units="m^2" >Position covariance, east axis.</field>
-      <field type="float"     name="cov_pos_z"         units="m^2" >Position covariance, down axis.</field>
-      <field type="float"     name="cov_vel_x"         units="m^2/s^2">Velocity covariance, north axis.</field>
-      <field type="float"     name="cov_vel_y"         units="m^2/s^2">Velocity covariance, east axis.</field>
-      <field type="float"     name="cov_vel_z"         units="m^2/s^2">Velocity covariance, down axis.</field>
+      <field type="float"     name="cov_pos_x"          >Position covariance, north axis (m^2).</field>
+      <field type="float"     name="cov_pos_y"          >Position covariance, east axis (m^2).</field>
+      <field type="float"     name="cov_pos_z"          >Position covariance, down axis (m^2).</field>
+      <field type="float"     name="cov_vel_x"          >Velocity covariance, north axis (m^2/s^2).</field>
+      <field type="float"     name="cov_vel_y"          >Velocity covariance, east axis (m^2/s^2).</field>
+      <field type="float"     name="cov_vel_z"          >Velocity covariance, down axis (m^2/s^2).</field>
       <field type="uint32_t"  name="target_set_id"                 >Parent target set identifier.</field>
       <field type="char[50]"  name="target_name"                   >Human-readable target name (null-terminated).</field>
       <field type="char[50]"  name="match_media_url"               >Short URL referencing matching media asset (null-terminated).</field>
@@ -204,12 +204,12 @@
       <field type="float"     name="vx"                units="m/s" >Velocity north component (NED). 0 if target is static.</field>
       <field type="float"     name="vy"                units="m/s" >Velocity east component (NED). 0 if target is static.</field>
       <field type="float"     name="vz"                units="m/s" >Velocity down component (NED). 0 if target is static.</field>
-      <field type="float"     name="cov_pos_x"         units="m^2" >Position covariance, north axis.</field>
-      <field type="float"     name="cov_pos_y"         units="m^2" >Position covariance, east axis.</field>
-      <field type="float"     name="cov_pos_z"         units="m^2" >Position covariance, down axis.</field>
-      <field type="float"     name="cov_vel_x"         units="m^2/s^2">Velocity covariance, north axis.</field>
-      <field type="float"     name="cov_vel_y"         units="m^2/s^2">Velocity covariance, east axis.</field>
-      <field type="float"     name="cov_vel_z"         units="m^2/s^2">Velocity covariance, down axis.</field>
+      <field type="float"     name="cov_pos_x"          >Position covariance, north axis (m^2).</field>
+      <field type="float"     name="cov_pos_y"          >Position covariance, east axis (m^2).</field>
+      <field type="float"     name="cov_pos_z"          >Position covariance, down axis (m^2).</field>
+      <field type="float"     name="cov_vel_x"          >Velocity covariance, north axis (m^2/s^2).</field>
+      <field type="float"     name="cov_vel_y"          >Velocity covariance, east axis (m^2/s^2).</field>
+      <field type="float"     name="cov_vel_z"          >Velocity covariance, down axis (m^2/s^2).</field>
       <field type="uint32_t"  name="target_set_id"                 >Parent target set identifier.</field>
       <field type="char[50]"  name="target_name"                   >Human-readable target name (null-terminated).</field>
       <field type="uint8_t[8]" name="authorization"                >Opaque authorization token.</field>
@@ -249,12 +249,12 @@
       <field type="float"    name="vx"            units="m/s"  >Velocity north component (NED). NaN if unknown.</field>
       <field type="float"    name="vy"            units="m/s"  >Velocity east component (NED). NaN if unknown.</field>
       <field type="float"    name="vz"            units="m/s"  >Velocity down component (NED). NaN if unknown.</field>
-      <field type="float"    name="cov_pos_x"     units="m^2"  >Position covariance, north axis. NaN if unknown.</field>
-      <field type="float"    name="cov_pos_y"     units="m^2"  >Position covariance, east axis. NaN if unknown.</field>
-      <field type="float"    name="cov_pos_z"     units="m^2"  >Position covariance, down axis. NaN if unknown.</field>
-      <field type="float"    name="cov_vel_x"     units="m^2/s^2">Velocity covariance, north axis. NaN if unknown.</field>
-      <field type="float"    name="cov_vel_y"     units="m^2/s^2">Velocity covariance, east axis. NaN if unknown.</field>
-      <field type="float"    name="cov_vel_z"     units="m^2/s^2">Velocity covariance, down axis. NaN if unknown.</field>
+      <field type="float"    name="cov_pos_x"      >Position covariance, north axis (m^2). NaN if unknown.</field>
+      <field type="float"    name="cov_pos_y"      >Position covariance, east axis (m^2). NaN if unknown.</field>
+      <field type="float"    name="cov_pos_z"      >Position covariance, down axis (m^2). NaN if unknown.</field>
+      <field type="float"    name="cov_vel_x"      >Velocity covariance, north axis (m^2/s^2). NaN if unknown.</field>
+      <field type="float"    name="cov_vel_y"      >Velocity covariance, east axis (m^2/s^2). NaN if unknown.</field>
+      <field type="float"    name="cov_vel_z"      >Velocity covariance, down axis (m^2/s^2). NaN if unknown.</field>
       <field type="float"    name="offset_x"      units="m"    >Mounting offset X from vehicle reference point in coordinate_frame.</field>
       <field type="float"    name="offset_y"      units="m"    >Mounting offset Y from vehicle reference point in coordinate_frame.</field>
       <field type="float"    name="offset_z"      units="m"    >Mounting offset Z from vehicle reference point in coordinate_frame.</field>
