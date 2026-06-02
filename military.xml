@@ -93,6 +93,15 @@
       <entry value="4" name="MATCH_MEDIA_SAR_IMAGE">  <description>SAR image.</description></entry>
     </enum>
 
+    <enum name="ATR_DETECTION_STATUS">
+      <description>Lifecycle state of an ATR detection within a single video frame.</description>
+      <entry value="0" name="ATR_DETECTION_INACTIVE">      <description>Detection coasting time expired. Target may be reacquired in future frames.</description></entry>
+      <entry value="1" name="ATR_DETECTION_ACTIVE_MOVING"> <description>Target detected and in motion in this frame.</description></entry>
+      <entry value="2" name="ATR_DETECTION_DROPPED">       <description>Target no longer viable. Track terminated; track_id will not be reused.</description></entry>
+      <entry value="3" name="ATR_DETECTION_ACTIVE_STOPPED"><description>Target detected and stationary in this frame.</description></entry>
+      <entry value="4" name="ATR_DETECTION_ACTIVE_COASTING"><description>Target temporarily not detected (e.g., occluded); awaiting reacquisition before drop.</description></entry>
+    </enum>
+
   </enums>
 
   <messages>
@@ -271,6 +280,31 @@
       <field type="char[50]"  name="weapon_string"             >Human-readable weapon description or designation (null-terminated).</field>
       <field type="uint8_t"   name="arming_state"  enum="RWS_ARMING_STATE">Current arming state of the weapon system.</field>
       <field type="uint8_t"   name="weapon_type"               >Weapon type identifier (implementation-defined).</field>
+    </message>
+
+    <message id="53020" name="ATR_FRAME_INFO">
+      <description>Per-frame ATR metadata header. Sent once per processed video frame, including frames with zero detections (as a heartbeat). Subsequent ATR_DETECTION messages with the same frame_id belong to this frame. Inspired by MISB ST 0903.6 VMTI Local Set.</description>
+      <field type="uint64_t" name="time_usec"        units="us">Capture timestamp of the source frame (UNIX epoch, microseconds UTC). Equal to MISB 0903 VMTI-MI-Timestamp: the time of the image the ATR ran on, not the time of message emission.</field>
+      <field type="uint32_t" name="frame_id"                   >Monotonic frame identifier. Must match the frame_id carried in the video KLV stream for the same frame. Primary key for video↔MAVLink synchronization.</field>
+      <field type="uint16_t" name="frame_width"      units="px">Frame width in pixels of the source image the ATR ran on. 0 if unknown.</field>
+      <field type="uint16_t" name="frame_height"     units="px">Frame height in pixels of the source image the ATR ran on. 0 if unknown.</field>
+      <field type="uint16_t" name="num_detections"             >Number of ATR_DETECTION messages emitted for this frame. 0 indicates the frame was processed and produced no detections (positive "nothing here" signal).</field>
+      <field type="uint8_t"  name="sensor_id"                  >Source sensor / camera channel identifier (e.g., EO=0, IR=1). Used to disambiguate detections in multi-sensor gimbals.</field>
+    </message>
+
+    <message id="53021" name="ATR_DETECTION">
+      <description>Single ATR detection within a video frame. Carries pixel-space axis-aligned bounding box, classification, and lifecycle status. Inspired by MISB ST 0903.6 VTarget Pack.</description>
+      <field type="uint64_t" name="time_usec"        units="us">Capture timestamp of the source frame. Must equal ATR_FRAME_INFO.time_usec for the same frame_id.</field>
+      <field type="uint32_t" name="frame_id"                   >Frame identifier this detection belongs to. Matches ATR_FRAME_INFO.frame_id and the KLV frame ID.</field>
+      <field type="uint32_t" name="track_id"                   >Persistent track identifier. Unique for the lifetime of the track and never reused after a track reaches ATR_DETECTION_DROPPED (per MISB 0903.6-129). 0 if no tracker is running.</field>
+      <field type="uint16_t" name="bbox_x"           units="px">Axis-aligned bounding box top-left column. Origin at top-left of the frame.</field>
+      <field type="uint16_t" name="bbox_y"           units="px">Axis-aligned bounding box top-left row. Origin at top-left of the frame.</field>
+      <field type="uint16_t" name="bbox_w"           units="px">Bounding box width in pixels.</field>
+      <field type="uint16_t" name="bbox_h"           units="px">Bounding box height in pixels.</field>
+      <field type="uint8_t"  name="target_class"     enum="TARGET_CLASS">Target classification.</field>
+      <field type="uint8_t"  name="target_force"     enum="TARGET_FORCE">Force affiliation. TARGET_FORCE_UNKNOWN if not determined.</field>
+      <field type="uint8_t"  name="confidence_pct"   units="%" >Detection confidence [0-100].</field>
+      <field type="uint8_t"  name="detection_status" enum="ATR_DETECTION_STATUS">Lifecycle status of the detection in this frame.</field>
     </message>
 
   </messages>
