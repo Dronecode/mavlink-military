@@ -93,6 +93,14 @@
       <entry value="4" name="MATCH_MEDIA_SAR_IMAGE">  <description>SAR image.</description></entry>
     </enum>
 
+    <enum name="COORD_TYPE">
+      <description>Preferred display representation for geographic coordinates. On-wire lat/lon are always WGS84 degE7 regardless of this value; this only indicates how coordinates should be presented to or were selected by the operator.</description>
+      <entry value="0" name="COORD_TYPE_WGS84_DECIMAL"><description>Decimal degrees (WGS84).</description></entry>
+      <entry value="1" name="COORD_TYPE_WGS84_DMS">    <description>Degrees, minutes, seconds (WGS84).</description></entry>
+      <entry value="2" name="COORD_TYPE_MGRS">         <description>Military Grid Reference System.</description></entry>
+      <entry value="3" name="COORD_TYPE_UTM">          <description>Universal Transverse Mercator.</description></entry>
+    </enum>
+
   </enums>
 
   <messages>
@@ -108,6 +116,8 @@
       <field type="float"    name="radius"        units="m"   >Radius of the circular target set area.</field>
       <field type="uint64_t" name="time_start"    units="us"  >Area validity start time (UNIX epoch, microseconds UTC). 0 = immediate.</field>
       <field type="uint64_t" name="time_end"      units="us"  >Area validity end time (UNIX epoch, microseconds UTC). 0 = indefinite.</field>
+      <extensions/>
+      <field type="uint8_t"  name="coord_type" enum="COORD_TYPE">Preferred coordinate display representation. 0 (decimal degrees) if unspecified.</field>
     </message>
 
     <message id="53001" name="TARGET_BOX_COORD">
@@ -120,6 +130,8 @@
       <field type="float[4]"    name="alt"        units="m"   >Corner altitudes, MSL.</field>
       <field type="uint64_t" name="time_start"    units="us"  >Area validity start time (UNIX epoch, microseconds UTC). 0 = immediate.</field>
       <field type="uint64_t" name="time_end"      units="us"  >Area validity end time (UNIX epoch, microseconds UTC). 0 = indefinite.</field>
+      <extensions/>
+      <field type="uint8_t"  name="coord_type" enum="COORD_TYPE">Preferred coordinate display representation. 0 (decimal degrees) if unspecified.</field>
     </message>
 
     <message id="53002" name="TARGET_COORD">
@@ -143,6 +155,8 @@
       <field type="float"    name="cep_max"       units="m"   >Maximum acceptable circular error probable.</field>
       <field type="uint8_t"  name="target_class"  enum="TARGET_CLASS">Target classification.</field>
       <field type="uint8_t"  name="target_force"  enum="TARGET_FORCE">Force affiliation.</field>
+      <extensions/>
+      <field type="uint8_t"  name="coord_type" enum="COORD_TYPE">Preferred coordinate display representation. 0 (decimal degrees) if unspecified.</field>
     </message>
 
     <message id="53003" name="FIRES">
@@ -155,6 +169,8 @@
       <field type="uint32_t" name="effector_id"                   >Identifier of the assigned effector.</field>
       <field type="uint16_t" name="sequence"                      >Fire mission sequence number.</field>
       <field type="float"    name="cep_expected"       units="m"  >Expected circular error probable at impact.</field>
+      <extensions/>
+      <field type="uint8_t"  name="coord_type" enum="COORD_TYPE">Preferred coordinate display representation. 0 (decimal degrees) if unspecified.</field>
     </message>
 
     <message id="53004" name="SPLASH_CORRECTION">
@@ -166,6 +182,8 @@
       <field type="uint16_t" name="sequence"                  >Fire mission sequence number this correction applies to.</field>
       <field type="uint8_t"  name="type_detected"             >Type of splash detected (implementation-defined; e.g. 0=unknown, 1=smoke, 2=explosion).</field>
       <field type="float"    name="cep_expected"  units="m"   >Estimated CEP of the observed splash.</field>
+      <extensions/>
+      <field type="uint8_t"  name="coord_type" enum="COORD_TYPE">Preferred coordinate display representation. 0 (decimal degrees) if unspecified.</field>
     </message>
 
     <message id="53005" name="TARGET_HANDOVER">
@@ -193,6 +211,8 @@
       <field type="uint8_t"   name="target_class"     enum="TARGET_CLASS">Target classification.</field>
       <field type="uint8_t"   name="target_force"     enum="TARGET_FORCE">Force affiliation.</field>
       <field type="uint8_t"   name="match_media_type" enum="MATCH_MEDIA_TYPE">Type of matching media referenced by match_media_url.</field>
+      <extensions/>
+      <field type="uint8_t"   name="coord_type" enum="COORD_TYPE">Preferred coordinate display representation. 0 (decimal degrees) if unspecified.</field>
     </message>
 
     <message id="53006" name="BATTLE_DAMAGE_ASSESSMENT">
@@ -217,6 +237,8 @@
       <field type="uint8_t"   name="confidence_pct"   units="%"   >Confidence of assessment [0-100].</field>
       <field type="uint8_t"   name="target_class"     enum="TARGET_CLASS">Target classification.</field>
       <field type="uint8_t"   name="target_force"     enum="TARGET_FORCE">Force affiliation.</field>
+      <extensions/>
+      <field type="uint8_t"   name="coord_type" enum="COORD_TYPE">Preferred coordinate display representation. 0 (decimal degrees) if unspecified.</field>
     </message>
 
     <message id="53007" name="ESAD_STATE">
@@ -263,6 +285,8 @@
       <field type="float"    name="accuracy_pitch" units="rad" >Pitch orientation accuracy (1-sigma).</field>
       <field type="float"    name="accuracy_yaw"  units="rad"  >Yaw orientation accuracy (1-sigma).</field>
       <field type="uint8_t"  name="coordinate_frame" enum="MAV_FRAME">Coordinate frame for offset and orientation. See MAV_FRAME.</field>
+      <extensions/>
+      <field type="uint8_t"  name="coord_type" enum="COORD_TYPE">Preferred coordinate display representation for lat/lon. 0 (decimal degrees) if unspecified.</field>
     </message>
 
     <message id="53010" name="RWS_STATE">
