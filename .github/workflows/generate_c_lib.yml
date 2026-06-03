@@ -1,0 +1,67 @@
+name: Generate MAVLink C Headers
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "military.xml"
+      - ".github/workflows/generate_c_lib.yml"
+  workflow_dispatch:
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout this repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Checkout mavlink repository (dialect definitions)
+        uses: actions/checkout@v4
+        with:
+          repository: mavlink/mavlink
+          path: mavlink
+          depth: 1
+
+      - name: Checkout pymavlink repository (code generator)
+        uses: actions/checkout@v4
+        with:
+          repository: ArduPilot/pymavlink
+          path: pymavlink
+          depth: 1
+
+      - name: Install pymavlink dependencies
+        run: |
+          pip install future lxml
+
+      - name: Place military.xml alongside other message definitions
+        run: |
+          cp military.xml mavlink/message_definitions/v1.0/military.xml
+
+      - name: Generate C headers
+        run: |
+          python pymavlink/tools/mavgen.py \
+            --lang=C \
+            --wire-protocol=2.0 \
+            --output=generated/include/mavlink/v2.0 \
+            mavlink/message_definitions/v1.0/military.xml
+
+      - name: Commit and push generated headers
+        run: |
+          git config user.name  "auterion-ci"
+          git config user.email "ci@auterion.com"
+          git add generated/
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore: regenerate MAVLink C headers [skip ci]"
+            git pull --rebase
+            git push
+          fi
