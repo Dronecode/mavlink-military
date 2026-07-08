@@ -7,27 +7,76 @@
   <enums>
 
     <enum name="TARGET_CLASS">
-      <description>Classification of a ground target.</description>
-      <entry value="1"  name="TARGET_CLASS_MBT_1">  <description>Main battle tank type 1.</description></entry>
-      <entry value="2"  name="TARGET_CLASS_MBT_2">  <description>Main battle tank type 2.</description></entry>
-      <entry value="3"  name="TARGET_CLASS_MBT_3">  <description>Main battle tank type 3.</description></entry>
-      <entry value="4"  name="TARGET_CLASS_MBT_4">  <description>Main battle tank type 4.</description></entry>
-      <entry value="5"  name="TARGET_CLASS_MBT_5">  <description>Main battle tank type 5.</description></entry>
-      <entry value="6"  name="TARGET_CLASS_MBT_6">  <description>Main battle tank type 6.</description></entry>
-      <entry value="7"  name="TARGET_CLASS_MBT_7">  <description>Main battle tank type 7.</description></entry>
-      <entry value="8"  name="TARGET_CLASS_MBT_8">  <description>Main battle tank type 8.</description></entry>
-      <entry value="9"  name="TARGET_CLASS_MBT_9">  <description>Main battle tank type 9.</description></entry>
-      <entry value="10" name="TARGET_CLASS_IFV_1">  <description>Infantry fighting vehicle type 1.</description></entry>
-      <entry value="11" name="TARGET_CLASS_IFV_2">  <description>Infantry fighting vehicle type 2.</description></entry>
-      <entry value="12" name="TARGET_CLASS_IFV_3">  <description>Infantry fighting vehicle type 3.</description></entry>
-      <entry value="13" name="TARGET_CLASS_IFV_4">  <description>Infantry fighting vehicle type 4.</description></entry>
-      <entry value="14" name="TARGET_CLASS_IFV_5">  <description>Infantry fighting vehicle type 5.</description></entry>
-      <entry value="15" name="TARGET_CLASS_IFV_6">  <description>Infantry fighting vehicle type 6.</description></entry>
-      <entry value="16" name="TARGET_CLASS_IFV_7">  <description>Infantry fighting vehicle type 7.</description></entry>
-      <entry value="17" name="TARGET_CLASS_IFV_8">  <description>Infantry fighting vehicle type 8.</description></entry>
-      <entry value="18" name="TARGET_CLASS_IFV_9">  <description>Infantry fighting vehicle type 9.</description></entry>
-      <entry value="190" name="TARGET_CLASS_ROAD"> <description>Road or linear infrastructure.</description></entry>
-      <entry value="200" name="TARGET_CLASS_STRUCTURE"><description>Structure or building.</description></entry>
+      <description>Classification of a target across physical and non-physical domains.</description>
+      <entry value="0" name="TARGET_CLASS_UNKNOWN"><description>Unknown target class.</description></entry>
+      <entry value="1" name="TARGET_CLASS_GROUND_VEHICLE_UNKNOWN"><description>Unknown ground vehicle.</description></entry>
+      <entry value="2" name="TARGET_CLASS_MAIN_BATTLE_TANK"><description>Main battle tank.</description></entry>
+      <entry value="3" name="TARGET_CLASS_INFANTRY_FIGHTING_VEHICLE"><description>Infantry fighting vehicle.</description></entry>
+      <entry value="4" name="TARGET_CLASS_ARMORED_PERSONNEL_CARRIER"><description>Armored personnel carrier.</description></entry>
+      <entry value="5" name="TARGET_CLASS_LIGHT_TACTICAL_VEHICLE"><description>Light tactical vehicle.</description></entry>
+      <entry value="6" name="TARGET_CLASS_LOGISTICS_VEHICLE"><description>Logistics, cargo, or supply vehicle.</description></entry>
+      <entry value="7" name="TARGET_CLASS_ARTILLERY_TOWED"><description>Towed artillery system.</description></entry>
+      <entry value="8" name="TARGET_CLASS_ARTILLERY_SELF_PROPELLED"><description>Self-propelled artillery system.</description></entry>
+      <entry value="9" name="TARGET_CLASS_MLRS"><description>Multiple launch rocket system.</description></entry>
+      <entry value="10" name="TARGET_CLASS_AIR_DEFENSE_SYSTEM"><description>Ground-based air defense system.</description></entry>
+      <entry value="11" name="TARGET_CLASS_RADAR_VEHICLE"><description>Vehicle-mounted radar system.</description></entry>
+      <entry value="12" name="TARGET_CLASS_EW_VEHICLE"><description>Electronic warfare vehicle.</description></entry>
+      <entry value="13" name="TARGET_CLASS_COMMAND_POST_VEHICLE"><description>Command post or command vehicle.</description></entry>
+      <entry value="14" name="TARGET_CLASS_ENGINEERING_VEHICLE"><description>Combat engineering or breaching vehicle.</description></entry>
+      <entry value="15" name="TARGET_CLASS_UNMANNED_GROUND_VEHICLE"><description>Unmanned ground vehicle.</description></entry>
+      <entry value="50" name="TARGET_CLASS_PERSONNEL_UNKNOWN"><description>Unknown personnel target.</description></entry>
+      <entry value="51" name="TARGET_CLASS_PERSONNEL_SINGLE"><description>Single person.</description></entry>
+      <entry value="52" name="TARGET_CLASS_PERSONNEL_GROUP"><description>Group of people.</description></entry>
+      <entry value="53" name="TARGET_CLASS_WEAPON_CREW"><description>Weapon crew.</description></entry>
+      <entry value="80" name="TARGET_CLASS_AIRCRAFT_UNKNOWN"><description>Unknown aircraft.</description></entry>
+      <entry value="81" name="TARGET_CLASS_FIXED_WING_AIRCRAFT"><description>Fixed-wing aircraft.</description></entry>
+      <entry value="82" name="TARGET_CLASS_ROTARY_WING_AIRCRAFT"><description>Rotary-wing aircraft.</description></entry>
+      <entry value="83" name="TARGET_CLASS_UAS_FIXED_WING"><description>Fixed-wing unmanned aircraft.</description></entry>
+      <entry value="84" name="TARGET_CLASS_UAS_MULTIROTOR"><description>Multirotor unmanned aircraft.</description></entry>
+      <entry value="85" name="TARGET_CLASS_LOITERING_MUNITION"><description>Loitering munition.</description></entry>
+      <entry value="86" name="TARGET_CLASS_MISSILE"><description>Missile or rocket in flight.</description></entry>
+      <entry value="87" name="TARGET_CLASS_PROJECTILE"><description>Projectile or shell in flight.</description></entry>
+      <entry value="120" name="TARGET_CLASS_VESSEL_UNKNOWN"><description>Unknown surface vessel.</description></entry>
+      <entry value="121" name="TARGET_CLASS_WARSHIP"><description>Military surface vessel.</description></entry>
+      <entry value="122" name="TARGET_CLASS_PATROL_BOAT"><description>Patrol boat or small combatant.</description></entry>
+      <entry value="123" name="TARGET_CLASS_LANDING_CRAFT"><description>Landing craft.</description></entry>
+      <entry value="124" name="TARGET_CLASS_LOGISTICS_VESSEL"><description>Logistics or support vessel.</description></entry>
+      <entry value="125" name="TARGET_CLASS_CIVILIAN_VESSEL"><description>Civilian surface vessel.</description></entry>
+      <entry value="126" name="TARGET_CLASS_UNMANNED_SURFACE_VESSEL"><description>Unmanned surface vessel.</description></entry>
+      <entry value="160" name="TARGET_CLASS_SUBSURFACE_UNKNOWN"><description>Unknown subsurface target.</description></entry>
+      <entry value="161" name="TARGET_CLASS_SUBMARINE"><description>Submarine.</description></entry>
+      <entry value="162" name="TARGET_CLASS_UNMANNED_UNDERWATER_VEHICLE"><description>Unmanned underwater vehicle.</description></entry>
+      <entry value="163" name="TARGET_CLASS_MINE"><description>Naval mine or underwater explosive hazard.</description></entry>
+      <entry value="190" name="TARGET_CLASS_ROAD"><description>Road or linear infrastructure.</description></entry>
+      <entry value="191" name="TARGET_CLASS_BRIDGE"><description>Bridge.</description></entry>
+      <entry value="192" name="TARGET_CLASS_RAIL"><description>Railway or rail infrastructure.</description></entry>
+      <entry value="193" name="TARGET_CLASS_RUNWAY"><description>Runway or airfield surface.</description></entry>
+      <entry value="194" name="TARGET_CLASS_BUILDING"><description>Building or structure.</description></entry>
+      <entry value="195" name="TARGET_CLASS_DEPOT"><description>Depot, storage site, or logistics node.</description></entry>
+      <entry value="196" name="TARGET_CLASS_POWER_INFRASTRUCTURE"><description>Power generation or distribution infrastructure.</description></entry>
+      <entry value="197" name="TARGET_CLASS_COMMUNICATIONS_INFRASTRUCTURE"><description>Communications infrastructure.</description></entry>
+      <entry value="220" name="TARGET_CLASS_EMITTER_UNKNOWN"><description>Unknown electromagnetic emitter.</description></entry>
+      <entry value="221" name="TARGET_CLASS_RADAR_EMITTER"><description>Radar emitter.</description></entry>
+      <entry value="222" name="TARGET_CLASS_JAMMER"><description>Jammer or interference source.</description></entry>
+      <entry value="223" name="TARGET_CLASS_COMMUNICATIONS_NODE"><description>Communications node.</description></entry>
+      <entry value="224" name="TARGET_CLASS_NETWORK_NODE"><description>Network or cyber node.</description></entry>
+      <entry value="240" name="TARGET_CLASS_SPACE_OBJECT_UNKNOWN"><description>Unknown space object.</description></entry>
+      <entry value="241" name="TARGET_CLASS_SATELLITE"><description>Satellite.</description></entry>
+      <entry value="242" name="TARGET_CLASS_ORBITAL_DEBRIS"><description>Orbital debris.</description></entry>
+      <entry value="243" name="TARGET_CLASS_SPACE_LAUNCH_OBJECT"><description>Launch vehicle or space launch object.</description></entry>
+    </enum>
+
+    <enum name="TARGET_DOMAIN">
+      <description>Primary operating domain of the target.</description>
+      <entry value="0" name="TARGET_DOMAIN_UNKNOWN"><description>Unknown target domain.</description></entry>
+      <entry value="1" name="TARGET_DOMAIN_GROUND"><description>Ground or land surface target.</description></entry>
+      <entry value="2" name="TARGET_DOMAIN_AIR"><description>Airborne target.</description></entry>
+      <entry value="3" name="TARGET_DOMAIN_MARITIME_SURFACE"><description>Maritime surface target.</description></entry>
+      <entry value="4" name="TARGET_DOMAIN_SUBSURFACE"><description>Submerged or underwater target.</description></entry>
+      <entry value="5" name="TARGET_DOMAIN_SPACE"><description>Space target or orbital object.</description></entry>
+      <entry value="6" name="TARGET_DOMAIN_CYBER"><description>Cyber, network, or digital infrastructure target.</description></entry>
+      <entry value="7" name="TARGET_DOMAIN_ELECTROMAGNETIC"><description>Electromagnetic emitter, jammer, radar, or spectrum target.</description></entry>
+      <entry value="8" name="TARGET_DOMAIN_INFRASTRUCTURE"><description>Fixed infrastructure target spanning one or more physical domains.</description></entry>
     </enum>
 
     <enum name="TARGET_FORCE">
@@ -185,6 +234,7 @@
       <field type="uint16_t" name="package_endpoint_port"     >TCP port for target package retrieval. 0 if no package is associated.</field>
       <field type="char[80]" name="package_path"              >Path component for target package retrieval, null-terminated. Empty if no package is associated.</field>
       <field type="uint8_t"  name="target_class"  enum="TARGET_CLASS">Target classification.</field>
+      <field type="uint8_t"  name="target_domain" enum="TARGET_DOMAIN">Primary operating domain of the target.</field>
       <field type="uint8_t"  name="target_force"  enum="TARGET_FORCE">Force affiliation.</field>
       <field type="uint8_t"  name="package_transport" enum="TARGET_PACKAGE_TRANSPORT">Transport protocol used to retrieve the target package.</field>
     </message>
