@@ -220,9 +220,10 @@
     </message>
 
     <message id="53007" name="ESAD_STATE">
-      <description>Electronic Safe and Arm Device (ESAD) telemetry. Reports current arming, munition, and ignition states along with fault flags and software identity.</description>
+      <description>Electronic Safe and Arm Device (ESAD) telemetry for one ESAD instance. Reports current arming, munition, and ignition states along with fault flags and software identity.</description>
       <field type="uint64_t"  name="time_usec"         units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
-      <field type="uint32_t"  name="arming_challenge_hash"         >Challenge hash for arming authentication.</field>
+      <field type="uint8_t"   name="esad_id"                       >Vehicle-local ESAD instance identifier. Must be 1-254. 0 is invalid for ESAD_STATE, 255 is reserved.</field>
+      <field type="uint32_t"  name="arming_challenge_hash"         >Challenge hash for arming authentication of this ESAD instance.</field>
       <field type="uint32_t"  name="fault_flags"       enum="ESAD_FAULT_FLAGS">Active fault flag bitmask.</field>
       <field type="float"     name="input_1"                       >Analog/digital input 1 (implementation-defined).</field>
       <field type="float"     name="input_2"                       >Analog/digital input 2 (implementation-defined).</field>
@@ -234,9 +235,10 @@
     </message>
 
     <message id="53008" name="ESAD_ARMING">
-      <description>ESAD arming command. The arming_challenge_hash must match the value last broadcast in ESAD_STATE before the request is accepted.</description>
+      <description>ESAD arming command for one or more ESAD instances. The arming_challenge_hash must match the active challenge before the request is accepted.</description>
       <field type="uint64_t" name="time_usec"            units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
-      <field type="uint32_t" name="arming_challenge_hash"          >Challenge hash matching the active ESAD_STATE hash.</field>
+      <field type="uint8_t"  name="esad_id"                        >Vehicle-local ESAD instance identifier to arm or disarm. 0 = all ESAD instances, 1-254 = specific ESAD instance, 255 = reserved.</field>
+      <field type="uint32_t" name="arming_challenge_hash"          >Challenge hash matching the selected ESAD instance challenge, or the all-ESAD command challenge when esad_id is 0.</field>
       <field type="uint8_t"  name="arming_request"  enum="ESAD_ARMING_REQUEST">Requested arming state change.</field>
     </message>
 
