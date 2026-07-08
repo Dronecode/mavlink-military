@@ -64,6 +64,7 @@
       <entry value="241" name="TARGET_CLASS_SATELLITE"><description>Satellite.</description></entry>
       <entry value="242" name="TARGET_CLASS_ORBITAL_DEBRIS"><description>Orbital debris.</description></entry>
       <entry value="243" name="TARGET_CLASS_SPACE_LAUNCH_OBJECT"><description>Launch vehicle or space launch object.</description></entry>
+      <entry value="254" name="TARGET_CLASS_OTHER"><description>Other target class not covered by a more specific entry.</description></entry>
     </enum>
 
     <enum name="TARGET_DOMAIN">
