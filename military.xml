@@ -229,9 +229,9 @@
       <field type="uint16_t" name="confidence"                >Classification or detection confidence scaled from 0 to 10000, where 0 = 0.0 and 10000 = 1.0.</field>
       <field type="uint32_t" name="flags"         enum="TARGET_FLAGS">Target warning and status flags.</field>
       <field type="uint8_t"  name="sensor_type"   enum="TARGET_SENSOR_TYPE">Primary sensor source used for target identification.</field>
-      <field type="uint32_t" name="package_endpoint_ip_1"     >Primary IPv4 endpoint address for target package retrieval, in network byte order. 0 if unused.</field>
-      <field type="uint32_t" name="package_endpoint_ip_2"     >Secondary IPv4 endpoint address for target package retrieval, in network byte order. 0 if unused.</field>
-      <field type="uint32_t" name="package_endpoint_ip_3"     >Third IPv4 endpoint address for target package retrieval, in network byte order. 0 if unused.</field>
+      <field type="uint32_t" name="package_endpoint_ip_1"     >Primary IPv4 endpoint address for target package retrieval, packed as (a&lt;&lt;24)|(b&lt;&lt;16)|(c&lt;&lt;8)|d for address a.b.c.d; for example, 192.168.1.10 is 0xC0A8010A. 0 if unused.</field>
+      <field type="uint32_t" name="package_endpoint_ip_2"     >Secondary IPv4 endpoint address for target package retrieval, packed as (a&lt;&lt;24)|(b&lt;&lt;16)|(c&lt;&lt;8)|d for address a.b.c.d. 0 if unused.</field>
+      <field type="uint32_t" name="package_endpoint_ip_3"     >Third IPv4 endpoint address for target package retrieval, packed as (a&lt;&lt;24)|(b&lt;&lt;16)|(c&lt;&lt;8)|d for address a.b.c.d. 0 if unused.</field>
       <field type="uint16_t" name="package_endpoint_port"     >TCP port for target package retrieval. 0 if no package is associated.</field>
       <field type="char[80]" name="package_path"              >Path component for target package retrieval, null-terminated. Empty if no package is associated.</field>
       <field type="uint8_t"  name="target_class"  enum="TARGET_CLASS">Target classification.</field>
