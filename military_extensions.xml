@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ============================================================================
+  MAVLink-M - downstream / private extension example
+  ============================================================================
+
+  This file is a worked example for implementors that need private, downstream
+  messages alongside the shared MAVLink-M dialect in military.xml.
+
+  The shared dialect reserves 53900-53999 for downstream/private messages. IDs in
+  that block are not assigned by the shared spec and are not interoperable unless
+  the participating systems share the same private ICD. If a message should be
+  broadly reusable, move it into military.xml through the normal shared-spec
+  review process instead of keeping it here.
+
+  This example is intentionally generic:
+    - it includes military.xml so generated bindings see the shared dialect first;
+    - it uses unique example message and enum names to avoid colliding with the
+      shared dialect;
+    - it uses IDs at the low end of the private block;
+    - it keeps the same Distribution A boundary as military.xml.
+
+  Copy this file into a downstream project, replace the example names and fields
+  with the private ICD for that program, and generate that downstream dialect as a
+  separate build artifact. The CI workflow in this repository generates only the
+  shared military.xml dialect.
+  ============================================================================
+-->
+<mavlink>
+  <include>military.xml</include>
+  <dialect>3</dialect>
+
+  <enums>
+    <enum name="MAVLINK_M_PRIVATE_EXAMPLE_STATUS_FLAGS" bitmask="true">
+      <description>Example private status flags. Replace with downstream ICD-defined flags.</description>
+      <entry value="1" name="MAVLINK_M_PRIVATE_EXAMPLE_STATUS_FLAG_READY"><description>Example subsystem is ready.</description></entry>
+      <entry value="2" name="MAVLINK_M_PRIVATE_EXAMPLE_STATUS_FLAG_ACTIVE"><description>Example subsystem is active.</description></entry>
+      <entry value="4" name="MAVLINK_M_PRIVATE_EXAMPLE_STATUS_FLAG_FAULT"><description>Example subsystem has an active fault.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_PRIVATE_EXAMPLE_COMMAND">
+      <description>Example private command selector. Replace with downstream ICD-defined commands.</description>
+      <entry value="0" name="MAVLINK_M_PRIVATE_EXAMPLE_COMMAND_NONE"><description>No command.</description></entry>
+      <entry value="1" name="MAVLINK_M_PRIVATE_EXAMPLE_COMMAND_START"><description>Start the private example operation.</description></entry>
+      <entry value="2" name="MAVLINK_M_PRIVATE_EXAMPLE_COMMAND_STOP"><description>Stop the private example operation.</description></entry>
+    </enum>
+  </enums>
+
+  <messages>
+    <message id="53900" name="MAVLINK_M_PRIVATE_EXAMPLE_STATUS">
+      <description>
+        Example private/downstream status message. Use this pattern for local
+        messages that are meaningful only to systems sharing the same private ICD.
+      </description>
+      <field type="uint64_t" name="time_usec" units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint32_t" name="flags" enum="MAVLINK_M_PRIVATE_EXAMPLE_STATUS_FLAGS">Private example status flags.</field>
+      <field type="uint16_t" name="sequence">Private example sequence number.</field>
+      <field type="uint8_t" name="instance_id">Private example instance identifier. 0 if not applicable.</field>
+    </message>
+
+    <message id="53901" name="MAVLINK_M_PRIVATE_EXAMPLE_CONTROL">
+      <description>
+        Example private/downstream control message. It demonstrates how to pair a
+        command selector with an instance identifier and opaque ICD-defined
+        argument slots without extending any shared message.
+      </description>
+      <field type="uint64_t" name="time_usec" units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint8_t" name="instance_id">Private example instance identifier. 0 = all instances if the private ICD defines broadcast behavior.</field>
+      <field type="uint8_t" name="command" enum="MAVLINK_M_PRIVATE_EXAMPLE_COMMAND">Private example command selector.</field>
+      <field type="float[4]" name="param">Private ICD-defined command parameters. Set unused entries to NaN.</field>
+    </message>
+  </messages>
+</mavlink>

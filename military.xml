@@ -1,4 +1,199 @@
 <?xml version="1.0"?>
+<!--
+  ============================================================================
+  MAVLink-M
+  ============================================================================
+  A military dialect of MAVLink 2. Where the common message set stops at flying
+  the aircraft, this dialect covers what a military platform does once it is
+  overhead: seeing, identifying, deciding, striking, and reporting. It adds
+  messages spanning the full find-fix-track-target-engage-assess sequence -
+  non-kinetic ISR cueing, a persistent track identity that ties an object to
+  every message about it, fire-mission tasking and observed-fire adjustment,
+  two-layer battle damage assessment, electronic safe-and-arm and remote-weapon-
+  station telemetry, multi-store logistics, and loitering-munition control with a
+  human-consent gate.
+
+  Two commitments run through the whole set. The first is that a platform speaking
+  this dialect can be understood by the joint force: its tracks, fires, and
+  friendly reports are shaped to translate cleanly, through a gateway, into the
+  Link 16, VMF, and joint-C2 messages the military already runs on. The second is
+  restraint about what crosses the wire - the messages carry intent and
+  observation, the kind of information a commander or an allied system needs to
+  act, and deliberately stop short of the internal configuration that would turn
+  a telemetry bus into a weapon-programming channel. Read together, the messages
+  describe a platform that is a full participant in the kill chain and an
+  accountable, interoperable one.
+
+  DESIGN PRINCIPLES
+    - Intent, not configuration. Messages carry descriptive intent and
+      observations (fuze mode, requested effect, spotting, damage state), never
+      device-internal configuration such as fuze timing values, laser code
+      values, or weaponeering / CEP performance data.
+    - Kinetic and non-kinetic are separable. ISR cueing (TARGET_CUE) is a
+      distinct message from fires (FIRES), so a consumer distinguishes "observe
+      this" from "engage this" by message ID alone.
+    - Correlation across the chain. A globally-unique 128-bit track identity
+      (TRACK_IDENTITY) threads one object through find, fix, track, target,
+      engage, and assess.
+    - Accountability is a record, not a trigger. TARGET_AUTHORIZATION records a
+      human decision for audit; it is not a weapon-release interlock and must
+      never be treated as one.
+    - Gateway-mappable, not gateway-replacing. The dialect is designed to be
+      translated at a gateway into Link 16 / VMF / OMS-UCI, not to reimplement
+      those standards.
+
+  MESSAGE ID ALLOCATION
+    IDs are grouped by function, with gaps reserved for growth. The upstream
+    MAVLink all.xml allocation table reserves 53000-53999 for this dialect. This
+    file uses the low 53000-53099 window for the initial shared MAVLink-M
+    messages and commands, reserves 53100-53899 for future shared growth, and
+    reserves 53900-53999 for private/downstream implementor-specific messages.
+
+    Track & identity (53000-53009)
+      53000 TRACK_IDENTITY        correlation spine (track UID + ID basis)
+      53001 TARGET_CUE            non-kinetic ISR point-of-interest relay
+      53002 TARGET_HANDOVER       custody transfer between systems
+      53003 PARTICIPANT_POSITION  friendly PPLI-style self-report (joint picture)
+      53004 MAVLINK_M_ACK         generic delivery/acceptance acknowledgment
+
+    Targeting geometry (53010-53019)
+      53010 TARGET                individual target (position, class, package
+                                  metadata, PRF slot, TLE category, DMPI ref)
+      53011 TARGET_SET_COORD      circular target-set area
+      53012 TARGET_BOX_COORD      quadrilateral target-set area
+      53013 TARGET_AUTHORIZATION  accountability attestation (record, NOT a command)
+
+    Fires & effects (53020-53029)
+      53020 FIRES                 fire mission + call-for-fire method of engagement
+      53021 SPLASH_CORRECTION     observed-fire spotting (deviation/range/HOB)
+      53022 BATTLE_DAMAGE_ASSESSMENT  physical + functional damage, reattack
+      53023 ENGAGEMENT_DIRECTIVE  abort / check-fire / resume / re-target
+      53024 CALL_FOR_FIRE         full call-for-fire method elements (VMF K02.4)
+
+    ESAD & stores (53030-53039)
+      53030 ESAD_STATE            safe/arm telemetry incl. pin/delay/trigger status
+      53031 ESAD_ARMING           authenticated arm/disarm command
+      53032 ESAD_CONFIG           authenticated coarse safe/arm mode config
+      53033 STORE_STATUS          per-store go/no-go release roll-up
+      53034 STORE_SENSOR_STATUS   per-sensor health for a store's decel system
+      53035 STORE_MUNITION        descriptive munition inventory/status (no fuze config)
+      53036 LOITER_MUNITION_CONTROL  loitering-munition control + consent handshake
+
+    Remote weapon station (53040-53049)
+      53040 RWS_POSE              weapon-station pose relative to host
+      53041 RWS_STATE             weapon-station arming/weapon state
+
+    C2 & tasking (53050-53059)
+      53050 SENSOR_TASKING        inbound UCI-style sensor/payload tasking
+
+    CAS & terminal control (53060-53069)
+      53060 CAS_9LINE             close-air-support 9-line brief
+      53061 TERMINAL_CONTROL      terminal attack control handshake
+
+    Official shared growth
+      53062-53089 reserved for future shared messages in the initial compact
+      block, 53094-53099 reserved for future shared MAV_CMD entries, and
+      53100-53899 reserved for future shared MAVLink-M allocations.
+
+    MAV_CMD entries (53090-53093):
+      STORE_ARM, STORE_RUN_BIT, STORE_REQUEST_STATUS, STORE_SET_DECEL_THRESHOLD
+
+    Private/downstream implementation block (53900-53999)
+      Reserved for unshared implementor-specific messages carried in downstream
+      forks or local deployments. These IDs are not assigned by the shared spec
+      and are not interoperable unless participating systems share the same
+      private ICD. Messages intended for broad reuse must be promoted into the
+      shared growth range above.
+
+  DISTRIBUTION AND CLASSIFICATION BOUNDARY
+    The dialect is designed to be maintainable at Distribution Statement A by
+    carrying descriptive intent and observations only.
+      Carried:     fuze MODE and airburst intent; munition family/class;
+                   spotting values; method-of-engagement enums; mission type;
+                   danger-close flag; target-location-error category label; CDE
+                   level number; PID status; BDA state; affiliation; laser-code
+                   SLOT (that a code is assigned, and which platform lases).
+      Not carried: actual fuze timing values; actual laser PRF code values;
+                   radar/EW configuration; weaponeering / JMEM / firing-table
+                   data; specific CEP / mensuration performance figures; a
+                   precise mensurated DMPI tied to a weapon solution.
+    The tables that translate this dialect into the controlled machine formats
+    (MIL-STD-6017 VMF, MIL-STD-6016 / STANAG 5516 Link 16) live in a separate
+    controlled Interface Control Document, not in this dialect.
+
+  FIELD CONVENTIONS
+    - Enums reserve value 0 for an UNKNOWN / UNSPECIFIED / NONE state, so a
+      zero-filled (unset, trailing-zero-truncated) field never decodes as a
+      substantive default the sender did not choose.
+    - Numeric sentinels are out of range, never a legal value: lat/lon use
+      INT32_MAX for "not provided" (0,0 is a valid point); headings/attitude use
+      0xFFFF (0 is a valid bearing); altitude uses NaN; counts/durations use 0
+      only where 0 is not itself legal.
+    - Two-state fields use a plain uint8 boolean for permanently-binary facts and
+      an enum where the field is a category that could gain a third value and
+      benefits from an explicit UNSPECIFIED state.
+
+  COORDINATE DATUM
+    All altitudes are MSL (mean sea level). Joint networks often pass targeting
+    altitude as HAE (height above ellipsoid); a gateway runs a local geoid model
+    (EGM96/EGM2008) to convert HAE<->MSL. This is a gateway responsibility, not a
+    dialect field.
+
+  TRANSPORT AND BRIDGING
+    - The dialect is transport-agnostic and describes uplink intent/status, not
+      component-bus mechanics. It is the GCS / edge / joint-facing language, and
+      is used directly over native MAVLink transports (UART/serial, UDP).
+    - Where a device (e.g. an ESAD) sits on a DroneCAN bus, an FMU or bridge node
+      translates between the DroneCAN component messages and these MAVLink-M
+      messages. MAVLink-M is the stable abstraction; component-bus definitions
+      map onto it. Enum semantics and value assignments must be kept aligned
+      across the two definitions by the implementer.
+    - Authentication is per-bus. The arming_challenge_hash authenticates the
+      MAVLink leg only; the FMU/bridge is the trust-translation point into the
+      component-bus domain.
+
+  SAFETY BOUNDARIES (normative for implementers)
+    - TARGET_AUTHORIZATION is a descriptive record and MUST NOT be treated as a
+      release interlock. Release authority resides in the crewed C2 system.
+      Token anti-spoofing is a C2 / gateway / secure-enclave responsibility.
+    - LOITER_MUNITION_CONTROL requires a human-in-the-loop consent handshake; the
+      consent state is a hard gate, not advisory.
+    - ESAD_CONFIG and the selectable WARHEAD_MODE set only coarse, device-defined
+      SAFE/ARM modes. They MUST NOT be widened to carry a continuous distance, a
+      fuze timing / inter-stage delay, or height-of-burst configuration; that is
+      device-internal and belongs on the component bus, not this dialect.
+    - ATR confidence is carried as a raw score plus a model id; the coarse tier is
+      advisory display only and MUST NOT be an automated rules-of-engagement input.
+
+  JOINT INTEROPERABILITY (implementer note)
+    The stanag_identity, environment, track-number, and PPLI enums, the
+    external_track_number fields, and PARTICIPANT_POSITION are structural
+    carriers. The value codes, track-number encodings, and URNs are reconciled
+    per-vendor against the actual (versioned, partly distribution-restricted)
+    joint specs in the gateway ICD before interoperability testing.
+
+  NATO / ALLIED STANDARDS
+    Several elements are shaped for NATO/allied interoperability, alongside the
+    US joint standards, so a gateway can translate into allied as well as US
+    networks. The dialect carries the structure and the descriptive intent;
+    actual allied machine-format codes are reconciled in the gateway ICD.
+      - STANAG 5516 (the NATO ratification of Link 16 / TADIL-J): TRACK_IDENTITY
+        environment / battle dimension, standard identity, external track number,
+        and PARTICIPANT_POSITION (PPLI-style self-report) are shaped to map to the
+        J-series track and PPLI messages.
+      - STANAG 1034 (Allied Naval Fire Support spotting procedures): the
+        SPLASH_CORRECTION deviation / range / height-of-burst spotting taxonomy is
+        aligned to allied naval spotting, alongside ATP 3-09.30 and VMF K02.22.
+      - APP-6 / MIL-STD-2525 (NATO Joint Military Symbology and its US
+        counterpart): the stanag_identity affiliation (SIDC digit 4) and
+        sidc_context reality field (SIDC digit 3) on TRACK_IDENTITY follow the
+        symbology standard-identity coding so a track renders correctly on an
+        allied common operating picture.
+    These are alignment points, not a claim of certified conformance: the value
+    codes are reconciled against the current, partly distribution-restricted
+    STANAG/APP editions in the controlled ICD before any interoperability test.
+  ============================================================================
+-->
 <mavlink>
   <include>common.xml</include>
   <version>1</version>
@@ -6,98 +201,1012 @@
 
   <enums>
 
-    <enum name="TARGET_CLASS">
-      <description>Classification of a ground target.</description>
-      <entry value="1"  name="TARGET_CLASS_MBT_1">  <description>Main battle tank type 1.</description></entry>
-      <entry value="2"  name="TARGET_CLASS_MBT_2">  <description>Main battle tank type 2.</description></entry>
-      <entry value="3"  name="TARGET_CLASS_MBT_3">  <description>Main battle tank type 3.</description></entry>
-      <entry value="4"  name="TARGET_CLASS_MBT_4">  <description>Main battle tank type 4.</description></entry>
-      <entry value="5"  name="TARGET_CLASS_MBT_5">  <description>Main battle tank type 5.</description></entry>
-      <entry value="6"  name="TARGET_CLASS_MBT_6">  <description>Main battle tank type 6.</description></entry>
-      <entry value="7"  name="TARGET_CLASS_MBT_7">  <description>Main battle tank type 7.</description></entry>
-      <entry value="8"  name="TARGET_CLASS_MBT_8">  <description>Main battle tank type 8.</description></entry>
-      <entry value="9"  name="TARGET_CLASS_MBT_9">  <description>Main battle tank type 9.</description></entry>
-      <entry value="10" name="TARGET_CLASS_IFV_1">  <description>Infantry fighting vehicle type 1.</description></entry>
-      <entry value="11" name="TARGET_CLASS_IFV_2">  <description>Infantry fighting vehicle type 2.</description></entry>
-      <entry value="12" name="TARGET_CLASS_IFV_3">  <description>Infantry fighting vehicle type 3.</description></entry>
-      <entry value="13" name="TARGET_CLASS_IFV_4">  <description>Infantry fighting vehicle type 4.</description></entry>
-      <entry value="14" name="TARGET_CLASS_IFV_5">  <description>Infantry fighting vehicle type 5.</description></entry>
-      <entry value="15" name="TARGET_CLASS_IFV_6">  <description>Infantry fighting vehicle type 6.</description></entry>
-      <entry value="16" name="TARGET_CLASS_IFV_7">  <description>Infantry fighting vehicle type 7.</description></entry>
-      <entry value="17" name="TARGET_CLASS_IFV_8">  <description>Infantry fighting vehicle type 8.</description></entry>
-      <entry value="18" name="TARGET_CLASS_IFV_9">  <description>Infantry fighting vehicle type 9.</description></entry>
-      <entry value="190" name="TARGET_CLASS_ROAD"> <description>Road or linear infrastructure.</description></entry>
-      <entry value="200" name="TARGET_CLASS_STRUCTURE"><description>Structure or building.</description></entry>
+    <enum name="MAVLINK_M_TARGET_CLASS">
+      <description>Classification of a target across physical and non-physical domains.</description>
+      <entry value="0" name="MAVLINK_M_TARGET_CLASS_UNKNOWN"><description>Unknown target class.</description></entry>
+      <entry value="1" name="MAVLINK_M_TARGET_CLASS_GROUND_VEHICLE_UNKNOWN"><description>Unknown ground vehicle.</description></entry>
+      <entry value="2" name="MAVLINK_M_TARGET_CLASS_MAIN_BATTLE_TANK"><description>Main battle tank.</description></entry>
+      <entry value="3" name="MAVLINK_M_TARGET_CLASS_INFANTRY_FIGHTING_VEHICLE"><description>Infantry fighting vehicle.</description></entry>
+      <entry value="4" name="MAVLINK_M_TARGET_CLASS_ARMORED_PERSONNEL_CARRIER"><description>Armored personnel carrier.</description></entry>
+      <entry value="5" name="MAVLINK_M_TARGET_CLASS_LIGHT_TACTICAL_VEHICLE"><description>Light tactical vehicle.</description></entry>
+      <entry value="6" name="MAVLINK_M_TARGET_CLASS_LOGISTICS_VEHICLE"><description>Logistics, cargo, or supply vehicle.</description></entry>
+      <entry value="7" name="MAVLINK_M_TARGET_CLASS_ARTILLERY_TOWED"><description>Towed artillery system.</description></entry>
+      <entry value="8" name="MAVLINK_M_TARGET_CLASS_ARTILLERY_SELF_PROPELLED"><description>Self-propelled artillery system.</description></entry>
+      <entry value="9" name="MAVLINK_M_TARGET_CLASS_MLRS"><description>Multiple launch rocket system.</description></entry>
+      <entry value="10" name="MAVLINK_M_TARGET_CLASS_AIR_DEFENSE_SYSTEM"><description>Ground-based air defense system.</description></entry>
+      <entry value="11" name="MAVLINK_M_TARGET_CLASS_RADAR_VEHICLE"><description>Vehicle-mounted radar system.</description></entry>
+      <entry value="12" name="MAVLINK_M_TARGET_CLASS_EW_VEHICLE"><description>Electronic warfare vehicle.</description></entry>
+      <entry value="13" name="MAVLINK_M_TARGET_CLASS_COMMAND_POST_VEHICLE"><description>Command post or command vehicle.</description></entry>
+      <entry value="14" name="MAVLINK_M_TARGET_CLASS_ENGINEERING_VEHICLE"><description>Combat engineering or breaching vehicle.</description></entry>
+      <entry value="15" name="MAVLINK_M_TARGET_CLASS_UNMANNED_GROUND_VEHICLE"><description>Unmanned ground vehicle.</description></entry>
+      <entry value="50" name="MAVLINK_M_TARGET_CLASS_PERSONNEL_UNKNOWN"><description>Unknown personnel target.</description></entry>
+      <entry value="51" name="MAVLINK_M_TARGET_CLASS_PERSONNEL_SINGLE"><description>Single person.</description></entry>
+      <entry value="52" name="MAVLINK_M_TARGET_CLASS_PERSONNEL_GROUP"><description>Group of people.</description></entry>
+      <entry value="53" name="MAVLINK_M_TARGET_CLASS_WEAPON_CREW"><description>Weapon crew.</description></entry>
+      <entry value="80" name="MAVLINK_M_TARGET_CLASS_AIRCRAFT_UNKNOWN"><description>Unknown aircraft.</description></entry>
+      <entry value="81" name="MAVLINK_M_TARGET_CLASS_FIXED_WING_AIRCRAFT"><description>Fixed-wing aircraft.</description></entry>
+      <entry value="82" name="MAVLINK_M_TARGET_CLASS_ROTARY_WING_AIRCRAFT"><description>Rotary-wing aircraft.</description></entry>
+      <entry value="83" name="MAVLINK_M_TARGET_CLASS_UAS_FIXED_WING"><description>Fixed-wing unmanned aircraft.</description></entry>
+      <entry value="84" name="MAVLINK_M_TARGET_CLASS_UAS_MULTIROTOR"><description>Multirotor unmanned aircraft.</description></entry>
+      <entry value="85" name="MAVLINK_M_TARGET_CLASS_LOITERING_MUNITION"><description>Loitering munition.</description></entry>
+      <entry value="86" name="MAVLINK_M_TARGET_CLASS_MISSILE"><description>Missile or rocket in flight.</description></entry>
+      <entry value="87" name="MAVLINK_M_TARGET_CLASS_PROJECTILE"><description>Projectile or shell in flight.</description></entry>
+      <entry value="120" name="MAVLINK_M_TARGET_CLASS_VESSEL_UNKNOWN"><description>Unknown surface vessel.</description></entry>
+      <entry value="121" name="MAVLINK_M_TARGET_CLASS_WARSHIP"><description>Military surface vessel.</description></entry>
+      <entry value="122" name="MAVLINK_M_TARGET_CLASS_PATROL_BOAT"><description>Patrol boat or small combatant.</description></entry>
+      <entry value="123" name="MAVLINK_M_TARGET_CLASS_LANDING_CRAFT"><description>Landing craft.</description></entry>
+      <entry value="124" name="MAVLINK_M_TARGET_CLASS_LOGISTICS_VESSEL"><description>Logistics or support vessel.</description></entry>
+      <entry value="125" name="MAVLINK_M_TARGET_CLASS_CIVILIAN_VESSEL"><description>Civilian surface vessel.</description></entry>
+      <entry value="126" name="MAVLINK_M_TARGET_CLASS_UNMANNED_SURFACE_VESSEL"><description>Unmanned surface vessel.</description></entry>
+      <entry value="160" name="MAVLINK_M_TARGET_CLASS_SUBSURFACE_UNKNOWN"><description>Unknown subsurface target.</description></entry>
+      <entry value="161" name="MAVLINK_M_TARGET_CLASS_SUBMARINE"><description>Submarine.</description></entry>
+      <entry value="162" name="MAVLINK_M_TARGET_CLASS_UNMANNED_UNDERWATER_VEHICLE"><description>Unmanned underwater vehicle.</description></entry>
+      <entry value="163" name="MAVLINK_M_TARGET_CLASS_MINE"><description>Naval mine or underwater explosive hazard.</description></entry>
+      <entry value="190" name="MAVLINK_M_TARGET_CLASS_ROAD"><description>Road or linear infrastructure.</description></entry>
+      <entry value="191" name="MAVLINK_M_TARGET_CLASS_BRIDGE"><description>Bridge.</description></entry>
+      <entry value="192" name="MAVLINK_M_TARGET_CLASS_RAIL"><description>Railway or rail infrastructure.</description></entry>
+      <entry value="193" name="MAVLINK_M_TARGET_CLASS_RUNWAY"><description>Runway or airfield surface.</description></entry>
+      <entry value="194" name="MAVLINK_M_TARGET_CLASS_BUILDING"><description>Building or structure.</description></entry>
+      <entry value="195" name="MAVLINK_M_TARGET_CLASS_DEPOT"><description>Depot, storage site, or logistics node.</description></entry>
+      <entry value="196" name="MAVLINK_M_TARGET_CLASS_POWER_INFRASTRUCTURE"><description>Power generation or distribution infrastructure.</description></entry>
+      <entry value="197" name="MAVLINK_M_TARGET_CLASS_COMMUNICATIONS_INFRASTRUCTURE"><description>Communications infrastructure.</description></entry>
+      <entry value="220" name="MAVLINK_M_TARGET_CLASS_EMITTER_UNKNOWN"><description>Unknown electromagnetic emitter.</description></entry>
+      <entry value="221" name="MAVLINK_M_TARGET_CLASS_RADAR_EMITTER"><description>Radar emitter.</description></entry>
+      <entry value="222" name="MAVLINK_M_TARGET_CLASS_JAMMER"><description>Jammer or interference source.</description></entry>
+      <entry value="223" name="MAVLINK_M_TARGET_CLASS_COMMUNICATIONS_NODE"><description>Communications node.</description></entry>
+      <entry value="224" name="MAVLINK_M_TARGET_CLASS_NETWORK_NODE"><description>Network or cyber node.</description></entry>
+      <entry value="240" name="MAVLINK_M_TARGET_CLASS_SPACE_OBJECT_UNKNOWN"><description>Unknown space object.</description></entry>
+      <entry value="241" name="MAVLINK_M_TARGET_CLASS_SATELLITE"><description>Satellite.</description></entry>
+      <entry value="242" name="MAVLINK_M_TARGET_CLASS_ORBITAL_DEBRIS"><description>Orbital debris.</description></entry>
+      <entry value="243" name="MAVLINK_M_TARGET_CLASS_SPACE_LAUNCH_OBJECT"><description>Launch vehicle or space launch object.</description></entry>
+      <entry value="254" name="MAVLINK_M_TARGET_CLASS_OTHER"><description>Other target class not covered by a more specific entry.</description></entry>
     </enum>
 
-    <enum name="TARGET_FORCE">
+    <enum name="MAVLINK_M_TARGET_DOMAIN">
+      <description>Primary operating domain of the target.</description>
+      <entry value="0" name="MAVLINK_M_TARGET_DOMAIN_UNKNOWN"><description>Unknown target domain.</description></entry>
+      <entry value="1" name="MAVLINK_M_TARGET_DOMAIN_GROUND"><description>Ground or land surface target.</description></entry>
+      <entry value="2" name="MAVLINK_M_TARGET_DOMAIN_AIR"><description>Airborne target.</description></entry>
+      <entry value="3" name="MAVLINK_M_TARGET_DOMAIN_MARITIME_SURFACE"><description>Maritime surface target.</description></entry>
+      <entry value="4" name="MAVLINK_M_TARGET_DOMAIN_SUBSURFACE"><description>Submerged or underwater target.</description></entry>
+      <entry value="5" name="MAVLINK_M_TARGET_DOMAIN_SPACE"><description>Space target or orbital object.</description></entry>
+      <entry value="6" name="MAVLINK_M_TARGET_DOMAIN_CYBER"><description>Cyber, network, or digital infrastructure target.</description></entry>
+      <entry value="7" name="MAVLINK_M_TARGET_DOMAIN_ELECTROMAGNETIC"><description>Electromagnetic emitter, jammer, radar, or spectrum target.</description></entry>
+      <entry value="8" name="MAVLINK_M_TARGET_DOMAIN_INFRASTRUCTURE"><description>Fixed infrastructure target spanning one or more physical domains.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_TARGET_ENTITY_2525D">
+      <description>
+        Target entity class, representative subset of the MIL-STD-2525D
+        (Distribution A) land entity library. Note 2525D has no separate IFV
+        entity; an IFV renders as ARMORED_FIGHTING_VEHICLE. Pin the 2525D version
+        to the target 6017 baseline for lossless round-trip.
+      </description>
+      <entry value="0"  name="MAVLINK_M_ENT_UNKNOWN"><description>Unknown entity.</description></entry>
+      <entry value="1"  name="MAVLINK_M_ENT_TANK_LIGHT"><description>Tank (light).</description></entry>
+      <entry value="2"  name="MAVLINK_M_ENT_TANK_MEDIUM"><description>Tank (medium).</description></entry>
+      <entry value="3"  name="MAVLINK_M_ENT_TANK_HEAVY"><description>Tank (heavy); MBT maps here.</description></entry>
+      <entry value="4"  name="MAVLINK_M_ENT_ARMORED_FIGHTING_VEHICLE"><description>Armored fighting vehicle; IFV renders here.</description></entry>
+      <entry value="5"  name="MAVLINK_M_ENT_APC"><description>Armored personnel carrier.</description></entry>
+      <entry value="6"  name="MAVLINK_M_ENT_HOWITZER"><description>Howitzer.</description></entry>
+      <entry value="7"  name="MAVLINK_M_ENT_MRL"><description>Multiple rocket launcher.</description></entry>
+      <entry value="8"  name="MAVLINK_M_ENT_MORTAR"><description>Mortar.</description></entry>
+      <entry value="9"  name="MAVLINK_M_ENT_ADA_GUN"><description>Air-defense gun (AAA).</description></entry>
+      <entry value="10" name="MAVLINK_M_ENT_ADA_MISSILE"><description>Air-defense missile launcher (SAM; TLAR/TELAR).</description></entry>
+      <entry value="11" name="MAVLINK_M_ENT_ANTITANK"><description>Antitank gun or missile launcher.</description></entry>
+      <entry value="12" name="MAVLINK_M_ENT_SSM_LAUNCHER"><description>Surface-to-surface missile launcher.</description></entry>
+      <entry value="13" name="MAVLINK_M_ENT_RADAR"><description>Radar (sensor entity).</description></entry>
+      <entry value="14" name="MAVLINK_M_ENT_C2_NODE"><description>Command-and-control node or command post.</description></entry>
+      <entry value="15" name="MAVLINK_M_ENT_ENGINEER_VEHICLE"><description>Engineer vehicle.</description></entry>
+      <entry value="16" name="MAVLINK_M_ENT_POL"><description>Petroleum/oil/lubricant site (logistics).</description></entry>
+      <entry value="17" name="MAVLINK_M_ENT_AMMO"><description>Ammunition site (logistics).</description></entry>
+      <entry value="18" name="MAVLINK_M_ENT_BRIDGE"><description>Bridge.</description></entry>
+      <entry value="19" name="MAVLINK_M_ENT_ROUTE"><description>Road or route.</description></entry>
+      <entry value="20" name="MAVLINK_M_ENT_INFANTRY"><description>Infantry unit.</description></entry>
+      <entry value="21" name="MAVLINK_M_ENT_FIELD_ARTILLERY"><description>Field artillery unit.</description></entry>
+      <entry value="22" name="MAVLINK_M_ENT_EW_MI"><description>Electronic warfare or military intelligence unit.</description></entry>
+      <entry value="23" name="MAVLINK_M_ENT_LAND_MINE_IED"><description>Land mine or IED.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_TARGET_FORCE">
       <description>Force affiliation of a target.</description>
-      <entry value="0"   name="TARGET_FORCE_UNKNOWN">      <description>Force affiliation unknown.</description></entry>
-      <entry value="10"  name="TARGET_FORCE_NEUTRAL">      <description>Neutral force.</description></entry>
-      <entry value="20"  name="TARGET_FORCE_FRIENDLY">     <description>Friendly force.</description></entry>
-      <entry value="30"  name="TARGET_FORCE_FOE">          <description>Enemy force.</description></entry>
-      <entry value="250" name="TARGET_FORCE_EXTRATERRESTRIAL"><description>Extraterrestrial / non-human origin.</description></entry>
+      <entry value="0"   name="MAVLINK_M_TARGET_FORCE_UNKNOWN">  <description>Force affiliation unknown.</description></entry>
+      <entry value="10"  name="MAVLINK_M_TARGET_FORCE_NEUTRAL">  <description>Neutral force.</description></entry>
+      <entry value="20"  name="MAVLINK_M_TARGET_FORCE_FRIENDLY"> <description>Friendly force.</description></entry>
+      <entry value="30"  name="MAVLINK_M_TARGET_FORCE_FOE">      <description>Enemy force.</description></entry>
+      <entry value="250" name="MAVLINK_M_TARGET_FORCE_EXTRATERRESTRIAL"><description>Extraterrestrial / non-human origin.</description></entry>
     </enum>
 
-    <enum name="ESAD_ARMING_STATUS">
+    <enum name="MAVLINK_M_TARGET_PACKAGE_TRANSPORT">
+      <description>Transport protocol used to retrieve an externally hosted target package.</description>
+      <entry value="0" name="MAVLINK_M_TARGET_PACKAGE_TRANSPORT_UNKNOWN"><description>Unknown or no target package transport.</description></entry>
+      <entry value="1" name="MAVLINK_M_TARGET_PACKAGE_TRANSPORT_HTTP"><description>HTTP target package transport.</description></entry>
+      <entry value="2" name="MAVLINK_M_TARGET_PACKAGE_TRANSPORT_HTTPS"><description>HTTPS target package transport.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_TARGET_FLAGS" bitmask="true">
+      <description>Target warning and status flags.</description>
+      <entry value="1"   name="MAVLINK_M_TARGET_FLAG_AUTHORIZATION_REQUIRED"><description>Authorization is required before action can be taken.</description></entry>
+      <entry value="2"   name="MAVLINK_M_TARGET_FLAG_GNSS_DEGRADED"><description>GNSS quality was degraded when the target was generated.</description></entry>
+      <entry value="4"   name="MAVLINK_M_TARGET_FLAG_LINK_DEGRADED"><description>Link quality was degraded when the target was generated.</description></entry>
+      <entry value="8"   name="MAVLINK_M_TARGET_FLAG_LOW_CONFIDENCE"><description>Target confidence is low.</description></entry>
+      <entry value="16"  name="MAVLINK_M_TARGET_FLAG_LOW_IMAGE_QUALITY"><description>Associated imagery quality is low.</description></entry>
+      <entry value="32"  name="MAVLINK_M_TARGET_FLAG_MOVING"><description>Target is assessed to be moving.</description></entry>
+      <entry value="64"  name="MAVLINK_M_TARGET_FLAG_STALE"><description>Target data may be stale.</description></entry>
+      <entry value="128" name="MAVLINK_M_TARGET_FLAG_INTEGRITY_PRESENT"><description>Associated target package contains integrity material.</description></entry>
+      <entry value="256" name="MAVLINK_M_TARGET_FLAG_MANUAL_DESIGNATION"><description>Target was designated manually by an operator.</description></entry>
+      <entry value="512" name="MAVLINK_M_TARGET_FLAG_AUTONOMOUS_DETECTION"><description>Target was detected or designated autonomously.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_TARGET_SENSOR_TYPE">
+      <description>Primary sensor source used for target identification.</description>
+      <entry value="0" name="MAVLINK_M_TARGET_SENSOR_TYPE_UNKNOWN"><description>Unknown or unspecified target identification sensor.</description></entry>
+      <entry value="1" name="MAVLINK_M_TARGET_SENSOR_TYPE_EO"><description>Electro-optical sensor.</description></entry>
+      <entry value="2" name="MAVLINK_M_TARGET_SENSOR_TYPE_IR"><description>Infrared sensor.</description></entry>
+      <entry value="3" name="MAVLINK_M_TARGET_SENSOR_TYPE_ACOUSTIC"><description>Acoustic sensor.</description></entry>
+      <entry value="4" name="MAVLINK_M_TARGET_SENSOR_TYPE_RADAR"><description>Radar sensor.</description></entry>
+      <entry value="5" name="MAVLINK_M_TARGET_SENSOR_TYPE_RF"><description>RF sensor.</description></entry>
+      <entry value="6" name="MAVLINK_M_TARGET_SENSOR_TYPE_FUSED"><description>Multiple sensor sources were fused for target identification.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_TAC_TYPE">
+      <description>
+        Type of terminal attack control, a defined construct in JP 3-09.3 (Close
+        Air Support). The three types are distinguished by what the terminal
+        controller can visually acquire before granting clearance.
+      </description>
+      <entry value="0" name="MAVLINK_M_TAC_TYPE_NONE"><description>Not under terminal attack control.</description></entry>
+      <entry value="1" name="MAVLINK_M_TAC_TYPE_1"><description>Type 1: controller must visually acquire both the attacking aircraft and the target before clearance.</description></entry>
+      <entry value="2" name="MAVLINK_M_TAC_TYPE_2"><description>Type 2: controller clears an individual attack without visually acquiring the aircraft and/or target at release.</description></entry>
+      <entry value="3" name="MAVLINK_M_TAC_TYPE_3"><description>Type 3: controller grants clearance for multiple attacks within a defined engagement/period under stated restrictions.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_CAS_CLEARANCE">
+      <description>CAS clearance / abort handshake verbs (JP 3-09.3). Human-authority instruments.</description>
+      <entry value="0" name="MAVLINK_M_CAS_NONE"><description>No clearance state.</description></entry>
+      <entry value="1" name="MAVLINK_M_CAS_CONTINUE"><description>Continue.</description></entry>
+      <entry value="2" name="MAVLINK_M_CAS_CLEARED_HOT"><description>Cleared hot.</description></entry>
+      <entry value="3" name="MAVLINK_M_CAS_ABORT"><description>Abort.</description></entry>
+      <entry value="4" name="MAVLINK_M_CAS_CEASE_FIRE"><description>Cease fire.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_AIRCRAFT_CALL">
+      <description>Attacking-aircraft status calls (JFIRE 9-line flow).</description>
+      <entry value="0" name="MAVLINK_M_ACFT_CALL_NONE"><description>No call.</description></entry>
+      <entry value="1" name="MAVLINK_M_ACFT_CALL_IN"><description>IN (commencing attack run).</description></entry>
+      <entry value="2" name="MAVLINK_M_ACFT_CALL_OFF"><description>OFF (off target).</description></entry>
+      <entry value="3" name="MAVLINK_M_ACFT_CALL_VISUAL"><description>VISUAL (sees friendlies).</description></entry>
+      <entry value="4" name="MAVLINK_M_ACFT_CALL_TALLY"><description>TALLY (sees target).</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_MARK_TYPE">
+      <description>Type of target mark / terminal guidance (9-line line 7).</description>
+      <entry value="0" name="MAVLINK_M_MARK_NONE"><description>No mark.</description></entry>
+      <entry value="1" name="MAVLINK_M_MARK_WP"><description>White phosphorus mark.</description></entry>
+      <entry value="2" name="MAVLINK_M_MARK_ILLUM"><description>Illumination mark.</description></entry>
+      <entry value="3" name="MAVLINK_M_MARK_LASER"><description>Laser designation (code carried as slot, not value).</description></entry>
+      <entry value="4" name="MAVLINK_M_MARK_IR"><description>IR pointer.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_ORDNANCE_DELIVERY">
+      <description>Bomb-on-coordinate vs bomb-on-target delivery intent.</description>
+      <entry value="0" name="MAVLINK_M_DELIVERY_UNSPECIFIED"><description>Unspecified.</description></entry>
+      <entry value="1" name="MAVLINK_M_DELIVERY_BOC"><description>Bomb on coordinate.</description></entry>
+      <entry value="2" name="MAVLINK_M_DELIVERY_BOT"><description>Bomb on target.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_ESAD_ARMING_STATUS">
       <description>ESAD arming state.</description>
-      <entry value="0" name="ESAD_ARMING_DISARMED">  <description>System is disarmed.</description></entry>
-      <entry value="1" name="ESAD_ARMING_ARMED">     <description>System is armed.</description></entry>
-      <entry value="2" name="ESAD_ARMING_FAULT">     <description>Arming fault detected.</description></entry>
+      <entry value="0" name="MAVLINK_M_ESAD_ARMING_DISARMED">  <description>System is disarmed.</description></entry>
+      <entry value="1" name="MAVLINK_M_ESAD_ARMING_ARMED">     <description>System is armed.</description></entry>
+      <entry value="2" name="MAVLINK_M_ESAD_ARMING_FAULT">     <description>Arming fault detected.</description></entry>
     </enum>
 
-    <enum name="ESAD_MUNITION_STATUS">
+    <enum name="MAVLINK_M_ESAD_MUNITION_STATUS">
       <description>ESAD munition readiness state.</description>
-      <entry value="0" name="ESAD_MUNITION_NOT_PRESENT"><description>No munition present.</description></entry>
-      <entry value="1" name="ESAD_MUNITION_PRESENT">    <description>Munition present and not ready.</description></entry>
-      <entry value="2" name="ESAD_MUNITION_READY">      <description>Munition present and ready.</description></entry>
-      <entry value="3" name="ESAD_MUNITION_FAULT">      <description>Munition fault detected.</description></entry>
+      <entry value="0" name="MAVLINK_M_ESAD_MUNITION_NOT_PRESENT"><description>No munition present.</description></entry>
+      <entry value="1" name="MAVLINK_M_ESAD_MUNITION_PRESENT">    <description>Munition present and not ready.</description></entry>
+      <entry value="2" name="MAVLINK_M_ESAD_MUNITION_READY">      <description>Munition present and ready.</description></entry>
+      <entry value="3" name="MAVLINK_M_ESAD_MUNITION_FAULT">      <description>Munition fault detected.</description></entry>
     </enum>
 
-    <enum name="ESAD_IGNITION_STATUS">
+    <enum name="MAVLINK_M_ESAD_IGNITION_STATUS">
       <description>ESAD ignition circuit state.</description>
-      <entry value="0" name="ESAD_IGNITION_OPEN">    <description>Ignition circuit open.</description></entry>
-      <entry value="1" name="ESAD_IGNITION_CLOSED">  <description>Ignition circuit closed.</description></entry>
-      <entry value="2" name="ESAD_IGNITION_FIRED">   <description>Ignition has fired.</description></entry>
-      <entry value="3" name="ESAD_IGNITION_FAULT">   <description>Ignition circuit fault.</description></entry>
+      <entry value="0" name="MAVLINK_M_ESAD_IGNITION_OPEN">    <description>Ignition circuit open.</description></entry>
+      <entry value="1" name="MAVLINK_M_ESAD_IGNITION_CLOSED">  <description>Ignition circuit closed.</description></entry>
+      <entry value="2" name="MAVLINK_M_ESAD_IGNITION_FIRED">   <description>Ignition has fired.</description></entry>
+      <entry value="3" name="MAVLINK_M_ESAD_IGNITION_FAULT">   <description>Ignition circuit fault.</description></entry>
     </enum>
 
-    <enum name="ESAD_FAULT_FLAGS" bitmask="true">
-      <description>ESAD fault flag bitmask.</description>
-      <entry value="1"  name="ESAD_FAULT_WIRING">           <description>Wiring fault detected.</description></entry>
-      <entry value="2"  name="ESAD_FAULT_POWER_GLITCH">     <description>Power supply glitch detected.</description></entry>
-      <entry value="4"  name="ESAD_FAULT_SIGNAL_INTEGRITY"> <description>Signal integrity fault detected.</description></entry>
-      <entry value="8"  name="ESAD_FAULT_SENSOR_ACC">       <description>Accelerometer sensor failure.</description></entry>
-      <entry value="16" name="ESAD_FAULT_SENSOR_LIDAR">     <description>LIDAR sensor failure.</description></entry>
+    <enum name="MAVLINK_M_ESAD_FAULT_FLAGS" bitmask="true">
+      <description>
+        ESAD fault flag bitmask. Scope is ESAD-internal faults only.
+        Deceleration/landing sensor health is reported separately via
+        STORE_SENSOR_STATUS and is not represented here.
+      </description>
+      <entry value="1"  name="MAVLINK_M_ESAD_FAULT_WIRING">          <description>Wiring fault detected.</description></entry>
+      <entry value="2"  name="MAVLINK_M_ESAD_FAULT_POWER_GLITCH">    <description>Power supply glitch detected.</description></entry>
+      <entry value="4"  name="MAVLINK_M_ESAD_FAULT_SIGNAL_INTEGRITY"><description>Signal integrity fault detected.</description></entry>
     </enum>
 
-    <enum name="ESAD_ARMING_REQUEST">
+    <enum name="MAVLINK_M_ESAD_ARMING_REQUEST">
       <description>ESAD arming command.</description>
-      <entry value="0" name="ESAD_REQUEST_DISARM"><description>Request disarm.</description></entry>
-      <entry value="1" name="ESAD_REQUEST_ARM">   <description>Request arm.</description></entry>
+      <entry value="0" name="MAVLINK_M_ESAD_REQUEST_DISARM"><description>Request disarm.</description></entry>
+      <entry value="1" name="MAVLINK_M_ESAD_REQUEST_ARM">   <description>Request arm.</description></entry>
     </enum>
 
-    <enum name="RWS_ARMING_STATE">
+    <!-- ===== ESAD physical safety-input status (read-only reporting) ===== -->
+    <enum name="MAVLINK_M_ESAD_PIN_STATE">
+      <description>State of the physical safety pull-pin on an ESAD. Read-only status.</description>
+      <entry value="0" name="MAVLINK_M_ESAD_PIN_UNKNOWN"><description>Pin state not determined.</description></entry>
+      <entry value="1" name="MAVLINK_M_ESAD_PIN_PRESENT"><description>Pin present (device mechanically safed).</description></entry>
+      <entry value="2" name="MAVLINK_M_ESAD_PIN_REMOVED"><description>Pin removed (mechanical safety released).</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_ESAD_ARM_DELAY_SETTING">
+      <description>
+        Selected arming-delay setting: how long after the in-flight-event signal
+        the ESAD will PERMIT arming. Reports the physical switch detent position.
+        This is a safety timer setting, not a fuze timing value.
+      </description>
+      <entry value="0" name="MAVLINK_M_ESAD_ARM_DELAY_UNKNOWN"><description>Setting not determined.</description></entry>
+      <entry value="1" name="MAVLINK_M_ESAD_ARM_DELAY_90S">   <description>90 second arming delay.</description></entry>
+      <entry value="2" name="MAVLINK_M_ESAD_ARM_DELAY_60S">   <description>60 second arming delay.</description></entry>
+      <entry value="3" name="MAVLINK_M_ESAD_ARM_DELAY_30S">   <description>30 second arming delay.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_ESAD_TRIGGER_DISTANCE_MODE">
+      <description>
+        Selected trigger-distance MODE for a proximity (TOF or equivalent) safe/arm
+        device: the coarse standoff detent at which the device is permitted to
+        function. This is a SAFE/ARM standoff SELECTION among the device's defined
+        modes, NOT a settable continuous distance and NOT a fuze height-of-burst
+        configuration. It must remain a coarse enum; it must never be widened to a
+        free continuous distance value on the wire, which would turn the bus into a
+        fuze-configuration channel. On devices with a physical switch this reports
+        the switch position; on devices that accept ESAD_CONFIG it reports the mode
+        currently in effect.
+      </description>
+      <entry value="0" name="MAVLINK_M_ESAD_TRIG_DIST_UNKNOWN"><description>Mode not determined.</description></entry>
+      <entry value="1" name="MAVLINK_M_ESAD_TRIG_DIST_2M">     <description>2 metre standoff mode.</description></entry>
+      <entry value="2" name="MAVLINK_M_ESAD_TRIG_DIST_4M">     <description>4 metre standoff mode.</description></entry>
+      <entry value="3" name="MAVLINK_M_ESAD_TRIG_DIST_MANUAL"> <description>Manual mode (standoff governed by the platform/operator, not an auto standoff).</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_RWS_ARMING_STATE">
       <description>Remote weapon system arming state.</description>
-      <entry value="0" name="RWS_ARMING_SAFE">    <description>Weapon system safe.</description></entry>
-      <entry value="1" name="RWS_ARMING_ARMED">   <description>Weapon system armed.</description></entry>
-      <entry value="2" name="RWS_ARMING_FAULT">   <description>Weapon system fault.</description></entry>
+      <entry value="0" name="MAVLINK_M_RWS_ARMING_SAFE">  <description>Weapon system safe.</description></entry>
+      <entry value="1" name="MAVLINK_M_RWS_ARMING_ARMED"> <description>Weapon system armed.</description></entry>
+      <entry value="2" name="MAVLINK_M_RWS_ARMING_FAULT"> <description>Weapon system fault.</description></entry>
     </enum>
 
-    <enum name="MATCH_MEDIA_TYPE">
+    <enum name="MAVLINK_M_MATCH_MEDIA_TYPE">
       <description>Media type used for target matching.</description>
-      <entry value="0" name="MATCH_MEDIA_NONE">       <description>No matching media.</description></entry>
-      <entry value="1" name="MATCH_MEDIA_IMAGE">      <description>Still image.</description></entry>
-      <entry value="2" name="MATCH_MEDIA_VIDEO_CLIP"> <description>Video clip.</description></entry>
-      <entry value="3" name="MATCH_MEDIA_IR_IMAGE">   <description>Infrared image.</description></entry>
-      <entry value="4" name="MATCH_MEDIA_SAR_IMAGE">  <description>SAR image.</description></entry>
+      <entry value="0" name="MAVLINK_M_MATCH_MEDIA_NONE">      <description>No matching media.</description></entry>
+      <entry value="1" name="MAVLINK_M_MATCH_MEDIA_IMAGE">     <description>Still image.</description></entry>
+      <entry value="2" name="MAVLINK_M_MATCH_MEDIA_VIDEO_CLIP"><description>Video clip.</description></entry>
+      <entry value="3" name="MAVLINK_M_MATCH_MEDIA_IR_IMAGE">  <description>Infrared image.</description></entry>
+      <entry value="4" name="MAVLINK_M_MATCH_MEDIA_SAR_IMAGE"> <description>SAR image.</description></entry>
+    </enum>
+
+    <!--
+      SPLASH_CORRECTION observation taxonomy, aligned with joint fire-support
+      doctrine (ATP 3-09.30 Observed Fires, JFIRE, STANAG 1034 Allied Naval Fire
+      Support) and the VMF K02.22 Subsequent Adjust message (MIL-STD-6017).
+
+      An adjustment spotting is decomposed into three doctrinal axes:
+        - DEVIATION spotting (left/right/line of the observer-target line)
+        - RANGE spotting (over/short/target/straddle/...)
+        - HOB (height-of-burst) spotting (air/graze/mixed)
+      SURFACE and OBSCURATION are retained as supplementary sensor context; they
+      are not part of the doctrinal spotting set but do not conflict with it.
+
+      NOTE: axis STRUCTURE mirrors VMF K02.22 concepts, but the actual VMF
+      bit-field code values must be reconciled from MIL-STD-6017 before interop
+      testing. The doctrine (over/short/straddle, air/graze/mixed, the graze
+      "Up 40" correction) is authoritative; the numeric enum values here are ours.
+    -->
+    <enum name="MAVLINK_M_SPLASH_DEVIATION">
+      <description>Deviation spotting relative to the observer-target (OT) line (ATP 3-09.30 / VMF K02.22).</description>
+      <entry value="0" name="MAVLINK_M_SPLASH_DEVIATION_UNKNOWN"><description>Deviation not determined.</description></entry>
+      <entry value="1" name="MAVLINK_M_SPLASH_DEVIATION_LINE">   <description>Impact on the OT line; zero lateral deviation.</description></entry>
+      <entry value="2" name="MAVLINK_M_SPLASH_DEVIATION_LEFT">   <description>Impact left of the OT line (correction: shift right).</description></entry>
+      <entry value="3" name="MAVLINK_M_SPLASH_DEVIATION_RIGHT">  <description>Impact right of the OT line (correction: shift left).</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_SPLASH_RANGE">
+      <description>Range spotting along the observer-target line (ATP 3-09.30 / STANAG 1034 / VMF K02.22).</description>
+      <entry value="0" name="MAVLINK_M_SPLASH_RANGE_UNKNOWN">      <description>Range relationship not determined.</description></entry>
+      <entry value="1" name="MAVLINK_M_SPLASH_RANGE_OVER">         <description>Impact beyond the target (range too long; decrease range).</description></entry>
+      <entry value="2" name="MAVLINK_M_SPLASH_RANGE_SHORT">        <description>Impact between observer and target (range too short; increase range).</description></entry>
+      <entry value="3" name="MAVLINK_M_SPLASH_RANGE_TARGET">       <description>Direct hit at target range (precision/registration); enter fire for effect.</description></entry>
+      <entry value="4" name="MAVLINK_M_SPLASH_RANGE_RANGE_CORRECT"><description>Impact at correct range along the OT line.</description></entry>
+      <entry value="5" name="MAVLINK_M_SPLASH_RANGE_STRADDLE">     <description>Multi-gun salvo: rounds fell both over and short; MPI correct, enter FFE.</description></entry>
+      <entry value="6" name="MAVLINK_M_SPLASH_RANGE_DOUBTFUL">     <description>Impact seen but cannot be called over/short.</description></entry>
+      <entry value="7" name="MAVLINK_M_SPLASH_RANGE_LOST">         <description>Round neither seen nor heard.</description></entry>
+      <entry value="8" name="MAVLINK_M_SPLASH_RANGE_UNOBSERVED">   <description>Heard/seen but cannot determine over/short (distinct from LOST).</description></entry>
+      <entry value="9" name="MAVLINK_M_SPLASH_RANGE_NEGLECT">      <description>Naval (NSFS): last salvo fired on incorrect data; disregard spotting.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_SPLASH_HOB">
+      <description>
+        Height-of-burst spotting (ATP 3-09.30). An OBSERVATION of where the round
+        detonated vertically, NOT a munition property or a fuze setting. Drives
+        the doctrinal vertical correction (e.g. graze on an intended airburst =>
+        "Up 40").
+      </description>
+      <entry value="0" name="MAVLINK_M_SPLASH_HOB_NA">          <description>Not applicable / not observed.</description></entry>
+      <entry value="1" name="MAVLINK_M_SPLASH_HOB_AIR">         <description>Detonated in the air as intended.</description></entry>
+      <entry value="2" name="MAVLINK_M_SPLASH_HOB_GRAZE">       <description>Detonated on contact with the ground (ground-burst).</description></entry>
+      <entry value="3" name="MAVLINK_M_SPLASH_HOB_MIXED">       <description>Salvo: air and graze bursts, no clear majority.</description></entry>
+      <entry value="4" name="MAVLINK_M_SPLASH_HOB_MIXED_AIR">   <description>Salvo: mixed, majority air.</description></entry>
+      <entry value="5" name="MAVLINK_M_SPLASH_HOB_MIXED_GRAZE"> <description>Salvo: mixed, majority graze.</description></entry>
+      <entry value="6" name="MAVLINK_M_SPLASH_HOB_RIPPED_CHUTE"><description>Illumination parachute ripped/separated on deployment; repeat illum.</description></entry>
+      <entry value="7" name="MAVLINK_M_SPLASH_HOB_DARK_STAR">   <description>Illumination round failed to deploy or properly ignite (ATP 3-09.32).</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_SPLASH_SURFACE">
+      <description>Supplementary: what the round struck / what the splash was observed in/on. Sensor context, not part of the doctrinal spotting set.</description>
+      <entry value="0" name="MAVLINK_M_SPLASH_SURFACE_UNKNOWN">       <description>Surface not determined.</description></entry>
+      <entry value="1" name="MAVLINK_M_SPLASH_SURFACE_GROUND">        <description>Bare land / terrain.</description></entry>
+      <entry value="2" name="MAVLINK_M_SPLASH_SURFACE_WATER">         <description>Water surface. A near-miss beside a vessel reports this.</description></entry>
+      <entry value="3" name="MAVLINK_M_SPLASH_SURFACE_STRUCTURE">     <description>Building or fixed structure.</description></entry>
+      <entry value="4" name="MAVLINK_M_SPLASH_SURFACE_VEHICLE">       <description>Land vehicle (tank, IFV, truck). Mobile; may have moved by next correction.</description></entry>
+      <entry value="5" name="MAVLINK_M_SPLASH_SURFACE_SURFACE_VESSEL"><description>Ship or boat. Distinct from WATER so hit-vs-near-miss on a vessel is unambiguous.</description></entry>
+      <entry value="6" name="MAVLINK_M_SPLASH_SURFACE_FOLIAGE">       <description>Tree canopy / vegetation; may cause early function or masking.</description></entry>
+      <!-- Amphibious targets are intentionally NOT a separate value: the observer reports
+           the surface currently occupied (VEHICLE on land, SURFACE_VESSEL / WATER in water). -->
+    </enum>
+
+    <enum name="MAVLINK_M_SPLASH_OBSCURATION">
+      <description>Supplementary: why the observer could not fully resolve the impact. Relates to RANGE_DOUBTFUL / RANGE_LOST.</description>
+      <entry value="0" name="MAVLINK_M_SPLASH_OBSCURATION_NONE">        <description>Clear observation, no obscuration.</description></entry>
+      <entry value="1" name="MAVLINK_M_SPLASH_OBSCURATION_TERRAIN">     <description>Masked by terrain / defilade.</description></entry>
+      <entry value="2" name="MAVLINK_M_SPLASH_OBSCURATION_SMOKE">       <description>Masked by smoke or dust (own or battlefield).</description></entry>
+      <entry value="3" name="MAVLINK_M_SPLASH_OBSCURATION_WEATHER">     <description>Masked by cloud, fog, or precipitation.</description></entry>
+      <entry value="4" name="MAVLINK_M_SPLASH_OBSCURATION_VEGETATION">  <description>Masked by foliage / canopy.</description></entry>
+      <entry value="5" name="MAVLINK_M_SPLASH_OBSCURATION_SENSOR_LIMIT"><description>Sensor resolution / range / angle limit, not an external mask.</description></entry>
+    </enum>
+
+    <!-- ===== fire-mission procedural commands (ATP 3-09.30 / VMF K02.16, K02.22) ===== -->
+    <enum name="MAVLINK_M_FIRE_MISSION_COMMAND">
+      <description>
+        Procedural fire-mission control commands exchanged in the observer/FDC
+        digital handshake (ATP 3-09.30; map to VMF K02.16 End of Mission and
+        K02.22 Subsequent Adjust flows). These are control verbs, not spotting.
+      </description>
+      <entry value="0"  name="MAVLINK_M_FMC_NONE">                <description>No command.</description></entry>
+      <entry value="1"  name="MAVLINK_M_FMC_FIRE_FOR_EFFECT">      <description>Enter fire for effect.</description></entry>
+      <entry value="2"  name="MAVLINK_M_FMC_END_OF_MISSION">       <description>End of mission (EOM).</description></entry>
+      <entry value="3"  name="MAVLINK_M_FMC_RECORD_AS_TARGET">     <description>Record the current data as a target.</description></entry>
+      <entry value="4"  name="MAVLINK_M_FMC_REPEAT">               <description>Repeat the last fire.</description></entry>
+      <entry value="5"  name="MAVLINK_M_FMC_CHECK_FIRING">         <description>Check firing (temporary halt).</description></entry>
+      <entry value="6"  name="MAVLINK_M_FMC_CANCEL_CHECK_FIRING">  <description>Cancel check firing / resume.</description></entry>
+      <entry value="7"  name="MAVLINK_M_FMC_CEASE_LOADING">        <description>Cease loading.</description></entry>
+      <entry value="8"  name="MAVLINK_M_FMC_CANCEL_AT_MY_COMMAND"><description>Cancel At My Command.</description></entry>
+      <entry value="9"  name="MAVLINK_M_FMC_CANCEL_HIGH_ANGLE">    <description>Cancel high angle.</description></entry>
+      <entry value="10" name="MAVLINK_M_FMC_CHECK_SOLUTION">       <description>Check fire-control solution (NSFS).</description></entry>
+      <entry value="11" name="MAVLINK_M_FMC_FRESH_TARGET">         <description>Fresh target: interrupt current mission for higher-priority target (NSFS).</description></entry>
+      <entry value="12" name="MAVLINK_M_FMC_NEW_TARGET">           <description>New target: engage additional non-priority target, continue original (NSFS).</description></entry>
+    </enum>
+
+    <!-- ===== call-for-fire method of engagement (ATP 3-09.30 / VMF K02.4) ===== -->
+    <enum name="MAVLINK_M_MUNITION_CLASS">
+      <description>
+        Projectile / shell class for the call-for-fire method of engagement
+        (ATP 3-09.30 element 5). The projectile is a distinct component from the
+        fuze; the two are specified separately. This is requester intent, not
+        weaponeering configuration.
+      </description>
+      <entry value="0" name="MAVLINK_M_MUNITION_CLASS_UNKNOWN"><description>Unspecified.</description></entry>
+      <entry value="1" name="MAVLINK_M_MUNITION_CLASS_HE">     <description>High explosive.</description></entry>
+      <entry value="2" name="MAVLINK_M_MUNITION_CLASS_WP">     <description>White phosphorus (incendiary / marking / obscuration).</description></entry>
+      <entry value="3" name="MAVLINK_M_MUNITION_CLASS_ILLUM">  <description>Illumination.</description></entry>
+      <entry value="4" name="MAVLINK_M_MUNITION_CLASS_SMOKE">  <description>Smoke (e.g. HC base-ejection).</description></entry>
+      <entry value="5" name="MAVLINK_M_MUNITION_CLASS_DPICM">  <description>Dual-purpose improved conventional munition.</description></entry>
+      <entry value="6" name="MAVLINK_M_MUNITION_CLASS_PGM">    <description>Precision guided munition (e.g. Excalibur, APMI).</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_FUZE_MODE">
+      <description>
+        Requested fuze MODE for the call-for-fire method of engagement
+        (ATP 3-09.30). Product-independent: selects the standard fuze behavior
+        category (the observer's intent), NOT internal fuze timing or
+        height-of-burst settings, which remain device-internal and out of scope.
+        Whether the fielded fuze is multi-option (e.g. M782 MOFA) is carried
+        separately as the fuze_mofa_capable flag on FIRES, since MOFA is a
+        capability, not a mode.
+      </description>
+      <entry value="0" name="MAVLINK_M_FUZE_MODE_UNKNOWN">   <description>Unspecified.</description></entry>
+      <entry value="1" name="MAVLINK_M_FUZE_MODE_PD">        <description>Point-detonating; detonate on contact.</description></entry>
+      <entry value="2" name="MAVLINK_M_FUZE_MODE_PD_SQ">     <description>Point-detonating superquick.</description></entry>
+      <entry value="3" name="MAVLINK_M_FUZE_MODE_DELAY">     <description>Delay; detonate after impact for penetration.</description></entry>
+      <entry value="4" name="MAVLINK_M_FUZE_MODE_TIME">      <description>Mechanical/electronic time; burst at a set point in trajectory.</description></entry>
+      <entry value="5" name="MAVLINK_M_FUZE_MODE_ET">        <description>Electronic time.</description></entry>
+      <entry value="6" name="MAVLINK_M_FUZE_MODE_MTSQ">      <description>Mechanical time superquick.</description></entry>
+      <entry value="7" name="MAVLINK_M_FUZE_MODE_VT">        <description>Variable time / proximity; burst at a preset height above ground.</description></entry>
+      <entry value="8" name="MAVLINK_M_FUZE_MODE_CVT">       <description>Controlled variable time.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_HOB_INTENT">
+      <description>Descriptive airburst height-of-burst intent for proximity/time modes. A selector, NOT a millisecond or metric value.</description>
+      <entry value="0" name="MAVLINK_M_HOB_INTENT_NA">  <description>Not applicable (non-airburst mode).</description></entry>
+      <entry value="1" name="MAVLINK_M_HOB_INTENT_LOW"> <description>Low airburst intent.</description></entry>
+      <entry value="2" name="MAVLINK_M_HOB_INTENT_HIGH"><description>High airburst intent.</description></entry>
+    </enum>
+
+    <!-- ===== ISR cueing ===== -->
+    <enum name="MAVLINK_M_CUE_TYPE">
+      <description>
+        Intent of a non-kinetic point-of-interest cue. These values explicitly
+        denote observation/investigation tasking and carry NO engagement
+        semantics. A consumer must not interpret a TARGET_CUE as a fires order.
+      </description>
+      <entry value="0" name="MAVLINK_M_CUE_TYPE_UNSPECIFIED"><description>Not specified (default for an unset field). A consumer must not act on an unspecified cue type.</description></entry>
+      <entry value="1" name="MAVLINK_M_CUE_TYPE_INVESTIGATE"><description>Proceed to the point and gather further information. Non-kinetic.</description></entry>
+      <entry value="2" name="MAVLINK_M_CUE_TYPE_OBSERVE">    <description>Maintain standoff observation of the point. Non-kinetic.</description></entry>
+      <entry value="3" name="MAVLINK_M_CUE_TYPE_MARK">       <description>Record/mark the point as a reference of interest. No tasking implied.</description></entry>
+    </enum>
+
+    <!-- ===== generic acknowledgment ===== -->
+    <enum name="MAVLINK_M_ACK_RESULT">
+      <description>
+        Result of receiving/processing a MAVLink-M message, reported via
+        MAVLINK_M_ACK. Distinguishes "received" from "accepted" so a sender
+        can tell delivery from agreement.
+      </description>
+      <entry value="0" name="MAVLINK_M_ACK_RECEIVED">   <description>Message was received and parsed. No acceptance implied.</description></entry>
+      <entry value="1" name="MAVLINK_M_ACK_ACCEPTED">   <description>Message was received and accepted/actioned by the recipient.</description></entry>
+      <entry value="2" name="MAVLINK_M_ACK_REJECTED">   <description>Message was received but rejected (e.g. operator declined the cue).</description></entry>
+      <entry value="3" name="MAVLINK_M_ACK_UNSUPPORTED"><description>Message type or requested action is not supported by the recipient.</description></entry>
+      <entry value="4" name="MAVLINK_M_ACK_FAILED">     <description>Message was received but processing failed (e.g. malformed or stale).</description></entry>
+      <entry value="5" name="MAVLINK_M_ACK_EXPIRED">    <description>Message was received after its validity window had passed.</description></entry>
+    </enum>
+
+    <!-- ===== multi-store logistics drop ===== -->
+    <enum name="MAVLINK_M_STORE_SENSOR_TYPE">
+      <description>Type of sensor feeding a store's deceleration/landing-trigger system.</description>
+      <entry value="0" name="MAVLINK_M_STORE_SENSOR_UNKNOWN">     <description>Unknown / unspecified sensor.</description></entry>
+      <entry value="1" name="MAVLINK_M_STORE_SENSOR_BARO">        <description>Barometric altimeter.</description></entry>
+      <entry value="2" name="MAVLINK_M_STORE_SENSOR_MMWAVE_RADAR"><description>Millimeter-wave radar altimeter/ranger.</description></entry>
+      <entry value="3" name="MAVLINK_M_STORE_SENSOR_AIRSPEED">    <description>Airspeed sensor.</description></entry>
+      <entry value="4" name="MAVLINK_M_STORE_SENSOR_LIDAR">       <description>LIDAR rangefinder.</description></entry>
+      <entry value="5" name="MAVLINK_M_STORE_SENSOR_TOF">         <description>Time-of-flight rangefinder (generic, non-LIDAR).</description></entry>
+      <entry value="6" name="MAVLINK_M_STORE_SENSOR_IMU">         <description>Inertial measurement unit (accel/gyro).</description></entry>
+      <entry value="7" name="MAVLINK_M_STORE_SENSOR_GNSS">        <description>GNSS receiver.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_SENSOR_HEALTH">
+      <description>Health state of an individual store sensor.</description>
+      <entry value="0" name="MAVLINK_M_SENSOR_HEALTH_NOT_PRESENT"> <description>Sensor not installed / not detected.</description></entry>
+      <entry value="1" name="MAVLINK_M_SENSOR_HEALTH_OK">          <description>Sensor present and healthy.</description></entry>
+      <entry value="2" name="MAVLINK_M_SENSOR_HEALTH_DEGRADED">    <description>Sensor functional but degraded (e.g. noisy, low confidence).</description></entry>
+      <entry value="3" name="MAVLINK_M_SENSOR_HEALTH_FAULT">       <description>Sensor faulted / no valid data.</description></entry>
+      <entry value="4" name="MAVLINK_M_SENSOR_HEALTH_CALIBRATING"> <description>Sensor initializing or calibrating; not yet usable.</description></entry>
+      <entry value="5" name="MAVLINK_M_SENSOR_HEALTH_OUT_OF_RANGE"><description>Sensor reading outside valid operating range.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_STORE_READINESS">
+      <description>Roll-up release-readiness state of a store.</description>
+      <entry value="0" name="MAVLINK_M_STORE_READINESS_UNKNOWN">  <description>Readiness not yet determined.</description></entry>
+      <entry value="1" name="MAVLINK_M_STORE_READINESS_NOT_READY"><description>Not ready to release (one or more blocking conditions).</description></entry>
+      <entry value="2" name="MAVLINK_M_STORE_READINESS_READY">    <description>All checks passed; cleared for release.</description></entry>
+      <entry value="3" name="MAVLINK_M_STORE_READINESS_FAULT">    <description>Store in fault state; must not be released.</description></entry>
+      <entry value="4" name="MAVLINK_M_STORE_READINESS_RELEASED"> <description>Store has been released from the carrier.</description></entry>
+    </enum>
+
+    <!-- ===== kill-chain correlation and accountability ===== -->
+
+    <enum name="MAVLINK_M_TRACK_REL">
+      <description>Relationship of a track to its parent, used when tracks split, merge, or are re-identified.</description>
+      <entry value="0" name="MAVLINK_M_TRACK_REL_NONE">    <description>No parent; this is an originating track.</description></entry>
+      <entry value="1" name="MAVLINK_M_TRACK_REL_CHILD">   <description>Derived from a single parent track (e.g. a split).</description></entry>
+      <entry value="2" name="MAVLINK_M_TRACK_REL_MERGED">  <description>Result of merging two or more parent tracks.</description></entry>
+      <entry value="3" name="MAVLINK_M_TRACK_REL_REID">    <description>Re-identification of a previously dropped track.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_ID_METHOD">
+      <description>Method by which a target identification was reached. Records the basis of ID, separate from classification.</description>
+      <entry value="0" name="MAVLINK_M_ID_METHOD_UNKNOWN">       <description>Method not recorded.</description></entry>
+      <entry value="1" name="MAVLINK_M_ID_METHOD_VISUAL_EO">     <description>Electro-optical (visual) identification.</description></entry>
+      <entry value="2" name="MAVLINK_M_ID_METHOD_IR">            <description>Infrared / thermal identification.</description></entry>
+      <entry value="3" name="MAVLINK_M_ID_METHOD_SAR">           <description>Synthetic-aperture radar identification.</description></entry>
+      <entry value="4" name="MAVLINK_M_ID_METHOD_RADAR">         <description>Radar (non-SAR) identification.</description></entry>
+      <entry value="5" name="MAVLINK_M_ID_METHOD_SIGINT">        <description>Signals-intelligence-derived identification.</description></entry>
+      <entry value="6" name="MAVLINK_M_ID_METHOD_AUTOMATED_ATR"> <description>Automated target recognition (machine).</description></entry>
+      <entry value="7" name="MAVLINK_M_ID_METHOD_HUMAN_CONFIRM"> <description>Human-confirmed identification.</description></entry>
+      <entry value="8" name="MAVLINK_M_ID_METHOD_MULTI_SOURCE">  <description>Correlated from multiple sources.</description></entry>
+      <entry value="9" name="MAVLINK_M_ID_METHOD_GMTI">          <description>Ground moving target indicator. Distinct from generic RADAR because it drives specific track-correlation handling in Link 16.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_PID_STATUS">
+      <description>Positive identification (PID) status of a target. Descriptive record, not a release authority.</description>
+      <entry value="0" name="MAVLINK_M_PID_STATUS_NONE">       <description>No PID established.</description></entry>
+      <entry value="1" name="MAVLINK_M_PID_STATUS_TENTATIVE">  <description>Tentative ID; PID not yet established.</description></entry>
+      <entry value="2" name="MAVLINK_M_PID_STATUS_POSITIVE">   <description>Positive identification established.</description></entry>
+      <entry value="3" name="MAVLINK_M_PID_STATUS_LOST">       <description>PID previously held but since lost.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_ROE_STATE">
+      <description>Rules-of-engagement / clearance state asserted for a target. Descriptive attestation carried for audit; does NOT gate weapon release.</description>
+      <entry value="0" name="MAVLINK_M_ROE_STATE_UNKNOWN">       <description>ROE state not recorded.</description></entry>
+      <entry value="1" name="MAVLINK_M_ROE_STATE_HOLD">          <description>Hold / do not engage.</description></entry>
+      <entry value="2" name="MAVLINK_M_ROE_STATE_INVESTIGATE">   <description>Investigate further before any decision.</description></entry>
+      <entry value="3" name="MAVLINK_M_ROE_STATE_CLEARED">       <description>Engagement cleared by competent authority (attested, not commanded).</description></entry>
+      <entry value="4" name="MAVLINK_M_ROE_STATE_RESTRICTED">    <description>Restricted: constraints apply (see no-strike / collateral context).</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_NOSTRIKE_STATUS">
+      <description>No-strike / restricted-target context for a coordinate or target.</description>
+      <entry value="0" name="MAVLINK_M_NOSTRIKE_STATUS_UNKNOWN">    <description>No-strike status not evaluated.</description></entry>
+      <entry value="1" name="MAVLINK_M_NOSTRIKE_STATUS_CLEAR">      <description>Not on any no-strike or restricted list.</description></entry>
+      <entry value="2" name="MAVLINK_M_NOSTRIKE_STATUS_NEAR">       <description>Within proximity of a no-strike / protected entity.</description></entry>
+      <entry value="3" name="MAVLINK_M_NOSTRIKE_STATUS_ON_LIST">    <description>On a no-strike or restricted-target list.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_ENGAGEMENT_DIRECTIVE">
+      <description>Engagement-control directive type. Provides abort / check-fire / re-target as first-class protocol actions alongside FIRES.</description>
+      <entry value="0" name="MAVLINK_M_ENGAGEMENT_DIRECTIVE_ABORT">      <description>Abort the referenced fire mission.</description></entry>
+      <entry value="1" name="MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE"> <description>Temporary check-fire; hold without cancelling.</description></entry>
+      <entry value="2" name="MAVLINK_M_ENGAGEMENT_DIRECTIVE_RESUME">     <description>Resume after a check-fire.</description></entry>
+      <entry value="3" name="MAVLINK_M_ENGAGEMENT_DIRECTIVE_RETARGET">   <description>Re-target the referenced fire mission to a new track/coordinate.</description></entry>
+    </enum>
+
+    <!-- ===== fires effect request and damage state (coarse; no classified config) ===== -->
+
+    <enum name="MAVLINK_M_REQUESTED_EFFECT">
+      <description>
+        Coarse requested weapon effect, expressing requester INTENT (as in a
+        call-for-fire method of engagement). The store controller translates this
+        to device-internal fuze timing locally; this enum carries NO timing,
+        height-of-burst, or arming-delay values and must not be extended to.
+      </description>
+      <entry value="0" name="MAVLINK_M_REQUESTED_EFFECT_UNSPECIFIED"><description>No specific effect requested; store default.</description></entry>
+      <entry value="1" name="MAVLINK_M_REQUESTED_EFFECT_PROXIMITY">  <description>Proximity / airburst effect requested.</description></entry>
+      <entry value="2" name="MAVLINK_M_REQUESTED_EFFECT_IMPACT">     <description>Point-detonate / impact effect requested.</description></entry>
+      <entry value="3" name="MAVLINK_M_REQUESTED_EFFECT_DELAY">      <description>Delayed / penetration effect requested.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_FUNCTIONAL_DAMAGE">
+      <description>
+        Discrete functional damage state for BDA (functional damage assessment
+        layer, per CJCSI 3162.02 / JP 3-09), mirroring joint reporting. Carried
+        alongside destruction_pct and the physical damage state, not replacing them.
+      </description>
+      <entry value="0" name="MAVLINK_M_FUNCTIONAL_DAMAGE_UNKNOWN">      <description>Damage state not determined.</description></entry>
+      <entry value="1" name="MAVLINK_M_FUNCTIONAL_DAMAGE_NONE">         <description>No functional damage assessed.</description></entry>
+      <entry value="2" name="MAVLINK_M_FUNCTIONAL_DAMAGE_MOBILITY">     <description>Mobility kill (target immobilized).</description></entry>
+      <entry value="3" name="MAVLINK_M_FUNCTIONAL_DAMAGE_FIREPOWER">    <description>Firepower kill (target's weapons disabled).</description></entry>
+      <entry value="4" name="MAVLINK_M_FUNCTIONAL_DAMAGE_COMMS">        <description>Communications / C2 kill.</description></entry>
+      <entry value="5" name="MAVLINK_M_FUNCTIONAL_DAMAGE_MISSION">      <description>Mission kill (cannot perform role short of total destruction).</description></entry>
+      <entry value="6" name="MAVLINK_M_FUNCTIONAL_DAMAGE_CATASTROPHIC"> <description>Catastrophic kill (target destroyed).</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_PHYSICAL_DAMAGE">
+      <description>
+        Discrete physical damage state for BDA (physical damage assessment layer,
+        per CJCSI 3162.02A Methodology for Combat Assessment). Distinct from the
+        functional-kill layer.
+      </description>
+      <entry value="0" name="MAVLINK_M_PHYSICAL_DAMAGE_NO_ASSESSMENT"><description>No assessment / unknown.</description></entry>
+      <entry value="1" name="MAVLINK_M_PHYSICAL_DAMAGE_NONE">         <description>No damage.</description></entry>
+      <entry value="2" name="MAVLINK_M_PHYSICAL_DAMAGE_LIGHT">        <description>Light damage.</description></entry>
+      <entry value="3" name="MAVLINK_M_PHYSICAL_DAMAGE_MODERATE">     <description>Moderate damage.</description></entry>
+      <entry value="4" name="MAVLINK_M_PHYSICAL_DAMAGE_SEVERE">       <description>Severe damage.</description></entry>
+      <entry value="5" name="MAVLINK_M_PHYSICAL_DAMAGE_DESTROYED">    <description>Destroyed.</description></entry>
+    </enum>
+
+    <!-- ===== joint interoperability (STANAG 5516 / Link 16, VMF / MIL-STD-6017) ===== -->
+    <!--
+      The enums and fields in this block are STRUCTURAL PLACEHOLDERS shaped to
+      carry joint-standard concepts so a gateway can round-trip MAVLink-M into
+      Link 16 (J-series under STANAG 5516), VMF (MIL-STD-6017), and OMS-UCI.
+      The value SETS below mirror the STANAG standard-identity and environment
+      concepts, but any code numbers, track-number encodings, URNs, and
+      bit-level formats MUST be reconciled against the actual specifications
+      (STANAG 5516 / MIL-STD-6017 / OMS-UCI), which are versioned and in part
+      distribution-restricted. Do not treat these numeric values as wire-final.
+    -->
+
+    <enum name="MAVLINK_M_STANAG_IDENTITY">
+      <description>
+        Standard identity of a track, aligned to MIL-STD-2525D / APP-6D standard
+        identity (SIDC digit 4). MIL-STD-2525D is Distribution A, making it a
+        public authoritative source. Richer than MAVLINK_M_TARGET_FORCE:
+        preserves PENDING / ASSUMED_FRIEND / SUSPECT distinctions that carry ROE
+        meaning and are lost if collapsed to FRIENDLY/FOE. Values follow the
+        2525D digit-4 code so a gateway can populate a SIDC directly.
+      </description>
+      <entry value="0" name="MAVLINK_M_STANAG_IDENTITY_PENDING">        <description>Pending: identity not yet evaluated (SIDC 0).</description></entry>
+      <entry value="1" name="MAVLINK_M_STANAG_IDENTITY_UNKNOWN">        <description>Unknown: evaluated but not established (SIDC 1).</description></entry>
+      <entry value="2" name="MAVLINK_M_STANAG_IDENTITY_ASSUMED_FRIEND"> <description>Assumed friend (SIDC 2).</description></entry>
+      <entry value="3" name="MAVLINK_M_STANAG_IDENTITY_FRIEND">         <description>Friend (SIDC 3).</description></entry>
+      <entry value="4" name="MAVLINK_M_STANAG_IDENTITY_NEUTRAL">        <description>Neutral (SIDC 4).</description></entry>
+      <entry value="5" name="MAVLINK_M_STANAG_IDENTITY_SUSPECT">        <description>Suspect / joker (SIDC 5).</description></entry>
+      <entry value="6" name="MAVLINK_M_STANAG_IDENTITY_HOSTILE">        <description>Hostile / faker (SIDC 6).</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_SIDC_CONTEXT">
+      <description>Reality context of a track, per MIL-STD-2525D SIDC digit 3. Lets exercise/simulation tracks be distinguished from real ones.</description>
+      <entry value="0" name="MAVLINK_M_SIDC_CONTEXT_REALITY">    <description>Reality (SIDC 0).</description></entry>
+      <entry value="1" name="MAVLINK_M_SIDC_CONTEXT_EXERCISE">   <description>Exercise (SIDC 1).</description></entry>
+      <entry value="2" name="MAVLINK_M_SIDC_CONTEXT_SIMULATION"> <description>Simulation (SIDC 2).</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_ENVIRONMENT">
+      <description>
+        Track environment / dimension, aligned to the STANAG 5516 / APP-6 battle
+        dimension. Pairs with MAVLINK_M_STANAG_IDENTITY to make a track mappable
+        to joint symbology. Value numbering to be confirmed against spec.
+      </description>
+      <entry value="0" name="MAVLINK_M_ENVIRONMENT_UNKNOWN">    <description>Environment not determined.</description></entry>
+      <entry value="1" name="MAVLINK_M_ENVIRONMENT_SPACE">      <description>Space.</description></entry>
+      <entry value="2" name="MAVLINK_M_ENVIRONMENT_AIR">        <description>Air.</description></entry>
+      <entry value="3" name="MAVLINK_M_ENVIRONMENT_SURFACE">    <description>Surface (land or sea surface).</description></entry>
+      <entry value="4" name="MAVLINK_M_ENVIRONMENT_SUBSURFACE"> <description>Subsurface.</description></entry>
+      <entry value="5" name="MAVLINK_M_ENVIRONMENT_LAND">       <description>Land.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_TRACK_NUMBER_TYPE">
+      <description>
+        Type/namespace of the external track number carried alongside the native
+        track_uid, so a gateway knows how to interpret it. Encodings per the
+        respective standard; do not assume a format from this enum alone.
+      </description>
+      <entry value="0" name="MAVLINK_M_TRACK_NUMBER_TYPE_NONE">    <description>No external track number present.</description></entry>
+      <entry value="1" name="MAVLINK_M_TRACK_NUMBER_TYPE_LINK16">  <description>Link 16 track number (STANAG 5516 J-series).</description></entry>
+      <entry value="2" name="MAVLINK_M_TRACK_NUMBER_TYPE_VMF_URN"> <description>VMF unit reference number (MIL-STD-6017).</description></entry>
+      <entry value="3" name="MAVLINK_M_TRACK_NUMBER_TYPE_OTHER">   <description>Other/national namespace (implementation-defined).</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_PPLI_TYPE">
+      <description>Nature of a participant reporting its own position/identity (PPLI-style). Value numbering to be confirmed against spec.</description>
+      <entry value="0" name="MAVLINK_M_PPLI_TYPE_UNKNOWN"> <description>Unspecified participant.</description></entry>
+      <entry value="1" name="MAVLINK_M_PPLI_TYPE_AIR">     <description>Air participant.</description></entry>
+      <entry value="2" name="MAVLINK_M_PPLI_TYPE_LAND">    <description>Land participant.</description></entry>
+      <entry value="3" name="MAVLINK_M_PPLI_TYPE_SURFACE"> <description>Surface (maritime) participant.</description></entry>
+      <entry value="4" name="MAVLINK_M_PPLI_TYPE_SUBSURFACE"><description>Subsurface participant.</description></entry>
+    </enum>
+
+    <!-- ===== munition inventory / status (descriptive, for JTAC/C2 weapon-status mapping) ===== -->
+
+    <enum name="MAVLINK_M_MUNITION_GUIDANCE">
+      <description>Coarse guidance category of a loaded munition. Descriptive inventory data, not employment configuration.</description>
+      <entry value="0" name="MAVLINK_M_MUNITION_GUIDANCE_UNKNOWN">  <description>Guidance category not specified.</description></entry>
+      <entry value="1" name="MAVLINK_M_MUNITION_GUIDANCE_UNGUIDED"> <description>Unguided.</description></entry>
+      <entry value="2" name="MAVLINK_M_MUNITION_GUIDANCE_GPS_INS">  <description>GPS/INS-guided.</description></entry>
+      <entry value="3" name="MAVLINK_M_MUNITION_GUIDANCE_LASER">    <description>Semi-active laser-guided.</description></entry>
+      <entry value="4" name="MAVLINK_M_MUNITION_GUIDANCE_IR">       <description>Infrared / imaging-IR seeker.</description></entry>
+      <entry value="5" name="MAVLINK_M_MUNITION_GUIDANCE_RADAR">    <description>Radar-guided.</description></entry>
+      <entry value="6" name="MAVLINK_M_MUNITION_GUIDANCE_EO">       <description>Electro-optical / visual seeker.</description></entry>
+      <entry value="7" name="MAVLINK_M_MUNITION_GUIDANCE_MULTI">    <description>Multi-mode seeker.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_MUNITION_WARHEAD">
+      <description>Coarse warhead category of a loaded munition. Descriptive inventory data; mirrors the effect families used by MAVLINK_M_SPLASH_FUNCTION. Not employment configuration.</description>
+      <entry value="0" name="MAVLINK_M_MUNITION_WARHEAD_UNKNOWN">  <description>Warhead category not specified.</description></entry>
+      <entry value="1" name="MAVLINK_M_MUNITION_WARHEAD_INERT">    <description>Inert / training.</description></entry>
+      <entry value="2" name="MAVLINK_M_MUNITION_WARHEAD_HE">       <description>High explosive.</description></entry>
+      <entry value="3" name="MAVLINK_M_MUNITION_WARHEAD_FRAG">     <description>Fragmentation.</description></entry>
+      <entry value="4" name="MAVLINK_M_MUNITION_WARHEAD_SHAPED">   <description>Shaped charge / anti-armor.</description></entry>
+      <entry value="5" name="MAVLINK_M_MUNITION_WARHEAD_THERMOBARIC"><description>Thermobaric.</description></entry>
+      <entry value="6" name="MAVLINK_M_MUNITION_WARHEAD_SMOKE">    <description>Smoke.</description></entry>
+      <entry value="7" name="MAVLINK_M_MUNITION_WARHEAD_ILLUM">    <description>Illumination.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_FUZE_HEALTH">
+      <description>
+        Coarse HEALTH of the fuze subsystem. This reports whether the fuze is
+        functioning, NOT how it is configured. Fuze mode/timing/height-of-burst
+        configuration is intentionally out of scope for this dialect and is
+        device-internal.
+      </description>
+      <entry value="0" name="MAVLINK_M_FUZE_HEALTH_UNKNOWN"> <description>Fuze health not reported.</description></entry>
+      <entry value="1" name="MAVLINK_M_FUZE_HEALTH_NOMINAL"> <description>Fuze subsystem nominal.</description></entry>
+      <entry value="2" name="MAVLINK_M_FUZE_HEALTH_FAULT">   <description>Fuze subsystem fault.</description></entry>
+      <entry value="3" name="MAVLINK_M_FUZE_HEALTH_NOT_PRESENT"><description>No fuze present.</description></entry>
+    </enum>
+
+    <!-- ===== MAV_CMD additions (extends common MAV_CMD) ===== -->
+    <enum name="MAV_CMD">
+      <description>MAVLink-M store-handling commands. Sent via COMMAND_LONG/COMMAND_INT; responses via COMMAND_ACK.</description>
+      <entry value="53090" name="MAV_CMD_MAVLINK_M_STORE_ARM">
+        <description>Arm or safe a store's ESAD.</description>
+        <param index="1" label="Store ID">Target store instance (0 = all stores / broadcast).</param>
+        <param index="2" label="Arm">0 = safe/disarm, 1 = arm.</param>
+        <param index="3" label="Challenge Hash">Arming challenge hash; must match the store's last ESAD_STATE hash.</param>
+        <param index="4">Reserved (0).</param>
+        <param index="5">Reserved (0).</param>
+        <param index="6">Reserved (0).</param>
+        <param index="7">Reserved (0).</param>
+      </entry>
+      <entry value="53091" name="MAV_CMD_MAVLINK_M_STORE_RUN_BIT">
+        <description>Run a built-in self-test (BIT) on a store.</description>
+        <param index="1" label="Store ID">Target store instance (0 = all stores / broadcast).</param>
+        <param index="2" label="Scope">0 = full BIT, 1 = sensors only, 2 = ESAD only.</param>
+        <param index="3">Reserved (0).</param>
+        <param index="4">Reserved (0).</param>
+        <param index="5">Reserved (0).</param>
+        <param index="6">Reserved (0).</param>
+        <param index="7">Reserved (0).</param>
+      </entry>
+      <entry value="53092" name="MAV_CMD_MAVLINK_M_STORE_REQUEST_STATUS">
+        <description>Request status push from a store.</description>
+        <param index="1" label="Store ID">Target store instance (0 = all stores / broadcast).</param>
+        <param index="2" label="What">0 = STORE_STATUS only, 1 = all STORE_SENSOR_STATUS, 2 = both.</param>
+        <param index="3">Reserved (0).</param>
+        <param index="4">Reserved (0).</param>
+        <param index="5">Reserved (0).</param>
+        <param index="6">Reserved (0).</param>
+        <param index="7">Reserved (0).</param>
+      </entry>
+      <entry value="53093" name="MAV_CMD_MAVLINK_M_STORE_SET_DECEL_THRESHOLD">
+        <description>Set the deceleration/landing-system trigger threshold for a store.</description>
+        <param index="1" label="Store ID">Target store instance (0 = all stores / broadcast).</param>
+        <param index="2" label="Sensor Type">Sensor (MAVLINK_M_STORE_SENSOR_TYPE) that gates deployment.</param>
+        <param index="3" label="Threshold">Threshold value in the sensor's native units.</param>
+        <param index="4" label="Direction">0 = trigger when reading falls below threshold, 1 = trigger when reading rises above threshold.</param>
+        <param index="5">Reserved (0).</param>
+        <param index="6">Reserved (0).</param>
+        <param index="7">Reserved (0).</param>
+      </entry>
+    </enum>
+
+
+    <!-- ============================================================ -->
+    <!-- Call-for-fire method, combat-ID and legal-gate, loitering-   -->
+    <!-- munition, composite-munition, and tasking enumerations.      -->
+    <!-- Distribution A: descriptive intent / enumeration only.       -->
+    <!-- ============================================================ -->
+    <enum name="MAVLINK_M_MISSION_TYPE">
+      <description>Warning-order mission type for a call for fire (ATP 3-09.30 Ch.4). Descriptive intent.</description>
+      <entry value="0" name="MAVLINK_M_MISSION_TYPE_UNSPECIFIED">        <description>Not specified (default for an unset field).</description></entry>
+      <entry value="1" name="MAVLINK_M_MISSION_TYPE_ADJUST_FIRE">          <description>Adjust fire.</description></entry>
+      <entry value="2" name="MAVLINK_M_MISSION_TYPE_FIRE_FOR_EFFECT">      <description>Fire for effect.</description></entry>
+      <entry value="3" name="MAVLINK_M_MISSION_TYPE_SUPPRESSION">         <description>Suppression.</description></entry>
+      <entry value="4" name="MAVLINK_M_MISSION_TYPE_IMMEDIATE_SUPPRESSION"><description>Immediate suppression.</description></entry>
+      <entry value="5" name="MAVLINK_M_MISSION_TYPE_IMMEDIATE_SMOKE">     <description>Immediate smoke.</description></entry>
+      <entry value="6" name="MAVLINK_M_MISSION_TYPE_SEAD">               <description>Suppression of enemy air defenses.</description></entry>
+      <entry value="7" name="MAVLINK_M_MISSION_TYPE_REGISTRATION">        <description>Registration.</description></entry>
+      <entry value="8" name="MAVLINK_M_MISSION_TYPE_DESTRUCTION">         <description>Destruction.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_TARGET_LOCATION_METHOD">
+      <description>Method of target location for a call for fire (ATP 3-09.30 Ch.4).</description>
+      <entry value="0" name="MAVLINK_M_TGT_LOC_UNSPECIFIED"><description>Not specified (default for an unset field).</description></entry>
+      <entry value="1" name="MAVLINK_M_TGT_LOC_GRID">              <description>Grid.</description></entry>
+      <entry value="2" name="MAVLINK_M_TGT_LOC_POLAR">             <description>Polar (from observer).</description></entry>
+      <entry value="3" name="MAVLINK_M_TGT_LOC_SHIFT_KNOWN_POINT"><description>Shift from a known point.</description></entry>
+      <entry value="4" name="MAVLINK_M_TGT_LOC_LASER_GRID">        <description>Laser-derived grid.</description></entry>
+      <entry value="5" name="MAVLINK_M_TGT_LOC_LASER_POLAR">       <description>Laser-derived polar.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_ADJUSTMENT_TYPE">
+      <description>Type of adjustment (method of engagement).</description>
+      <entry value="0" name="MAVLINK_M_ADJUSTMENT_UNSPECIFIED"><description>Not specified (default for an unset field).</description></entry>
+      <entry value="1" name="MAVLINK_M_ADJUSTMENT_AREA">     <description>Area adjustment.</description></entry>
+      <entry value="2" name="MAVLINK_M_ADJUSTMENT_PRECISION"><description>Precision adjustment.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_TRAJECTORY">
+      <description>Requested trajectory (method of engagement).</description>
+      <entry value="0" name="MAVLINK_M_TRAJECTORY_UNSPECIFIED"><description>Not specified (default for an unset field).</description></entry>
+      <entry value="1" name="MAVLINK_M_TRAJECTORY_LOW_ANGLE"> <description>Low angle.</description></entry>
+      <entry value="2" name="MAVLINK_M_TRAJECTORY_HIGH_ANGLE"><description>High angle.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_SHEAF">
+      <description>Distribution / sheaf for the fire-for-effect pattern (method of engagement).</description>
+      <entry value="0" name="MAVLINK_M_SHEAF_UNSPECIFIED"><description>Not specified (default for an unset field).</description></entry>
+      <entry value="1" name="MAVLINK_M_SHEAF_CONVERGED"><description>Converged sheaf.</description></entry>
+      <entry value="2" name="MAVLINK_M_SHEAF_OPEN">     <description>Open sheaf.</description></entry>
+      <entry value="3" name="MAVLINK_M_SHEAF_PARALLEL"> <description>Parallel sheaf.</description></entry>
+      <entry value="4" name="MAVLINK_M_SHEAF_SPECIAL">  <description>Special sheaf (linear target; length/width/attitude specified separately).</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_FIRE_CONTROL_METHOD">
+      <description>Method of fire and control (ATP 3-09.30 Ch.4).</description>
+      <entry value="0" name="MAVLINK_M_FCM_UNSPECIFIED">          <description>Not specified (default for an unset field).</description></entry>
+      <entry value="1" name="MAVLINK_M_FCM_WHEN_READY">            <description>When ready.</description></entry>
+      <entry value="2" name="MAVLINK_M_FCM_AT_MY_COMMAND">         <description>At my command (AMC).</description></entry>
+      <entry value="3" name="MAVLINK_M_FCM_TIME_ON_TARGET">        <description>Time on target (TOT).</description></entry>
+      <entry value="4" name="MAVLINK_M_FCM_CANNOT_OBSERVE">        <description>Cannot observe.</description></entry>
+      <entry value="5" name="MAVLINK_M_FCM_CONTINUOUS_ILLUM">      <description>Continuous illumination.</description></entry>
+      <entry value="6" name="MAVLINK_M_FCM_COORDINATED_ILLUM">     <description>Coordinated illumination.</description></entry>
+      <entry value="7" name="MAVLINK_M_FCM_CONTINUOUS_FIRE">       <description>Continuous fire.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_TLE_CATEGORY">
+      <description>
+        Target-location-error CATEGORY LABEL only (ATP 3-09.30 Fig.3-14).
+        The category band label is Distribution A; the underlying CEP/performance
+        figure is NOT carried.
+      </description>
+      <entry value="0" name="MAVLINK_M_TLE_UNKNOWN"><description>TLE not established.</description></entry>
+      <entry value="1" name="MAVLINK_M_TLE_CAT_I">  <description>Category I (highest accuracy band).</description></entry>
+      <entry value="2" name="MAVLINK_M_TLE_CAT_II"> <description>Category II.</description></entry>
+      <entry value="3" name="MAVLINK_M_TLE_CAT_III"><description>Category III.</description></entry>
+      <entry value="4" name="MAVLINK_M_TLE_CAT_IV"> <description>Category IV.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_CDE_LEVEL">
+      <description>
+        Collateral-damage-estimation LEVEL NUMBER only (CJCSI 3160.01 series).
+        Carries the level as a status value; NEVER the underlying CDE computation
+        or population data.
+      </description>
+      <entry value="0" name="MAVLINK_M_CDE_LEVEL_NONE"><description>No CDE recorded.</description></entry>
+      <entry value="1" name="MAVLINK_M_CDE_LEVEL_1">   <description>Level 1 - target validation / initial assessment.</description></entry>
+      <entry value="2" name="MAVLINK_M_CDE_LEVEL_2">   <description>Level 2 - general / target-size assessment.</description></entry>
+      <entry value="3" name="MAVLINK_M_CDE_LEVEL_3">   <description>Level 3 - weaponeering assessment.</description></entry>
+      <entry value="4" name="MAVLINK_M_CDE_LEVEL_4">   <description>Level 4 - refined assessment.</description></entry>
+      <entry value="5" name="MAVLINK_M_CDE_LEVEL_5">   <description>Level 5 - casualty assessment.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_RESTRICTED_TARGET_FLAGS" bitmask="true">
+      <description>No-strike / restricted-target context flags. Status flags only.</description>
+      <entry value="1" name="MAVLINK_M_RTL_NO_STRIKE_LIST">   <description>On the No-Strike List.</description></entry>
+      <entry value="2" name="MAVLINK_M_RTL_RESTRICTED_TARGET"><description>On the Restricted Target List.</description></entry>
+      <entry value="4" name="MAVLINK_M_RTL_NO_FIRE_AREA">     <description>Within a No-Fire Area.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_DMPI_REFERENCE_KIND">
+      <description>
+        How a desired-mean-point-of-impact reference is expressed. A precise
+        mensurated DMPI tied to a weapon solution is treated as controlled and is
+        NOT carried here; carry target location + TLE category instead.
+      </description>
+      <entry value="0" name="MAVLINK_M_DMPI_NONE">           <description>No DMPI reference.</description></entry>
+      <entry value="1" name="MAVLINK_M_DMPI_TARGET_LOCATION"><description>DMPI = the target location already carried (with TLE category).</description></entry>
+      <entry value="2" name="MAVLINK_M_DMPI_OFFSET_REF">     <description>DMPI expressed as a labeled offset reference (not a mensurated coordinate).</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_ATR_CONFIDENCE">
+      <description>
+        OPTIONAL, ADVISORY coarse tier for human display only, derived from the
+        raw atr_confidence_pct. It has NO protocol-defined probability band and
+        MUST NOT be used as an automated rules-of-engagement input; the raw score
+        + model id are the authoritative fields and the C2 node owns the
+        threshold policy.
+      </description>
+      <entry value="0" name="MAVLINK_M_ATR_CONF_NA">    <description>Not an ATR identification / not applicable.</description></entry>
+      <entry value="1" name="MAVLINK_M_ATR_CONF_LOW">   <description>Advisory display tier: low. No protocol-defined band.</description></entry>
+      <entry value="2" name="MAVLINK_M_ATR_CONF_MEDIUM"><description>Advisory display tier: medium. No protocol-defined band.</description></entry>
+      <entry value="3" name="MAVLINK_M_ATR_CONF_HIGH">  <description>Advisory display tier: high. No protocol-defined band.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_LM_CONSENT_STATE">
+      <description>
+        Man-in-the-loop consent-to-strike state for a loitering munition / OWA UAS.
+        HUMAN-IN-THE-LOOP INSTRUMENT: this records a human consent decision and its
+        withdrawal. It MUST NOT be used to construct an automated release path;
+        release authority remains with the crewed C2 system, and consent is a
+        precondition recorded for accountability, not a trigger.
+      </description>
+      <entry value="0" name="MAVLINK_M_LM_CONSENT_NONE">     <description>No consent state.</description></entry>
+      <entry value="1" name="MAVLINK_M_LM_CONSENT_REQUESTED"><description>Consent-to-strike requested from human authority.</description></entry>
+      <entry value="2" name="MAVLINK_M_LM_CONSENT_GRANTED">  <description>Consent granted by human authority (recorded).</description></entry>
+      <entry value="3" name="MAVLINK_M_LM_CONSENT_WITHHELD"> <description>Consent withheld.</description></entry>
+      <entry value="4" name="MAVLINK_M_LM_CONSENT_WITHDRAWN"><description>Previously-granted consent withdrawn.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_LM_TERMINATE">
+      <description>Loitering-munition abort / terminate action.</description>
+      <entry value="0" name="MAVLINK_M_LM_TERMINATE_NONE">       <description>No action.</description></entry>
+      <entry value="1" name="MAVLINK_M_LM_TERMINATE_WAVE_OFF">   <description>Wave off / break engagement, remain flyable.</description></entry>
+      <entry value="2" name="MAVLINK_M_LM_TERMINATE_ABORT">      <description>Abort current attack, return to loiter.</description></entry>
+      <entry value="3" name="MAVLINK_M_LM_TERMINATE_SELF_DESTRUCT"><description>Self-destruct / render safe (per platform capability).</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_TST_STATUS">
+      <description>Time-sensitive-target prosecution status.</description>
+      <entry value="0" name="MAVLINK_M_TST_NONE">       <description>Not a TST / no status.</description></entry>
+      <entry value="1" name="MAVLINK_M_TST_NOMINATED">  <description>Nominated as TST.</description></entry>
+      <entry value="2" name="MAVLINK_M_TST_PROSECUTING"><description>Under prosecution.</description></entry>
+      <entry value="3" name="MAVLINK_M_TST_COMPLETE">   <description>Prosecution complete.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_MUNITION_FAMILY">
+      <description>Munition family (composite munition, part 1 of 3). Descriptive class names, all Distribution-A doctrine.</description>
+      <entry value="0" name="MAVLINK_M_MUN_FAM_UNKNOWN">    <description>Unspecified.</description></entry>
+      <entry value="1" name="MAVLINK_M_MUN_FAM_HE">         <description>High explosive.</description></entry>
+      <entry value="2" name="MAVLINK_M_MUN_FAM_DPICM">      <description>Dual-purpose ICM (e.g. M483A1). Distinct submunition/dispersion profile from APICM.</description></entry>
+      <entry value="3" name="MAVLINK_M_MUN_FAM_APICM">      <description>Antipersonnel ICM (e.g. M449 family). Distinct dispersion from DPICM.</description></entry>
+      <entry value="4" name="MAVLINK_M_MUN_FAM_SMOKE">      <description>Smoke (WP/HC/base-eject).</description></entry>
+      <entry value="5" name="MAVLINK_M_MUN_FAM_ILLUM">      <description>Illumination (visible/IR).</description></entry>
+      <entry value="6" name="MAVLINK_M_MUN_FAM_SCATTERABLE_MINE"><description>Scatterable mine (RAAMS/ADAM); carries SD-duration enum, not exact seconds.</description></entry>
+      <entry value="7" name="MAVLINK_M_MUN_FAM_SENSOR_FUZED"><description>Sensor-fused / top-attack (SADARM, BONUS). Requires aimpoint-offset footprint, not a point coordinate.</description></entry>
+      <entry value="8" name="MAVLINK_M_MUN_FAM_PRECISION">  <description>Precision/guided conventional (Excalibur). Requires 10-digit grid + TLE minimum.</description></entry>
+      <entry value="9" name="MAVLINK_M_MUN_FAM_PGK">        <description>Precision guidance kit / APMI. Hybrid HE/PGM; TLE minimum required or reverts ballistic.</description></entry>
+      <entry value="10" name="MAVLINK_M_MUN_FAM_THERMOBARIC"><description>Thermobaric / fuel-air explosive. Overpressure-primary; hardened/subterranean targets.</description></entry>
+      <entry value="11" name="MAVLINK_M_MUN_FAM_ANTIPERSONNEL"><description>Antipersonnel (APERS/flechette).</description></entry>
+      <entry value="12" name="MAVLINK_M_MUN_FAM_ROCKET_MISSILE"><description>Rocket/missile (ATACMS, GMLRS, RAP).</description></entry>
+      <entry value="13" name="MAVLINK_M_MUN_FAM_LOITERING"><description>Loitering munition / LMAMS. Platform becomes terminal-guidance/relay, not passive observer.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_MUNITION_PAYLOAD">
+      <description>Munition payload (composite munition, part 3 of 3).</description>
+      <entry value="0" name="MAVLINK_M_MUN_PAY_UNKNOWN">      <description>Unspecified.</description></entry>
+      <entry value="1" name="MAVLINK_M_MUN_PAY_HE_FRAG">      <description>HE / fragmentation.</description></entry>
+      <entry value="2" name="MAVLINK_M_MUN_PAY_HEAT">         <description>Shaped charge / HEAT.</description></entry>
+      <entry value="3" name="MAVLINK_M_MUN_PAY_WP">           <description>White phosphorus.</description></entry>
+      <entry value="4" name="MAVLINK_M_MUN_PAY_HC_SMOKE">     <description>HC smoke.</description></entry>
+      <entry value="5" name="MAVLINK_M_MUN_PAY_ILLUM">        <description>Illuminant.</description></entry>
+      <entry value="6" name="MAVLINK_M_MUN_PAY_SUBMUNITION">  <description>Submunitions.</description></entry>
+      <entry value="7" name="MAVLINK_M_MUN_PAY_MINE">         <description>Mine payload.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_WARHEAD_MODE">
+      <description>
+        Coarse selectable warhead MODE for a multi-mode / selectable warhead
+        (e.g. a penetrating warhead with a surface-vs-penetrate selection on a
+        multi-drop magazine). Reports/sets the coarse mode only. This is a
+        SAFE/ARM-adjacent coarse selection, NOT a fuze timing channel: it must
+        never be widened to carry an inter-stage delay or any timing value. The
+        actual timing (e.g. secondary-charge delay) is device-internal and is
+        configured on the component bus (DroneCAN or vendor structure) below the
+        FMU, never on this dialect.
+      </description>
+      <entry value="0" name="MAVLINK_M_WARHEAD_MODE_UNSPECIFIED"><description>Not specified / not a selectable warhead.</description></entry>
+      <entry value="1" name="MAVLINK_M_WARHEAD_MODE_SURFACE">    <description>Surface / point-detonating effect selected.</description></entry>
+      <entry value="2" name="MAVLINK_M_WARHEAD_MODE_PENETRATE">  <description>Penetrating effect selected.</description></entry>
+      <entry value="3" name="MAVLINK_M_WARHEAD_MODE_AIRBURST">   <description>Airburst / height-of-burst effect selected (coarse selection; no HOB value carried).</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_SD_DURATION">
+      <description>Scatterable-mine self-destruct duration CATEGORY (not exact seconds).</description>
+      <entry value="0" name="MAVLINK_M_SD_NA">   <description>Not applicable.</description></entry>
+      <entry value="1" name="MAVLINK_M_SD_SHORT"><description>Short self-destruct duration.</description></entry>
+      <entry value="2" name="MAVLINK_M_SD_LONG"> <description>Long self-destruct duration.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_EFFECT_VERB">
+      <description>
+        Mission-effect task verb (FM 3-09 / ATP 3-60), SEPARATE from burst geometry.
+        The verb is descriptive tasking intent. The doctrinal casualty-percentage
+        definitions are NOT carried on the wire (they drift from tasking intent to
+        effects computation).
+      </description>
+      <entry value="0" name="MAVLINK_M_EFFECT_UNSPECIFIED"><description>Unspecified.</description></entry>
+      <entry value="1" name="MAVLINK_M_EFFECT_SUPPRESS">   <description>Suppress.</description></entry>
+      <entry value="2" name="MAVLINK_M_EFFECT_NEUTRALIZE"> <description>Neutralize.</description></entry>
+      <entry value="3" name="MAVLINK_M_EFFECT_DESTROY">    <description>Destroy.</description></entry>
+      <entry value="4" name="MAVLINK_M_EFFECT_HARASS">     <description>Harass.</description></entry>
+      <entry value="5" name="MAVLINK_M_EFFECT_INTERDICT">  <description>Interdict.</description></entry>
+      <entry value="6" name="MAVLINK_M_EFFECT_OBSCURE">    <description>Obscure / screen.</description></entry>
+      <entry value="7" name="MAVLINK_M_EFFECT_ILLUMINATE"> <description>Illuminate.</description></entry>
+      <entry value="8" name="MAVLINK_M_EFFECT_MARK">       <description>Mark.</description></entry>
+      <entry value="9" name="MAVLINK_M_EFFECT_SEAD">       <description>Suppression of enemy air defenses.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_SENSOR_MODE">
+      <description>Commanded/reported sensor payload mode (UCI-style tasking).</description>
+      <entry value="0" name="MAVLINK_M_SENSOR_MODE_UNKNOWN">        <description>Unspecified.</description></entry>
+      <entry value="1" name="MAVLINK_M_SENSOR_MODE_WIDE_AREA_SEARCH"><description>Wide-area search.</description></entry>
+      <entry value="2" name="MAVLINK_M_SENSOR_MODE_POINT_TRACK">    <description>Point-target track.</description></entry>
+      <entry value="3" name="MAVLINK_M_SENSOR_MODE_LASER_DESIGNATE"><description>Laser designation (code carried as slot elsewhere, not a value).</description></entry>
+      <entry value="4" name="MAVLINK_M_SENSOR_MODE_LASER_RANGE">    <description>Laser ranging.</description></entry>
+      <entry value="5" name="MAVLINK_M_SENSOR_MODE_IR_MARK">        <description>IR pointer / mark.</description></entry>
+      <entry value="6" name="MAVLINK_M_SENSOR_MODE_STANDBY">        <description>Sensor standby / caged.</description></entry>
+    </enum>
+
+    <enum name="MAVLINK_M_TASKING_STATUS">
+      <description>Response to an inbound tasking request (UCI publish/subscribe event).</description>
+      <entry value="0" name="MAVLINK_M_TASKING_UNSPECIFIED"><description>Not specified (default for an unset field). Not an acceptance.</description></entry>
+      <entry value="1" name="MAVLINK_M_TASKING_ACK">      <description>Tasking accepted.</description></entry>
+      <entry value="2" name="MAVLINK_M_TASKING_REJECTED"><description>Tasking rejected (unable/ineligible).</description></entry>
+      <entry value="3" name="MAVLINK_M_TASKING_COMPLETE"><description>Tasking complete.</description></entry>
+      <entry value="4" name="MAVLINK_M_TASKING_ACTIVE">   <description>Tasking in progress.</description></entry>
     </enum>
 
   </enums>
 
   <messages>
 
-    <message id="53000" name="TARGET_SET_COORD">
+    <!-- ============================================================ -->
+    <!-- 53011: TARGET_SET_COORD -->
+    <!-- ============================================================ -->
+    <message id="53011" name="TARGET_SET_COORD">
       <description>Defines a circular target set area in WGS84. A target set groups one or more individual targets sharing a common operational context.</description>
       <field type="uint64_t" name="time_usec"     units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
       <field type="uint32_t" name="target_set_id"             >Unique identifier of the target set.</field>
@@ -110,7 +1219,10 @@
       <field type="uint64_t" name="time_end"      units="us"  >Area validity end time (UNIX epoch, microseconds UTC). 0 = indefinite.</field>
     </message>
 
-    <message id="53001" name="TARGET_BOX_COORD">
+    <!-- ============================================================ -->
+    <!-- 53012: TARGET_BOX_COORD -->
+    <!-- ============================================================ -->
+    <message id="53012" name="TARGET_BOX_COORD">
       <description>Defines a polygonal (quadrilateral) target set area using four WGS84 corner coordinates ordered clockwise.</description>
       <field type="uint64_t" name="time_usec"     units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
       <field type="uint32_t" name="target_set_id"             >Unique identifier of the target set.</field>
@@ -122,10 +1234,16 @@
       <field type="uint64_t" name="time_end"      units="us"  >Area validity end time (UNIX epoch, microseconds UTC). 0 = indefinite.</field>
     </message>
 
-    <message id="53002" name="TARGET_COORD">
-      <description>Position, velocity, and engagement parameters for an individual target within a target set.</description>
+    <!-- ============================================================ -->
+    <!-- 53010: TARGET -->
+    <!-- ============================================================ -->
+    <message id="53010" name="TARGET">
+      <description>Position, velocity, classification, engagement context, and optional external package location for an individual target. This message does not authorize action.</description>
       <field type="uint64_t" name="time_usec"     units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint64_t" name="target_time_usec" units="us">Timestamp when the target was detected or designated (UNIX epoch, microseconds UTC).</field>
+      <field type="uint32_t" name="target_id"                 >Unique target identifier generated by the source system.</field>
       <field type="uint32_t" name="target_set_id"             >Parent target set identifier.</field>
+      <field type="uint32_t" name="package_id_hash"           >Compact hash or identifier for the associated target package. 0 if no package is associated.</field>
       <field type="char[50]" name="target_name"               >Human-readable target name (null-terminated).</field>
       <field type="int32_t"  name="lat"           units="degE7">Target latitude, WGS84.</field>
       <field type="int32_t"  name="lon"           units="degE7">Target longitude, WGS84.</field>
@@ -133,19 +1251,36 @@
       <field type="float"    name="vx"            units="m/s" >Velocity north component (NED).</field>
       <field type="float"    name="vy"            units="m/s" >Velocity east component (NED).</field>
       <field type="float"    name="vz"            units="m/s" >Velocity down component (NED).</field>
-      <field type="float"    name="cov_pos_x"     units="m^2" >Position covariance, north axis.</field>
-      <field type="float"    name="cov_pos_y"     units="m^2" >Position covariance, east axis.</field>
-      <field type="float"    name="cov_pos_z"     units="m^2" >Position covariance, down axis.</field>
-      <field type="float"    name="cov_vel_x"     units="m^2/s^2">Velocity covariance, north axis.</field>
-      <field type="float"    name="cov_vel_y"     units="m^2/s^2">Velocity covariance, east axis.</field>
-      <field type="float"    name="cov_vel_z"     units="m^2/s^2">Velocity covariance, down axis.</field>
+      <field type="float"    name="cov_pos_x"                 >Position covariance, north axis (m^2).</field>
+      <field type="float"    name="cov_pos_y"                 >Position covariance, east axis (m^2).</field>
+      <field type="float"    name="cov_pos_z"                 >Position covariance, down axis (m^2).</field>
+      <field type="float"    name="cov_vel_x"                    >Velocity covariance, north axis (m^2/s^2).</field>
+      <field type="float"    name="cov_vel_y"                    >Velocity covariance, east axis (m^2/s^2).</field>
+      <field type="float"    name="cov_vel_z"                    >Velocity covariance, down axis (m^2/s^2).</field>
       <field type="float"    name="cep_desired"   units="m"   >Desired circular error probable.</field>
       <field type="float"    name="cep_max"       units="m"   >Maximum acceptable circular error probable.</field>
-      <field type="uint8_t"  name="target_class"  enum="TARGET_CLASS">Target classification.</field>
-      <field type="uint8_t"  name="target_force"  enum="TARGET_FORCE">Force affiliation.</field>
+      <field type="uint32_t" name="flags"         enum="MAVLINK_M_TARGET_FLAGS">Target warning and status flags.</field>
+      <field type="uint32_t" name="package_endpoint_ip_1"     >Primary IPv4 endpoint address for target package retrieval, packed as (a&lt;&lt;24)|(b&lt;&lt;16)|(c&lt;&lt;8)|d for address a.b.c.d; for example, 192.168.1.10 is 0xC0A8010A. 0 if unused.</field>
+      <field type="uint32_t" name="package_endpoint_ip_2"     >Secondary IPv4 endpoint address for target package retrieval, packed as (a&lt;&lt;24)|(b&lt;&lt;16)|(c&lt;&lt;8)|d for address a.b.c.d. 0 if unused.</field>
+      <field type="uint32_t" name="package_endpoint_ip_3"     >Third IPv4 endpoint address for target package retrieval, packed as (a&lt;&lt;24)|(b&lt;&lt;16)|(c&lt;&lt;8)|d for address a.b.c.d. 0 if unused.</field>
+      <field type="uint8_t"  name="target_class"  enum="MAVLINK_M_TARGET_CLASS">Target classification.</field>
+      <field type="uint8_t"  name="target_domain" enum="MAVLINK_M_TARGET_DOMAIN">Primary operating domain of the target.</field>
+      <field type="uint8_t"  name="target_entity_2525d" enum="MAVLINK_M_TARGET_ENTITY_2525D">Optional MIL-STD-2525D land target entity refinement. UNKNOWN if not provided or not a land entity.</field>
+      <field type="uint8_t"  name="target_force"  enum="MAVLINK_M_TARGET_FORCE">Force affiliation.</field>
+      <field type="uint16_t" name="confidence"                >Classification or detection confidence scaled from 0 to 10000, where 0 = 0.0 and 10000 = 1.0.</field>
+      <field type="uint16_t" name="package_endpoint_port"     >TCP port for target package retrieval. 0 if no package is associated.</field>
+      <field type="uint8_t"  name="sensor_type"   enum="MAVLINK_M_TARGET_SENSOR_TYPE">Primary sensor source used for target identification.</field>
+      <field type="uint8_t"  name="package_transport" enum="MAVLINK_M_TARGET_PACKAGE_TRANSPORT">Transport protocol used to retrieve the target package.</field>
+      <field type="char[80]" name="package_path"              >Path component for target package retrieval, null-terminated. Empty if no package is associated.</field>
+      <field type="uint16_t" name="prf_code"                  >Laser designator PRF code for SAL engagement (e.g. 1111-1788). 0 = no laser code assigned.</field>
+      <field type="uint8_t"  name="tle_category" enum="MAVLINK_M_TLE_CATEGORY">Target-location-error category (label only, not a mensuration figure).</field>
+      <field type="uint8_t"  name="dmpi_reference_kind" enum="MAVLINK_M_DMPI_REFERENCE_KIND">How the DMPI reference is expressed. A mensurated DMPI tied to a weapon solution is NOT carried.</field>
+      <field type="uint8_t"  name="restricted_target_flags" enum="MAVLINK_M_RESTRICTED_TARGET_FLAGS">No-strike / restricted-target / no-fire-area context flags (bitmask).</field>
     </message>
 
-    <message id="53003" name="FIRES">
+    <!-- ============================================================ -->
+    <!-- 53020: FIRES -->
+    <message id="53020" name="FIRES">
       <description>Fire mission order. Commands an effector to engage a WGS84 coordinate with a specified expected impact time and CEP.</description>
       <field type="uint64_t" name="time_usec"         units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
       <field type="uint64_t" name="time_impact_usec"  units="us"  >Expected time of impact (UNIX epoch, microseconds UTC).</field>
@@ -155,20 +1290,49 @@
       <field type="uint32_t" name="effector_id"                   >Identifier of the assigned effector.</field>
       <field type="uint16_t" name="sequence"                      >Fire mission sequence number.</field>
       <field type="float"    name="cep_expected"       units="m"  >Expected circular error probable at impact.</field>
+      <field type="uint16_t" name="prf_code"                      >Laser designator PRF code for SAL weapons (e.g. 1111-1788). 0 = no laser code assigned.</field>
+      <field type="uint8_t"  name="store_id"                      >Target store/bay on a multi-store carrier. 0 = system default / vehicle itself (e.g. OWA).</field>
+      <field type="uint8_t"  name="requested_effect" enum="MAVLINK_M_REQUESTED_EFFECT">Coarse requested effect (intent), for non-artillery/OWA effectors. For call-for-fire missions use munition_class + fuze_action instead.</field>
+      <field type="uint8_t"  name="munition_class" enum="MAVLINK_M_MUNITION_CLASS">Call-for-fire projectile/shell class (method of engagement). UNKNOWN if N/A.</field>
+      <field type="uint8_t"  name="fuze_mode"     enum="MAVLINK_M_FUZE_MODE">Call-for-fire requested fuze mode (method of engagement). UNKNOWN if N/A.</field>
+      <field type="uint8_t"  name="hob_intent"    enum="MAVLINK_M_HOB_INTENT">Airburst height-of-burst intent for proximity/time modes (descriptive selector, not a value).</field>
+      <field type="uint8_t"  name="fuze_mofa_capable"          >1 if the fielded fuze is multi-option (e.g. M782 MOFA) and settable to any mode; 0 otherwise. Capability flag, not a mode.</field>
+      <field type="uint8_t[16]" name="track_uid">Globally-unique track identifier (UUID) of the TRACK_IDENTITY this message correlates to. Ties the engagement/assessment to the authorized track. All-zero if not associated.</field>
     </message>
 
-    <message id="53004" name="SPLASH_CORRECTION">
-      <description>Post-impact splash observation used to correct fire mission accuracy.</description>
+    <!-- ============================================================ -->
+    <!-- 53021: SPLASH_CORRECTION -->
+    <!-- ============================================================ -->
+    <message id="53021" name="SPLASH_CORRECTION">
+      <description>
+        Post-impact adjustment spotting used to correct fire mission accuracy,
+        structured per joint observed-fire doctrine (ATP 3-09.30, STANAG 1034)
+        and the VMF K02.22 Subsequent Adjust message. The spotting is decomposed
+        into deviation (relative to the observer-target line), range, and
+        height-of-burst, from which a fire direction center computes corrections
+        (e.g. bracketing, the graze "Up 40"). SURFACE and OBSCURATION are
+        supplementary sensor context.
+      </description>
       <field type="uint64_t" name="time_usec"     units="us"  >Timestamp of observation (UNIX epoch, microseconds UTC).</field>
       <field type="int32_t"  name="lat"           units="degE7">Observed splash latitude, WGS84.</field>
       <field type="int32_t"  name="lon"           units="degE7">Observed splash longitude, WGS84.</field>
       <field type="float"    name="alt"           units="m"   >Observed splash altitude, MSL.</field>
       <field type="uint16_t" name="sequence"                  >Fire mission sequence number this correction applies to.</field>
-      <field type="uint8_t"  name="type_detected"             >Type of splash detected (implementation-defined; e.g. 0=unknown, 1=smoke, 2=explosion).</field>
+      <field type="uint8_t"  name="type_detected">Coarse splash detector cue (implementation-defined; e.g. 0=unknown, 1=smoke, 2=explosion). Doctrinal observed-fire adjustment is carried by deviation, range_spot, hob, impact_surface, and obscuration.</field>
       <field type="float"    name="cep_expected"  units="m"   >Estimated CEP of the observed splash.</field>
+      <field type="uint8_t"  name="deviation"     enum="MAVLINK_M_SPLASH_DEVIATION">Deviation spotting relative to the observer-target line.</field>
+      <field type="uint8_t"  name="range_spot"    enum="MAVLINK_M_SPLASH_RANGE">Range spotting along the observer-target line.</field>
+      <field type="uint8_t"  name="hob"           enum="MAVLINK_M_SPLASH_HOB">Height-of-burst spotting (observation, not munition/fuze setting).</field>
+      <field type="uint8_t"  name="impact_surface" enum="MAVLINK_M_SPLASH_SURFACE">Supplementary: what was struck / what the splash landed in/on.</field>
+      <field type="uint8_t"  name="obscuration"    enum="MAVLINK_M_SPLASH_OBSCURATION">Supplementary: cause of obscuration, if observation was masked.</field>
+      <field type="uint8_t"  name="command"        enum="MAVLINK_M_FIRE_MISSION_COMMAND">Procedural fire-mission command accompanying this spotting (NONE if pure spotting).</field>
+      <field type="uint8_t[16]" name="track_uid">Globally-unique track identifier (UUID) of the TRACK_IDENTITY this message correlates to. Ties the engagement/assessment to the authorized track. All-zero if not associated.</field>
     </message>
 
-    <message id="53005" name="TARGET_HANDOVER">
+    <!-- ============================================================ -->
+    <!-- 53002: TARGET_HANDOVER -->
+    <!-- ============================================================ -->
+    <message id="53002" name="TARGET_HANDOVER">
       <description>Transfers tracking responsibility for a target to another system, including kinematic state, classification, identification media, and authorization.</description>
       <field type="uint64_t"  name="time_usec"         units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
       <field type="uint64_t"  name="detected_first_usec" units="us">Time target was first detected (UNIX epoch, microseconds UTC).</field>
@@ -179,23 +1343,27 @@
       <field type="float"     name="vx"                units="m/s" >Velocity north component (NED).</field>
       <field type="float"     name="vy"                units="m/s" >Velocity east component (NED).</field>
       <field type="float"     name="vz"                units="m/s" >Velocity down component (NED).</field>
-      <field type="float"     name="cov_pos_x"         units="m^2" >Position covariance, north axis.</field>
-      <field type="float"     name="cov_pos_y"         units="m^2" >Position covariance, east axis.</field>
-      <field type="float"     name="cov_pos_z"         units="m^2" >Position covariance, down axis.</field>
-      <field type="float"     name="cov_vel_x"         units="m^2/s^2">Velocity covariance, north axis.</field>
-      <field type="float"     name="cov_vel_y"         units="m^2/s^2">Velocity covariance, east axis.</field>
-      <field type="float"     name="cov_vel_z"         units="m^2/s^2">Velocity covariance, down axis.</field>
+      <field type="float"     name="cov_pos_x"                     >Position covariance, north axis (m^2).</field>
+      <field type="float"     name="cov_pos_y"                     >Position covariance, east axis (m^2).</field>
+      <field type="float"     name="cov_pos_z"                     >Position covariance, down axis (m^2).</field>
+      <field type="float"     name="cov_vel_x"                        >Velocity covariance, north axis (m^2/s^2).</field>
+      <field type="float"     name="cov_vel_y"                        >Velocity covariance, east axis (m^2/s^2).</field>
+      <field type="float"     name="cov_vel_z"                        >Velocity covariance, down axis (m^2/s^2).</field>
       <field type="uint32_t"  name="target_set_id"                 >Parent target set identifier.</field>
       <field type="char[50]"  name="target_name"                   >Human-readable target name (null-terminated).</field>
       <field type="char[50]"  name="match_media_url"               >Short URL referencing matching media asset (null-terminated).</field>
       <field type="float"     name="confidence_score"              >Confidence score of identification [0.0-1.0].</field>
       <field type="uint8_t[8]" name="authorization"                >Opaque authorization token.</field>
-      <field type="uint8_t"   name="target_class"     enum="TARGET_CLASS">Target classification.</field>
-      <field type="uint8_t"   name="target_force"     enum="TARGET_FORCE">Force affiliation.</field>
-      <field type="uint8_t"   name="match_media_type" enum="MATCH_MEDIA_TYPE">Type of matching media referenced by match_media_url.</field>
+      <field type="uint8_t"   name="target_class"     enum="MAVLINK_M_TARGET_CLASS">Target classification.</field>
+      <field type="uint8_t"   name="target_force"     enum="MAVLINK_M_TARGET_FORCE">Force affiliation.</field>
+      <field type="uint8_t"   name="match_media_type" enum="MAVLINK_M_MATCH_MEDIA_TYPE">Type of matching media referenced by match_media_url.</field>
+      <field type="uint8_t[16]" name="track_uid">Globally-unique track identifier (UUID) of the TRACK_IDENTITY this handover transfers. The authoritative correlation handle across aircraft; target_name is a human label only. All-zero if not associated with a track.</field>
     </message>
 
-    <message id="53006" name="BATTLE_DAMAGE_ASSESSMENT">
+    <!-- ============================================================ -->
+    <!-- 53022: BATTLE_DAMAGE_ASSESSMENT -->
+    <!-- ============================================================ -->
+    <message id="53022" name="BATTLE_DAMAGE_ASSESSMENT">
       <description>Reports the assessed destruction level and confidence for an engaged target following a fire mission.</description>
       <field type="uint64_t"  name="time_usec"         units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
       <field type="int32_t"   name="lat"               units="degE7">Assessed target latitude, WGS84.</field>
@@ -204,43 +1372,88 @@
       <field type="float"     name="vx"                units="m/s" >Velocity north component (NED). 0 if target is static.</field>
       <field type="float"     name="vy"                units="m/s" >Velocity east component (NED). 0 if target is static.</field>
       <field type="float"     name="vz"                units="m/s" >Velocity down component (NED). 0 if target is static.</field>
-      <field type="float"     name="cov_pos_x"         units="m^2" >Position covariance, north axis.</field>
-      <field type="float"     name="cov_pos_y"         units="m^2" >Position covariance, east axis.</field>
-      <field type="float"     name="cov_pos_z"         units="m^2" >Position covariance, down axis.</field>
-      <field type="float"     name="cov_vel_x"         units="m^2/s^2">Velocity covariance, north axis.</field>
-      <field type="float"     name="cov_vel_y"         units="m^2/s^2">Velocity covariance, east axis.</field>
-      <field type="float"     name="cov_vel_z"         units="m^2/s^2">Velocity covariance, down axis.</field>
+      <field type="float"     name="cov_pos_x"                     >Position covariance, north axis (m^2).</field>
+      <field type="float"     name="cov_pos_y"                     >Position covariance, east axis (m^2).</field>
+      <field type="float"     name="cov_pos_z"                     >Position covariance, down axis (m^2).</field>
+      <field type="float"     name="cov_vel_x"                        >Velocity covariance, north axis (m^2/s^2).</field>
+      <field type="float"     name="cov_vel_y"                        >Velocity covariance, east axis (m^2/s^2).</field>
+      <field type="float"     name="cov_vel_z"                        >Velocity covariance, down axis (m^2/s^2).</field>
       <field type="uint32_t"  name="target_set_id"                 >Parent target set identifier.</field>
       <field type="char[50]"  name="target_name"                   >Human-readable target name (null-terminated).</field>
       <field type="uint8_t[8]" name="authorization"                >Opaque authorization token.</field>
       <field type="uint8_t"   name="destruction_pct"  units="%"   >Assessed target destruction level [0-100].</field>
       <field type="uint8_t"   name="confidence_pct"   units="%"   >Confidence of assessment [0-100].</field>
-      <field type="uint8_t"   name="target_class"     enum="TARGET_CLASS">Target classification.</field>
-      <field type="uint8_t"   name="target_force"     enum="TARGET_FORCE">Force affiliation.</field>
+      <field type="uint8_t"   name="target_class"     enum="MAVLINK_M_TARGET_CLASS">Target classification.</field>
+      <field type="uint8_t"   name="target_force"     enum="MAVLINK_M_TARGET_FORCE">Force affiliation.</field>
+      <field type="uint8_t"   name="functional_damage" enum="MAVLINK_M_FUNCTIONAL_DAMAGE">Discrete functional damage state (joint-aligned), carried alongside destruction_pct.</field>
+      <field type="uint8_t"   name="physical_damage"  enum="MAVLINK_M_PHYSICAL_DAMAGE">Discrete physical damage state (combat-assessment layer).</field>
+      <field type="uint8_t"   name="reattack_recommended"          >Reattack recommendation: 1 = yes, 0 = no. Operational output of BDA.</field>
+      <field type="uint8_t[16]" name="track_uid">Globally-unique track identifier (UUID) of the TRACK_IDENTITY this message correlates to. Ties the engagement/assessment to the authorized track. All-zero if not associated.</field>
     </message>
 
-    <message id="53007" name="ESAD_STATE">
-      <description>Electronic Safe and Arm Device (ESAD) telemetry. Reports current arming, munition, and ignition states along with fault flags and software identity.</description>
+    <!-- ============================================================ -->
+    <!-- 53030: ESAD_STATE -->
+    <!-- ============================================================ -->
+    <message id="53030" name="ESAD_STATE">
+      <description>Electronic Safe and Arm Device (ESAD) telemetry for one ESAD instance on a store. Reports arming, munition, and ignition states, fault flags, and software identity. esad_id identifies the device; store_id identifies the physical bay/store.</description>
       <field type="uint64_t"  name="time_usec"         units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
-      <field type="uint32_t"  name="arming_challenge_hash"         >Challenge hash for arming authentication.</field>
-      <field type="uint32_t"  name="fault_flags"       enum="ESAD_FAULT_FLAGS">Active fault flag bitmask.</field>
-      <field type="float"     name="input_1"                       >Analog/digital input 1 (implementation-defined).</field>
-      <field type="float"     name="input_2"                       >Analog/digital input 2 (implementation-defined).</field>
+      <field type="uint8_t"   name="esad_id"                       >Vehicle-local ESAD instance identifier. Must be 1-254. 0 is invalid for ESAD_STATE, 255 is reserved. Systems that support broadcast arming set the same arming_challenge_hash on each target ESAD before accepting ESAD_ARMING.esad_id = 0.</field>
+      <field type="uint32_t"  name="arming_challenge_hash"         >Challenge hash for arming authentication of this ESAD instance.</field>
+      <field type="uint32_t"  name="fault_flags"       enum="MAVLINK_M_ESAD_FAULT_FLAGS">Active fault flag bitmask.</field>
+      <field type="float"     name="input_1"                       >Analog/digital input 1 (implementation-defined). For the standard safety inputs use the typed fields below instead.</field>
+      <field type="float"     name="input_2"                       >Analog/digital input 2 (implementation-defined). For the standard safety inputs use the typed fields below instead.</field>
       <field type="uint8_t[8]" name="sw_version_hash"              >Software version as 8-byte short Git hash.</field>
-      <field type="uint8_t"   name="arming_status"    enum="ESAD_ARMING_STATUS">Current arming state.</field>
-      <field type="uint8_t"   name="munition_status"  enum="ESAD_MUNITION_STATUS">Current munition state.</field>
-      <field type="uint8_t"   name="ignition_status"  enum="ESAD_IGNITION_STATUS">Current ignition circuit state.</field>
-      <field type="uint8_t"   name="munition_type"                 >Munition type identifier (implementation-defined).</field>
+      <field type="uint8_t"   name="arming_status"    enum="MAVLINK_M_ESAD_ARMING_STATUS">Current arming state.</field>
+      <field type="uint8_t"   name="munition_status"  enum="MAVLINK_M_ESAD_MUNITION_STATUS">Current munition state.</field>
+      <field type="uint8_t"   name="ignition_status"  enum="MAVLINK_M_ESAD_IGNITION_STATUS">Current ignition circuit state.</field>
+      <field type="uint8_t"   name="munition_type"                 >Munition/store type identifier (implementation-defined).</field>
+      <field type="uint8_t"   name="store_id"                      >Store instance identifier. Fixed physical bay assignment: a bay keeps its store_id permanently, and when a store is expended the bay may be reloaded under the same store_id. IDs never renumber. 0 = not applicable / single store. This is the canonical definition of store_id across the dialect.</field>
+      <field type="uint8_t"   name="pin_state"        enum="MAVLINK_M_ESAD_PIN_STATE">Physical safety pull-pin state (read-only status).</field>
+      <field type="uint8_t"   name="arm_delay_setting" enum="MAVLINK_M_ESAD_ARM_DELAY_SETTING">Selected arming-delay switch position (90/60/30 s). The chosen setting.</field>
+      <field type="int16_t"   name="arm_delay_remaining_s" units="s">Live arming-delay countdown: seconds remaining after the in-flight-event signal until arming is permitted. -1 = not counting / not applicable. Distinct from arm_delay_setting (the switch position).</field>
+      <field type="uint8_t"   name="trigger_distance_mode" enum="MAVLINK_M_ESAD_TRIGGER_DISTANCE_MODE">Trigger-distance standoff mode currently in effect (coarse selection, not a distance value).</field>
+      <field type="uint8_t[16]" name="track_uid">Track UID (UUID) of the engagement this store is armed for, when applicable. Ties the armed state to a specific authorized track so a monitoring station sees "armed against track X," not merely "an ESAD is hot." All-zero if not associated with a track.</field>
     </message>
 
-    <message id="53008" name="ESAD_ARMING">
-      <description>ESAD arming command. The arming_challenge_hash must match the value last broadcast in ESAD_STATE before the request is accepted.</description>
+    <!-- ============================================================ -->
+    <!-- 53031: ESAD_ARMING -->
+    <!-- ============================================================ -->
+    <message id="53031" name="ESAD_ARMING">
+      <description>ESAD arming command for one or more ESAD instances. arming_challenge_hash must match the active ESAD_STATE challenge for the selected instance. For esad_id = 0, each targeted ESAD must have advertised the same challenge hash; otherwise receivers reject the broadcast command.</description>
       <field type="uint64_t" name="time_usec"            units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
-      <field type="uint32_t" name="arming_challenge_hash"          >Challenge hash matching the active ESAD_STATE hash.</field>
-      <field type="uint8_t"  name="arming_request"  enum="ESAD_ARMING_REQUEST">Requested arming state change.</field>
+      <field type="uint8_t"  name="esad_id"                        >Vehicle-local ESAD instance identifier to arm or disarm. 0 = all ESAD instances selected by store_id, 1-254 = specific ESAD instance, 255 = reserved.</field>
+      <field type="uint32_t" name="arming_challenge_hash"          >Challenge hash matching the selected ESAD instance challenge. For esad_id = 0, the same hash must be active on every targeted ESAD.</field>
+      <field type="uint8_t"  name="arming_request"  enum="MAVLINK_M_ESAD_ARMING_REQUEST">Requested arming state change.</field>
+      <field type="uint8_t"  name="store_id"                       >Target store instance identifier. 0 = all stores / broadcast.</field>
     </message>
 
-    <message id="53009" name="RWS_POSE">
+    <!-- ============================================================ -->
+    <!-- 53032: ESAD_CONFIG -->
+    <!-- ============================================================ -->
+    <message id="53032" name="ESAD_CONFIG">
+      <description>
+        Authenticated configuration command for an ESAD that accepts live
+        configuration of a safe/arm parameter (e.g. a proximity device whose
+        trigger-distance mode is set from the FMU or edge compute rather than a
+        physical switch). Authenticated the same way as ESAD_ARMING:
+        arming_challenge_hash must match the value last broadcast in that store's
+        ESAD_STATE, so an unauthenticated sender cannot reconfigure the device.
+        Only coarse, device-defined SAFE/ARM modes may be set here; this message
+        must never carry a free continuous distance, a fuze timing value, or any
+        height-of-burst configuration. The resulting mode is reported back in
+        ESAD_STATE.trigger_distance_mode.
+      </description>
+      <field type="uint64_t" name="time_usec"            units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint32_t" name="arming_challenge_hash"          >Challenge hash matching the active ESAD_STATE hash for the target store.</field>
+      <field type="uint8_t"  name="esad_id"                        >Vehicle-local ESAD instance identifier to configure. 0 = all ESAD instances selected by store_id, 1-254 = specific ESAD instance, 255 = reserved.</field>
+      <field type="uint8_t"  name="store_id"                       >Target store instance identifier. 0 = all stores / broadcast.</field>
+      <field type="uint8_t"  name="trigger_distance_mode" enum="MAVLINK_M_ESAD_TRIGGER_DISTANCE_MODE">Requested coarse trigger-distance standoff mode. Coarse selection only.</field>
+    </message>
+
+    <!-- ============================================================ -->
+    <!-- 53040: RWS_POSE -->
+    <!-- ============================================================ -->
+    <message id="53040" name="RWS_POSE">
       <description>Remote Weapon System (RWS) pose relative to the host vehicle. Describes the physical mounting offset and orientation of the weapon system, plus its absolute position and velocity if available.</description>
       <field type="uint64_t" name="time_usec"     units="us"   >Timestamp (UNIX epoch, microseconds UTC).</field>
       <field type="int32_t"  name="lat"           units="degE7">RWS latitude, WGS84. INT32_MAX if unknown.</field>
@@ -249,12 +1462,12 @@
       <field type="float"    name="vx"            units="m/s"  >Velocity north component (NED). NaN if unknown.</field>
       <field type="float"    name="vy"            units="m/s"  >Velocity east component (NED). NaN if unknown.</field>
       <field type="float"    name="vz"            units="m/s"  >Velocity down component (NED). NaN if unknown.</field>
-      <field type="float"    name="cov_pos_x"     units="m^2"  >Position covariance, north axis. NaN if unknown.</field>
-      <field type="float"    name="cov_pos_y"     units="m^2"  >Position covariance, east axis. NaN if unknown.</field>
-      <field type="float"    name="cov_pos_z"     units="m^2"  >Position covariance, down axis. NaN if unknown.</field>
-      <field type="float"    name="cov_vel_x"     units="m^2/s^2">Velocity covariance, north axis. NaN if unknown.</field>
-      <field type="float"    name="cov_vel_y"     units="m^2/s^2">Velocity covariance, east axis. NaN if unknown.</field>
-      <field type="float"    name="cov_vel_z"     units="m^2/s^2">Velocity covariance, down axis. NaN if unknown.</field>
+      <field type="float"    name="cov_pos_x"                  >Position covariance, north axis (m^2). NaN if unknown.</field>
+      <field type="float"    name="cov_pos_y"                  >Position covariance, east axis (m^2). NaN if unknown.</field>
+      <field type="float"    name="cov_pos_z"                  >Position covariance, down axis (m^2). NaN if unknown.</field>
+      <field type="float"    name="cov_vel_x"                    >Velocity covariance, north axis (m^2/s^2). NaN if unknown.</field>
+      <field type="float"    name="cov_vel_y"                    >Velocity covariance, east axis (m^2/s^2). NaN if unknown.</field>
+      <field type="float"    name="cov_vel_z"                    >Velocity covariance, down axis (m^2/s^2). NaN if unknown.</field>
       <field type="float"    name="offset_x"      units="m"    >Mounting offset X from vehicle reference point in coordinate_frame.</field>
       <field type="float"    name="offset_y"      units="m"    >Mounting offset Y from vehicle reference point in coordinate_frame.</field>
       <field type="float"    name="offset_z"      units="m"    >Mounting offset Z from vehicle reference point in coordinate_frame.</field>
@@ -265,12 +1478,396 @@
       <field type="uint8_t"  name="coordinate_frame" enum="MAV_FRAME">Coordinate frame for offset and orientation. See MAV_FRAME.</field>
     </message>
 
-    <message id="53010" name="RWS_STATE">
+    <!-- ============================================================ -->
+    <!-- 53041: RWS_STATE -->
+    <!-- ============================================================ -->
+    <message id="53041" name="RWS_STATE">
       <description>Remote Weapon System (RWS) operational state including arming status and loaded weapon information.</description>
       <field type="uint64_t"  name="time_usec"     units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
       <field type="char[50]"  name="weapon_string"             >Human-readable weapon description or designation (null-terminated).</field>
-      <field type="uint8_t"   name="arming_state"  enum="RWS_ARMING_STATE">Current arming state of the weapon system.</field>
+      <field type="uint8_t"   name="arming_state"  enum="MAVLINK_M_RWS_ARMING_STATE">Current arming state of the weapon system.</field>
       <field type="uint8_t"   name="weapon_type"               >Weapon type identifier (implementation-defined).</field>
+    </message>
+
+    <!-- ============================================================ -->
+    <!-- C2 & TASKING (53050-53059)                                  -->
+    <!-- 53050: SENSOR_TASKING  (inbound UCI-style tasking)          -->
+    <!-- ============================================================ -->
+    <message id="53050" name="SENSOR_TASKING">
+      <description>
+        Inbound sensor/payload tasking from a UCI C2 node, and the platform's
+        tasking-status response. Provided for gateway mapping between UCI
+        publish/subscribe events and native MAVLink payload control; it does not
+        replace MAVLink platform control. Carries commanded sensor mode and an
+        optional point of interest to slew to.
+      </description>
+      <field type="uint64_t" name="time_usec"    units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint16_t" name="task_id"                 >Tasking correlation id (echoed in the status response).</field>
+      <field type="uint8_t"  name="sensor_mode"  enum="MAVLINK_M_SENSOR_MODE">Commanded sensor/payload mode.</field>
+      <field type="uint8_t"  name="status"        enum="MAVLINK_M_TASKING_STATUS">Tasking-status response (ACK/REJECTED/COMPLETE/ACTIVE).</field>
+      <field type="int32_t"  name="poi_lat"       units="degE7">Point-of-interest latitude to slew to, WGS84. INT32_MAX = not provided (0 is a valid coordinate).</field>
+      <field type="int32_t"  name="poi_lon"       units="degE7">Point-of-interest longitude to slew to, WGS84. INT32_MAX = not provided (0 is a valid coordinate).</field>
+      <field type="float"    name="poi_alt"       units="m"   >Point-of-interest altitude, MSL. NaN = not provided.</field>
+    </message>
+
+    <!-- ============================================================ -->
+    <!-- CAS & TERMINAL CONTROL (53060-53069)                         -->
+    <!-- 53060: CAS_9LINE                                            -->
+    <!-- ============================================================ -->
+    <message id="53060" name="CAS_9LINE">
+      <description>
+        Close air support 9-line brief (JP 3-09.3 / JFIRE). Descriptive tasking
+        data classes for a CAS attack. Laser code is carried as a slot, never a
+        value. Danger close is a flag; RED tables are never embedded.
+      </description>
+      <field type="uint64_t" name="time_usec"       units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="int32_t"  name="ip_lat"          units="degE7">Line 1: initial point / battle position latitude, WGS84.</field>
+      <field type="int32_t"  name="ip_lon"          units="degE7">Line 1: initial point / battle position longitude, WGS84.</field>
+      <field type="uint16_t" name="heading_deg"     units="deg" >Line 2: heading (IP to target).</field>
+      <field type="int16_t"  name="offset_deg"      units="deg" >Line 2: offset (L/R); sign indicates side.</field>
+      <field type="uint32_t" name="distance_m"      units="m"   >Line 3: distance IP to target.</field>
+      <field type="int32_t"  name="tgt_elev_m"      units="m"   >Line 4: target elevation, MSL.</field>
+      <field type="int32_t"  name="tgt_lat"         units="degE7">Line 6: target latitude, WGS84.</field>
+      <field type="int32_t"  name="tgt_lon"         units="degE7">Line 6: target longitude, WGS84.</field>
+      <field type="uint8_t"  name="mark_type"       enum="MAVLINK_M_MARK_TYPE">Line 7: type of mark / terminal guidance.</field>
+      <field type="uint8_t"  name="laser_code_slot"             >Line 7: 1 = a laser code is assigned (slot); 0 = none. Never the numeric code.</field>
+      <field type="int32_t"  name="friendlies_lat"  units="degE7">Line 8: friendlies latitude, WGS84.</field>
+      <field type="int32_t"  name="friendlies_lon"  units="degE7">Line 8: friendlies longitude, WGS84.</field>
+      <field type="uint16_t" name="egress_deg"      units="deg" >Line 9: egress heading.</field>
+      <field type="uint16_t" name="final_attack_heading_deg" units="deg">Remarks: final attack heading (FAH). 0xFFFF if unspecified.</field>
+      <field type="uint8_t"  name="danger_close"                >Remarks: 1 = danger close / troops in contact; 0 = not.</field>
+      <field type="uint8_t"  name="delivery"        enum="MAVLINK_M_ORDNANCE_DELIVERY">Bomb-on-coordinate vs bomb-on-target.</field>
+    </message>
+
+    <!-- ============================================================ -->
+    <!-- 53061: TERMINAL_CONTROL                                     -->
+    <!-- ============================================================ -->
+    <message id="53061" name="TERMINAL_CONTROL">
+      <description>
+        Terminal-attack-control handshake (JP 3-09.3). Carries the control type,
+        the human clearance/abort verb, and attacking-aircraft status calls. This
+        is a human-authority instrument: clearance verbs record a human decision
+        and must not be wired as an automated release path.
+      </description>
+      <field type="uint64_t" name="time_usec"    units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint16_t" name="sequence"               >Engagement sequence this handshake applies to.</field>
+      <field type="uint8_t"  name="tac_type"     enum="MAVLINK_M_TAC_TYPE">Type of terminal attack control (1/2/3).</field>
+      <field type="uint8_t"  name="clearance"    enum="MAVLINK_M_CAS_CLEARANCE">Clearance / abort verb (human authority).</field>
+      <field type="uint8_t"  name="aircraft_call" enum="MAVLINK_M_AIRCRAFT_CALL">Attacking-aircraft status call.</field>
+      <field type="uint8_t"  name="abort_authority_present"  >1 = a valid abort authority is established for this engagement; 0 = not.</field>
+    </message>
+
+    <!-- ============================================================ -->
+    <!-- 53001: TARGET_CUE -->
+    <!-- ============================================================ -->
+    <message id="53001" name="TARGET_CUE">
+      <description>
+        Non-kinetic point-of-interest cue relayed from a sensing/ISR platform to
+        one or more consumers (e.g. a manually piloted aircraft, an OSD, or a
+        GCS) to direct attention to a WGS84 location for observation or
+        investigation. Carries the geolocated point and minimal context only.
+        It intentionally omits the authorization token, weaponeering, and CEP
+        fields of the fires-related messages so that ISR cueing is cleanly
+        separable from engagement on the wire.
+
+        Bearing and range to the cue are NOT transmitted: a consumer computes
+        them locally from this point and its own GLOBAL_POSITION_INT, so the
+        same cue is valid for every receiver regardless of position.
+
+        target_class and target_force on a cue are the SENSING platform's
+        provisional read at detection, qualified by confidence_score - a starting
+        hint, NOT an established identification. A cue does not identify or
+        authorize; identification is carried on TRACK_IDENTITY and the engagement
+        decision on TARGET_AUTHORIZATION. A consumer must not treat a cued class
+        or affiliation as confirmed, and must never derive a release decision
+        from a cue.
+      </description>
+      <field type="uint64_t" name="time_usec"     units="us"   >Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint32_t" name="cue_id"                      >Unique identifier of this cue, assigned by the originator.</field>
+      <field type="uint32_t" name="target_set_id"               >Parent target set identifier, if associated. 0 = none.</field>
+      <field type="int32_t"  name="lat"           units="degE7" >Cue latitude, WGS84.</field>
+      <field type="int32_t"  name="lon"           units="degE7" >Cue longitude, WGS84.</field>
+      <field type="float"    name="alt"           units="m" invalid="NaN">Cue altitude, MSL. NaN if unknown.</field>
+      <field type="float"    name="vx"            units="m/s" invalid="NaN">Velocity north (NED) if the point is moving. NaN if unknown/static.</field>
+      <field type="float"    name="vy"            units="m/s" invalid="NaN">Velocity east (NED) if the point is moving. NaN if unknown/static.</field>
+      <field type="float"    name="vz"            units="m/s" invalid="NaN">Velocity down (NED) if the point is moving. NaN if unknown/static.</field>
+      <field type="float"    name="confidence_score" invalid="NaN">Confidence of the geolocation and of the provisional class/force read [0.0-1.0]. NaN if not provided.</field>
+      <field type="uint8_t"  name="origin_sysid"               >MAVLink system ID of the originating (sensing) platform.</field>
+      <field type="uint8_t"  name="cue_type"      enum="MAVLINK_M_CUE_TYPE">Intent of the cue. Non-kinetic.</field>
+      <field type="uint8_t"  name="target_class"  enum="MAVLINK_M_TARGET_CLASS">Provisional target classification from the sensing platform, qualified by confidence_score. A hint, not an identification.</field>
+      <field type="uint8_t"  name="target_force"  enum="MAVLINK_M_TARGET_FORCE">Provisional force affiliation from the sensing platform, qualified by confidence_score. A hint, not a combat-ID determination; do not use as a release input.</field>
+      <field type="char[20]" name="name"                        >Short human-readable label (null-terminated).</field>
+    </message>
+
+    <!-- ============================================================ -->
+    <!-- 53004: MAVLINK_M_ACK -->
+    <!-- ============================================================ -->
+    <message id="53004" name="MAVLINK_M_ACK">
+      <description>
+        Generic acknowledgment for MAVLink-M messages. A recipient emits this in
+        response to an acknowledged MAVLink-M message to close the loop on
+        delivery and acceptance. Keyed by the acknowledged message ID plus an
+        instance identifier (e.g. cue_id, target_set_id, or sequence) so the
+        originator can match the ACK to the specific item.
+      </description>
+      <field type="uint64_t" name="time_usec"     units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint32_t" name="ack_msgid"                  >MAVLink message ID being acknowledged (e.g. 53001 for TARGET_CUE).</field>
+      <field type="uint32_t" name="ack_instance"               >Instance identifier of the acknowledged item (e.g. cue_id / target_set_id / sequence). 0 if not applicable.</field>
+      <field type="uint8_t"  name="origin_sysid"               >System ID of the originator of the acknowledged message.</field>
+      <field type="uint8_t"  name="ack_sysid"                  >System ID of the system issuing this acknowledgment.</field>
+      <field type="uint8_t"  name="result"        enum="MAVLINK_M_ACK_RESULT">Result of receiving/processing the acknowledged message.</field>
+      <field type="char[50]" name="reason"                     >Optional human-readable reason, primarily for REJECTED/FAILED (null-terminated).</field>
+    </message>
+
+    <!-- ============================================================ -->
+    <!-- 53034: STORE_SENSOR_STATUS -->
+    <!-- ============================================================ -->
+    <message id="53034" name="STORE_SENSOR_STATUS">
+      <description>
+        Health and current reading of one deceleration/landing-trigger sensor on
+        a store. Emitted per sensor (one message per sensor) so the set of
+        sensors per store can vary. A pre-release consumer aggregates these into
+        a go/no-go decision (see STORE_STATUS).
+      </description>
+      <field type="uint64_t" name="time_usec"   units="us"   >Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="float"    name="value"                    invalid="NaN">Current sensor reading in the sensor's native units. NaN if invalid.</field>
+      <field type="float"    name="value_min"                invalid="NaN">Lower bound of the valid operating range, native units. NaN if unspecified.</field>
+      <field type="float"    name="value_max"                invalid="NaN">Upper bound of the valid operating range, native units. NaN if unspecified.</field>
+      <field type="uint8_t"  name="store_id"                 >Store instance identifier this sensor belongs to.</field>
+      <field type="uint8_t"  name="sensor_type" enum="MAVLINK_M_STORE_SENSOR_TYPE">Type of sensor.</field>
+      <field type="uint8_t"  name="sensor_index"            >Index when multiple sensors of the same type exist on a store (0-based).</field>
+      <field type="uint8_t"  name="health"      enum="MAVLINK_M_SENSOR_HEALTH">Health state of this sensor.</field>
+    </message>
+
+    <!-- ============================================================ -->
+    <!-- 53033: STORE_STATUS -->
+    <!-- ============================================================ -->
+    <message id="53033" name="STORE_STATUS">
+      <description>
+        Per-store roll-up summary for release decisions. Aggregates ESAD arming
+        state and deceleration-sensor health into a single readiness value so an
+        operator/GCS can gate release without parsing every sensor message.
+      </description>
+      <field type="uint64_t" name="time_usec"      units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint32_t" name="sensor_fault_mask"          >Bitmask of MAVLINK_M_STORE_SENSOR_TYPE values currently NOT healthy (bit = 1&lt;&lt;sensor_type).</field>
+      <field type="uint8_t"  name="store_id"                   >Store instance identifier.</field>
+      <field type="uint8_t"  name="store_count"                >Total number of stores on the carrier (lets the GCS know how many to expect). 0 if unknown.</field>
+      <field type="uint8_t"  name="readiness"   enum="MAVLINK_M_STORE_READINESS">Roll-up release-readiness state.</field>
+      <field type="uint8_t"  name="arming_status" enum="MAVLINK_M_ESAD_ARMING_STATUS">ESAD arming state of this store (mirrored for convenience).</field>
+      <field type="uint8_t"  name="sensors_healthy"           >Count of sensors reporting OK.</field>
+      <field type="uint8_t"  name="sensors_total"             >Total count of sensors on this store.</field>
+    </message>
+
+    <!-- ============================================================ -->
+    <!-- 53000: TRACK_IDENTITY -->
+    <!-- ============================================================ -->
+    <message id="53000" name="TRACK_IDENTITY">
+      <description>
+        Correlation spine for the kill chain. Binds one real-world object to a
+        globally-unique track UID that persists across find, fix, track, target,
+        engage, and assess, so every downstream report can be tied back to the
+        same object. Carries the basis of identification (method + confidence)
+        separately from classification, and lineage when tracks split or merge.
+
+        This message asserts identity and how it was derived. It does not assert
+        engagement authority; see TARGET_AUTHORIZATION.
+      </description>
+      <field type="uint64_t"  name="time_usec"        units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint8_t[16]" name="track_uid"               >Globally-unique track identifier (UUID). Stable across the whole chain.</field>
+      <field type="uint8_t[16]" name="parent_track_uid"        >Parent track UID for split/merge/re-id lineage. All-zero if none.</field>
+      <field type="uint32_t"  name="target_set_id"             >Associated target set identifier, if any. 0 = none.</field>
+      <field type="uint64_t"  name="first_detected_usec" units="us">Time the object was first detected (UNIX epoch, microseconds UTC).</field>
+      <field type="float"     name="id_confidence"             >Confidence of identification [0.0-1.0]. NaN if not provided.</field>
+      <field type="uint8_t"   name="origin_sysid"              >System ID of the platform that originated/owns this track.</field>
+      <field type="uint8_t"   name="origin_sensor" enum="MAVLINK_M_ID_METHOD">Sensor/method underlying the current identification.</field>
+      <field type="uint8_t"   name="id_method"     enum="MAVLINK_M_ID_METHOD">Method by which identification was reached.</field>
+      <field type="uint8_t"   name="pid_status"    enum="MAVLINK_M_PID_STATUS">Positive identification status (descriptive).</field>
+      <field type="uint8_t"   name="track_rel"     enum="MAVLINK_M_TRACK_REL">Relationship to parent track (split/merge/re-id).</field>
+      <field type="uint8_t"   name="target_class"  enum="MAVLINK_M_TARGET_CLASS">Classification (what it is), distinct from id_method (how it was identified).</field>
+      <field type="uint8_t"   name="target_force"  enum="MAVLINK_M_TARGET_FORCE">Force affiliation.</field>
+      <field type="char[50]"  name="id_basis"                  >Optional free-text basis/notes for the identification (null-terminated).</field>
+      <!-- Joint-interop fields. Structural placeholders; encodings per
+           STANAG 5516 / MIL-STD-6017, to be populated from spec. -->
+      <field type="char[20]"  name="external_track_number"     >External/joint track number (e.g. Link 16 track number or VMF URN), as text for gateway round-trip. Empty if none. Encoding per external_track_type.</field>
+      <field type="uint8_t"   name="external_track_type" enum="MAVLINK_M_TRACK_NUMBER_TYPE">Namespace of external_track_number.</field>
+      <field type="uint8_t"   name="stanag_identity"  enum="MAVLINK_M_STANAG_IDENTITY">STANAG/APP-6 standard identity (richer than target_force).</field>
+      <field type="uint8_t"   name="environment"      enum="MAVLINK_M_ENVIRONMENT">STANAG/APP-6 battle dimension / environment.</field>
+      <field type="uint8_t"  name="atr_confidence_pct" units="%">ATR model confidence [0-100]. 255 = N/A. Raw score; the C2 node owns any ROE threshold.</field>
+      <field type="uint16_t" name="atr_model_id">Identifier of the ATR model/version that produced atr_confidence_pct. 0 = unspecified.</field>
+      <field type="uint8_t"  name="atr_conf_tier" enum="MAVLINK_M_ATR_CONFIDENCE">OPTIONAL advisory display tier derived from atr_confidence_pct. Not for automated ROE.</field>
+      <field type="uint8_t"  name="sidc_context" enum="MAVLINK_M_SIDC_CONTEXT">Reality context (MIL-STD-2525D SIDC digit 3): real-world vs exercise vs simulation. Prevents a live track and an exercise/simulated track from being indistinguishable on a joint net.</field>
+
+    </message>
+
+    <!-- ============================================================ -->
+    <!-- 53013: TARGET_AUTHORIZATION -->
+    <!-- ============================================================ -->
+    <message id="53013" name="TARGET_AUTHORIZATION">
+      <description>
+        Accountability attestation for a track. Records that a specific human
+        authority asserted positive identification, an ROE/clearance state, and
+        no-strike context at a specific time, so the decision trail travels with
+        the chain and is auditable after the fact.
+
+        IMPORTANT: this message is a DESCRIPTIVE RECORD, not a command. It does
+        NOT grant authority, does NOT gate or trigger weapon release, and must
+        not be used as an arming or engagement interlock. Release authority lives
+        in the crewed C2 system. A receiver must never treat the presence of this
+        message as permission to act.
+      </description>
+      <field type="uint64_t"  name="time_usec"        units="us">Timestamp this attestation was recorded (UNIX epoch, microseconds UTC).</field>
+      <field type="uint8_t[16]" name="track_uid"               >Track UID this authorization record applies to.</field>
+      <field type="uint64_t"  name="decision_usec"    units="us">Time the authority made the decision (UNIX epoch, microseconds UTC).</field>
+      <field type="uint64_t"  name="valid_until_usec" units="us">Expiry of this attestation (UNIX epoch, microseconds UTC). 0 = unspecified.</field>
+      <field type="uint32_t"  name="auth_nonce"                >Freshness nonce bound into the authorization token by the C2 node. A verifier caches seen nonces within the validity window to reject replays. Anti-replay input only; not itself a secret.</field>
+      <field type="float"     name="collateral_estimate"       >Collateral-damage estimate context [0.0-1.0 normalized], if assessed. NaN if not.</field>
+      <field type="uint8_t[16]" name="authority_id"            >Opaque identifier of the authorizing authority/operator (for audit).</field>
+      <field type="uint8_t[8]" name="authorization_token"      >Opaque authorization token (carried for record; not a release key).</field>
+      <field type="uint8_t"   name="pid_status"    enum="MAVLINK_M_PID_STATUS">PID status asserted by the authority.</field>
+      <field type="uint8_t"   name="roe_state"     enum="MAVLINK_M_ROE_STATE">ROE/clearance state asserted (attested, not commanded).</field>
+      <field type="uint8_t"   name="nostrike_status" enum="MAVLINK_M_NOSTRIKE_STATUS">No-strike / restricted-target context.</field>
+      <field type="char[50]"  name="authority_role"            >Human-readable role of the authority (e.g. designation), null-terminated.</field>
+      <field type="uint8_t"  name="cde_level" enum="MAVLINK_M_CDE_LEVEL">Collateral-damage-estimation LEVEL number only (CJCSI 3160.01). Never the underlying computation or population data.</field>
+
+    </message>
+
+    <!-- ============================================================ -->
+    <!-- 53023: ENGAGEMENT_DIRECTIVE -->
+    <!-- ============================================================ -->
+    <message id="53023" name="ENGAGEMENT_DIRECTIVE">
+      <description>
+        Engagement-control directive making abort, check-fire, resume, and
+        re-target first-class actions alongside FIRES. The ability to STOP a
+        mission is a protocol citizen, not an afterthought. Should be paired with
+        MAVLINK_M_ACK so the originator gets positive confirmation the directive
+        was received and actioned.
+
+        ABORT and CHECK_FIRE are safety actions and should be honored on receipt;
+        they do not require the authorization trail that initiating fire does.
+      </description>
+      <field type="uint64_t"  name="time_usec"     units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint8_t[16]" name="track_uid"                >Track UID the directive applies to. All-zero if addressed by sequence only.</field>
+      <field type="uint16_t"  name="sequence"                  >Fire mission sequence number the directive applies to.</field>
+      <field type="uint32_t"  name="effector_id"               >Effector the directive is addressed to. 0 = all assigned.</field>
+      <field type="int32_t"   name="retarget_lat" units="degE7">New target latitude for RETARGET, WGS84. INT32_MAX = not provided (0,0 is a valid coordinate). Ignored unless directive is RETARGET.</field>
+      <field type="int32_t"   name="retarget_lon" units="degE7">New target longitude for RETARGET, WGS84. INT32_MAX = not provided. Ignored unless directive is RETARGET.</field>
+      <field type="float"     name="retarget_alt" units="m"    >New target altitude for RETARGET, MSL. NaN = not provided. Ignored unless directive is RETARGET.</field>
+      <field type="uint8_t"   name="directive"    enum="MAVLINK_M_ENGAGEMENT_DIRECTIVE">Directive type.</field>
+      <field type="uint8_t"   name="origin_sysid"              >System ID issuing the directive.</field>
+    </message>
+
+    <!-- ============================================================ -->
+    <!-- 53024: CALL_FOR_FIRE  (full call-for-fire method, VMF K02.4) -->
+    <!-- ============================================================ -->
+    <message id="53024" name="CALL_FOR_FIRE">
+      <description>
+        Complete call-for-fire method elements (ATP 3-09.30 Ch.4; maps to VMF
+        K02.4). Complements FIRES (which carries target + munition/fuze) with the
+        warning-order, method-of-engagement, and method-of-fire-and-control
+        elements a VMF/Link-16 packer requires. Descriptive intent only.
+      </description>
+      <field type="uint64_t" name="time_usec"       units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint16_t" name="sequence"                   >Fire-mission sequence number this CFF applies to.</field>
+      <field type="uint8_t"  name="mission_type"    enum="MAVLINK_M_MISSION_TYPE">Warning-order mission type.</field>
+      <field type="uint8_t"  name="location_method" enum="MAVLINK_M_TARGET_LOCATION_METHOD">Method of target location.</field>
+      <field type="uint8_t"  name="adjustment_type" enum="MAVLINK_M_ADJUSTMENT_TYPE">Area vs precision.</field>
+      <field type="uint8_t"  name="trajectory"      enum="MAVLINK_M_TRAJECTORY">Low/high angle.</field>
+      <field type="uint8_t"  name="sheaf"           enum="MAVLINK_M_SHEAF">Distribution / sheaf.</field>
+      <field type="uint8_t"  name="control_method"  enum="MAVLINK_M_FIRE_CONTROL_METHOD">Method of fire and control.</field>
+      <field type="uint8_t"  name="danger_close"               >1 = danger close (target within doctrinal threshold of friendlies); 0 = not. Flag only, no RED table.</field>
+      <field type="uint16_t" name="rounds"                     >Number of rounds for fire for effect. 0 = unspecified.</field>
+      <field type="uint16_t" name="duration_s"      units="s"  >Duration of fire. 0 = unspecified.</field>
+      <field type="uint8_t"  name="tle_category"    enum="MAVLINK_M_TLE_CATEGORY">Target-location-error category label.</field>
+      <field type="uint8_t"  name="mensurated"                 >1 = coordinate mensurated from precision imagery; 0 = map spot.</field>
+      <field type="uint16_t" name="sheaf_length_m"  units="m"  >Linear-target sheaf length (special sheaf). 0 if N/A.</field>
+      <field type="uint16_t" name="sheaf_width_m"   units="m"  >Linear-target sheaf width (special sheaf). 0 if N/A.</field>
+      <field type="uint16_t" name="sheaf_attitude_cdeg" units="cdeg">Linear-target sheaf attitude (special sheaf), centidegrees [0..35999]. 0xFFFF = N/A (0 is a valid attitude, due north).</field>
+      <field type="uint16_t" name="ot_direction_cdeg" units="cdeg">Virtual observer-target direction (bearing observer/drone to target), centidegrees [0..35999]. Lets the gateway orient VMF K02.22 relative corrections (Add/Drop, L/R) from an absolute-coordinate edge feed. 0xFFFF = not provided (0 is a valid bearing, due north).</field>
+      <field type="uint16_t" name="ot_factor_dm"    units="dm"  >Observer-target factor: OT range / 1000, in decimeters of shift per mil. Supports relative-correction math at the gateway. 0xFFFF = not provided.</field>
+      <field type="uint8_t"  name="effect_verb" enum="MAVLINK_M_EFFECT_VERB">Mission-effect task verb (suppress/neutralize/destroy/...), descriptive tasking intent. Distinct from mission_type and from the fuze-effect intent carried on FIRES.requested_effect.</field>
+      <field type="uint8_t[16]" name="track_uid">Globally-unique track identifier (UUID) of the TRACK_IDENTITY this message correlates to. Ties the engagement/assessment to the authorized track. All-zero if not associated.</field>
+    </message>
+
+    <!-- 53003: PARTICIPANT_POSITION -->
+    <message id="53003" name="PARTICIPANT_POSITION">
+      <description>
+        Friendly-participant self-report of identity and position (PPLI-style /
+        Blue Force Tracking). Distinct from target/cue messages: this is a
+        network participant reporting "I am here, this is who I am" for the
+        common operational picture, mappable to Link 16 PPLI, VMF position
+        reports, and Cursor-on-Target friendly events.
+
+        Structural placeholder for joint interop; identity/type value sets and
+        any external track-number encoding are per STANAG 5516 / MIL-STD-6017,
+        to be reconciled from spec.
+      </description>
+      <field type="uint64_t"  name="time_usec"     units="us"   >Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="int32_t"   name="lat"           units="degE7">Participant latitude, WGS84.</field>
+      <field type="int32_t"   name="lon"           units="degE7">Participant longitude, WGS84.</field>
+      <field type="float"     name="alt"           units="m"    >Participant altitude, MSL. NaN if unknown.</field>
+      <field type="float"     name="vx"            units="m/s"  >Velocity north (NED). NaN if unknown.</field>
+      <field type="float"     name="vy"            units="m/s"  >Velocity east (NED). NaN if unknown.</field>
+      <field type="float"     name="vz"            units="m/s"  >Velocity down (NED). NaN if unknown.</field>
+      <field type="float"     name="course"        units="deg"  >Course over ground. NaN if unknown.</field>
+      <field type="char[20]"  name="external_track_number"      >External/joint track number or URN for this participant. Empty if none.</field>
+      <field type="char[50]"  name="callsign"                   >Human-readable callsign/designation (null-terminated).</field>
+      <field type="uint8_t"   name="origin_sysid"              >System ID of the reporting participant.</field>
+      <field type="uint8_t"   name="external_track_type" enum="MAVLINK_M_TRACK_NUMBER_TYPE">Namespace of external_track_number.</field>
+      <field type="uint8_t"   name="stanag_identity"  enum="MAVLINK_M_STANAG_IDENTITY">Standard identity (normally FRIEND for own-force PPLI).</field>
+      <field type="uint8_t"   name="ppli_type"       enum="MAVLINK_M_PPLI_TYPE">Participant environment/type.</field>
+    </message>
+
+    <!-- 53035: STORE_MUNITION -->
+    <message id="53035" name="STORE_MUNITION">
+      <description>
+        Descriptive munition inventory/status for a store, for mapping into a
+        joint weapon-status report (e.g. at a JTAC/C2 interface). Reports WHAT is
+        loaded so a gateway maps real data rather than synthesizing it; it does
+        NOT carry fuze/employment configuration, which is device-internal and
+        out of scope for this dialect. Keyed by store_id to correlate with
+        ESAD_STATE / STORE_STATUS. Low-rate: changes on load and on release.
+      </description>
+      <field type="uint64_t" name="time_usec"     units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="float"    name="mass"          units="kg"  >Munition mass. NaN if unknown.</field>
+      <field type="char[20]" name="external_track_number"     >External/joint track or store reference for gateway correlation. Empty if none.</field>
+      <field type="char[30]" name="nomenclature"              >Munition nomenclature/designation (null-terminated).</field>
+      <field type="uint16_t" name="quantity_remaining"        >Count of this munition remaining available on the store/carrier.</field>
+      <field type="uint8_t"  name="store_id"                  >Store instance identifier.</field>
+      <field type="uint8_t"  name="munition_type"             >Munition type code (implementation-defined; consistent with ESAD_STATE.munition_type).</field>
+      <field type="uint8_t"  name="guidance"      enum="MAVLINK_M_MUNITION_GUIDANCE">Coarse guidance category.</field>
+      <field type="uint8_t"  name="warhead"       enum="MAVLINK_M_MUNITION_WARHEAD">Coarse warhead category.</field>
+      <field type="uint8_t"  name="arming_status" enum="MAVLINK_M_ESAD_ARMING_STATUS">Safe/armed state (mirrored from ESAD for convenience).</field>
+      <field type="uint8_t"  name="fuze_health"   enum="MAVLINK_M_FUZE_HEALTH">Coarse fuze HEALTH (functioning/fault), not fuze configuration.</field>
+      <field type="uint8_t"  name="external_track_type" enum="MAVLINK_M_TRACK_NUMBER_TYPE">Namespace of external_track_number.</field>
+      <field type="uint8_t" name="munition_family" enum="MAVLINK_M_MUNITION_FAMILY">Composite-munition family (finer than the warhead/guidance pair). Descriptive.</field>
+      <field type="uint8_t" name="munition_payload" enum="MAVLINK_M_MUNITION_PAYLOAD">Composite-munition payload category. Descriptive.</field>
+      <field type="uint8_t" name="warhead_mode" enum="MAVLINK_M_WARHEAD_MODE">Coarse selectable warhead MODE currently set for a selectable/multi-mode warhead (e.g. surface vs penetrate on a multi-drop magazine store). Reports the mode only. It is a COARSE enum and MUST NOT be widened to carry a fuze timing / inter-stage delay value; the actual timing is device-internal and configured on the component bus (e.g. DroneCAN) below the FMU.</field>
+      <field type="uint8_t" name="sd_duration" enum="MAVLINK_M_SD_DURATION">Scatterable-mine self-destruct duration CATEGORY (not exact seconds), for mine payloads.</field>
+
+    </message>
+
+    <!-- ============================================================ -->
+    <!-- 53036: LOITER_MUNITION_CONTROL                              -->
+    <!-- ============================================================ -->
+    <message id="53036" name="LOITER_MUNITION_CONTROL">
+      <description>
+        Loitering-munition / one-way-attack UAS control and consent handshake
+        (JFIRE 2023). SAFETY-CRITICAL: consent_state records a MAN-IN-THE-LOOP
+        human decision and MUST NOT be used to build an automated release path;
+        release authority remains with the crewed C2 system. terminate provides
+        abort/wave-off/self-destruct. Pairs with TARGET_AUTHORIZATION (record)
+        and ENGAGEMENT_DIRECTIVE (abort/check-fire) already in the dialect.
+      </description>
+      <field type="uint64_t"  name="time_usec"     units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint8_t[16]" name="track_uid"             >128-bit track UID of the engaged object (see TRACK_IDENTITY).</field>
+      <field type="uint8_t"   name="consent_state" enum="MAVLINK_M_LM_CONSENT_STATE">Man-in-the-loop consent-to-strike state (recorded human decision, not a trigger).</field>
+      <field type="uint8_t"   name="terminate"     enum="MAVLINK_M_LM_TERMINATE">Abort / wave-off / self-destruct action.</field>
+      <field type="uint8_t"   name="tst_status"    enum="MAVLINK_M_TST_STATUS">Time-sensitive-target prosecution status.</field>
+      <field type="uint8_t"   name="pid_status"    enum="MAVLINK_M_PID_STATUS">Positive-identification status gate (from TRACK_IDENTITY set).</field>
+      <field type="uint8_t"   name="cde_level"     enum="MAVLINK_M_CDE_LEVEL">Collateral-damage-estimate level gate (number only).</field>
+      <field type="int32_t"   name="loiter_lat"    units="degE7">Loiter/orbit station latitude, WGS84. INT32_MAX = not provided (0 is a valid coordinate).</field>
+      <field type="int32_t"   name="loiter_lon"    units="degE7">Loiter/orbit station longitude, WGS84. INT32_MAX = not provided (0 is a valid coordinate).</field>
+      <field type="uint8_t"   name="dmpi_kind"     enum="MAVLINK_M_DMPI_REFERENCE_KIND">How the desired point of impact is referenced (no mensurated coordinate).</field>
     </message>
 
   </messages>

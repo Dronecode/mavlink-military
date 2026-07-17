@@ -41,15 +41,20 @@ jobs:
         run: |
           pip install future lxml
 
-      - name: Place military.xml alongside other message definitions
+      - name: Place dialect definition alongside other message definitions
         run: |
-          cp military.xml mavlink/message_definitions/v1.0/military.xml
+          cp military.xml mavlink/message_definitions/v1.0/
 
       - name: Generate C headers
         run: |
+          # --no-validate: common.xml on mavlink master currently fails the
+          # pymavlink master schema (superseded tag placement), which makes
+          # mavgen exit before generating. The dialect files themselves are
+          # schema-checked before merge.
           python pymavlink/tools/mavgen.py \
             --lang=C \
             --wire-protocol=2.0 \
+            --no-validate \
             --output=generated/include/mavlink/v2.0 \
             mavlink/message_definitions/v1.0/military.xml
 
