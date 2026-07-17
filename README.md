@@ -1,10 +1,78 @@
-# MAVLink Military Messages
+# MAVLink-M
 
-`military.xml` is the shared MAVLink-M dialect. Extension boundaries have been
-folded into the base message definitions, so fields that belong to a shared
-message live directly in that message.
+MAVLink-M is an open dialect of [MAVLink 2](https://mavlink.io) for
+coordination and situational-awareness messaging between uncrewed platforms and
+the command systems that work with them.
 
-`military_extensions.xml` is a downstream/private extension example only. It
-shows implementors how to include the shared dialect and define local messages in
-the reserved `53900-53999` block without making those messages part of the
-shared generated dialect.
+Where the common MAVLink message set covers flying the aircraft, MAVLink-M adds
+a shared vocabulary for what a platform observes and coordinates with others:
+tracks, positions, taskings, status, and structured reports. The messages are
+shaped so that a platform speaking this dialect can be understood by the wider
+force, translating cleanly, through a gateway, into the command-and-control
+message standards those systems already run on.
+
+## Scope and boundaries
+
+MAVLink-M is a message-schema dialect. It defines field layouts on top of open
+MAVLink; it is not an implementation, and it does not describe how any device
+works internally.
+
+What the dialect deliberately does and does not carry is the core of its design:
+
+- **It carries descriptive intent and observation** — what was seen, what is
+  requested, and the current status of a participant. This is the information a
+  cooperating system needs to coordinate.
+- **It excludes device-internal configuration** — no fuze timing values, no
+  laser codes, no performance or effectiveness data. The messages describe
+  coordination between participants, never the internal programming of a device.
+- **Kinetic and non-kinetic intent are separable** — observation cueing is a
+  distinct message from action requests, so a consumer can tell "observe this"
+  from "act on this" by message ID alone.
+- **Accountability is a record, not a trigger** — messages that record a
+  decision or authorization are exactly that: a record for audit and shared
+  awareness, not a command that causes an action.
+
+These boundaries are intentional. They keep the dialect a coordination and
+telemetry vocabulary that interoperates across systems, and keep the internal
+programming of any device off the wire.
+
+## What's in this repository
+
+| File | Purpose |
+| --- | --- |
+| `military.xml` | The shared MAVLink-M dialect. Includes `common.xml`. |
+| `military_extensions.xml` | A template only, showing how a downstream implementor defines private, local messages in the reserved `53900-53999` block without adding them to the shared dialect. Not part of the generated dialect here. |
+| `generated/` | Pre-generated language bindings for the shared dialect. |
+| [`IDMAPPING.md`](IDMAPPING.md) | Message-ID allocation for the `53000-53999` range. |
+
+Message IDs are allocated as `53000-53099` for the initial shared messages,
+`53100-53899` reserved for future shared growth, and `53900-53999` for
+private/downstream messages. See [`IDMAPPING.md`](IDMAPPING.md) for the full map.
+
+## Using it
+
+The dialect drops into any MAVLink 2 stack. Generate bindings for your language
+with [mavgen](https://mavlink.io/en/getting_started/generate_language.html), for
+example:
+
+```sh
+python3 -m pymavlink.tools.mavgen \
+  --lang=C --wire-protocol=2.0 \
+  --output=out military.xml
+```
+
+Pre-generated C headers are also provided under `generated/`.
+
+For a worked example on real hardware — a flight controller relaying MAVLink-M
+messages to a peripheral — see
+[nucleo-mavlink-m-demo](https://github.com/Dronecode/nucleo-mavlink-m-demo).
+
+## Status and contributing
+
+The `53000-53099` allocation is active for this dialect. Message IDs are stable
+once assigned. To propose a new shared message or a change, open a pull request
+against `military.xml`; keep additions within the scope and boundaries above.
+
+## License
+
+MIT. See [`LICENSE`](LICENSE).
