@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define MAVLINK_MSG_ID_SPLASH_CORRECTION 53004
+#define MAVLINK_MSG_ID_SPLASH_CORRECTION 53021
 
 
 typedef struct __mavlink_splash_correction_t {
@@ -13,24 +13,31 @@ typedef struct __mavlink_splash_correction_t {
  float alt; /*< [m] Observed splash altitude, MSL.*/
  float cep_expected; /*< [m] Estimated CEP of the observed splash.*/
  uint16_t sequence; /*<  Fire mission sequence number this correction applies to.*/
- uint8_t type_detected; /*<  Type of splash detected (implementation-defined; e.g. 0=unknown, 1=smoke, 2=explosion).*/
+ uint8_t type_detected; /*<  Coarse splash detector cue (implementation-defined; e.g. 0=unknown, 1=smoke, 2=explosion). Doctrinal observed-fire adjustment is carried by deviation, range_spot, hob, impact_surface, and obscuration.*/
+ uint8_t deviation; /*<  Deviation spotting relative to the observer-target line.*/
+ uint8_t range_spot; /*<  Range spotting along the observer-target line.*/
+ uint8_t hob; /*<  Height-of-burst spotting (observation, not munition/fuze setting).*/
+ uint8_t impact_surface; /*<  Supplementary: what was struck / what the splash landed in/on.*/
+ uint8_t obscuration; /*<  Supplementary: cause of obscuration, if observation was masked.*/
+ uint8_t command; /*<  Procedural fire-mission command accompanying this spotting (NONE if pure spotting).*/
+ uint8_t track_uid[16]; /*<  Globally-unique track identifier (UUID) of the TRACK_IDENTITY this message correlates to. Ties the engagement/assessment to the authorized track. All-zero if not associated.*/
 } mavlink_splash_correction_t;
 
-#define MAVLINK_MSG_ID_SPLASH_CORRECTION_LEN 27
-#define MAVLINK_MSG_ID_SPLASH_CORRECTION_MIN_LEN 27
-#define MAVLINK_MSG_ID_53004_LEN 27
-#define MAVLINK_MSG_ID_53004_MIN_LEN 27
+#define MAVLINK_MSG_ID_SPLASH_CORRECTION_LEN 49
+#define MAVLINK_MSG_ID_SPLASH_CORRECTION_MIN_LEN 49
+#define MAVLINK_MSG_ID_53021_LEN 49
+#define MAVLINK_MSG_ID_53021_MIN_LEN 49
 
-#define MAVLINK_MSG_ID_SPLASH_CORRECTION_CRC 39
-#define MAVLINK_MSG_ID_53004_CRC 39
+#define MAVLINK_MSG_ID_SPLASH_CORRECTION_CRC 94
+#define MAVLINK_MSG_ID_53021_CRC 94
 
-
+#define MAVLINK_MSG_SPLASH_CORRECTION_FIELD_TRACK_UID_LEN 16
 
 #if MAVLINK_COMMAND_24BIT
 #define MAVLINK_MESSAGE_INFO_SPLASH_CORRECTION { \
-    53004, \
+    53021, \
     "SPLASH_CORRECTION", \
-    7, \
+    14, \
     {  { "time_usec", NULL, MAVLINK_TYPE_UINT64_T, 0, 0, offsetof(mavlink_splash_correction_t, time_usec) }, \
          { "lat", NULL, MAVLINK_TYPE_INT32_T, 0, 8, offsetof(mavlink_splash_correction_t, lat) }, \
          { "lon", NULL, MAVLINK_TYPE_INT32_T, 0, 12, offsetof(mavlink_splash_correction_t, lon) }, \
@@ -38,12 +45,19 @@ typedef struct __mavlink_splash_correction_t {
          { "sequence", NULL, MAVLINK_TYPE_UINT16_T, 0, 24, offsetof(mavlink_splash_correction_t, sequence) }, \
          { "type_detected", NULL, MAVLINK_TYPE_UINT8_T, 0, 26, offsetof(mavlink_splash_correction_t, type_detected) }, \
          { "cep_expected", NULL, MAVLINK_TYPE_FLOAT, 0, 20, offsetof(mavlink_splash_correction_t, cep_expected) }, \
+         { "deviation", NULL, MAVLINK_TYPE_UINT8_T, 0, 27, offsetof(mavlink_splash_correction_t, deviation) }, \
+         { "range_spot", NULL, MAVLINK_TYPE_UINT8_T, 0, 28, offsetof(mavlink_splash_correction_t, range_spot) }, \
+         { "hob", NULL, MAVLINK_TYPE_UINT8_T, 0, 29, offsetof(mavlink_splash_correction_t, hob) }, \
+         { "impact_surface", NULL, MAVLINK_TYPE_UINT8_T, 0, 30, offsetof(mavlink_splash_correction_t, impact_surface) }, \
+         { "obscuration", NULL, MAVLINK_TYPE_UINT8_T, 0, 31, offsetof(mavlink_splash_correction_t, obscuration) }, \
+         { "command", NULL, MAVLINK_TYPE_UINT8_T, 0, 32, offsetof(mavlink_splash_correction_t, command) }, \
+         { "track_uid", NULL, MAVLINK_TYPE_UINT8_T, 16, 33, offsetof(mavlink_splash_correction_t, track_uid) }, \
          } \
 }
 #else
 #define MAVLINK_MESSAGE_INFO_SPLASH_CORRECTION { \
     "SPLASH_CORRECTION", \
-    7, \
+    14, \
     {  { "time_usec", NULL, MAVLINK_TYPE_UINT64_T, 0, 0, offsetof(mavlink_splash_correction_t, time_usec) }, \
          { "lat", NULL, MAVLINK_TYPE_INT32_T, 0, 8, offsetof(mavlink_splash_correction_t, lat) }, \
          { "lon", NULL, MAVLINK_TYPE_INT32_T, 0, 12, offsetof(mavlink_splash_correction_t, lon) }, \
@@ -51,6 +65,13 @@ typedef struct __mavlink_splash_correction_t {
          { "sequence", NULL, MAVLINK_TYPE_UINT16_T, 0, 24, offsetof(mavlink_splash_correction_t, sequence) }, \
          { "type_detected", NULL, MAVLINK_TYPE_UINT8_T, 0, 26, offsetof(mavlink_splash_correction_t, type_detected) }, \
          { "cep_expected", NULL, MAVLINK_TYPE_FLOAT, 0, 20, offsetof(mavlink_splash_correction_t, cep_expected) }, \
+         { "deviation", NULL, MAVLINK_TYPE_UINT8_T, 0, 27, offsetof(mavlink_splash_correction_t, deviation) }, \
+         { "range_spot", NULL, MAVLINK_TYPE_UINT8_T, 0, 28, offsetof(mavlink_splash_correction_t, range_spot) }, \
+         { "hob", NULL, MAVLINK_TYPE_UINT8_T, 0, 29, offsetof(mavlink_splash_correction_t, hob) }, \
+         { "impact_surface", NULL, MAVLINK_TYPE_UINT8_T, 0, 30, offsetof(mavlink_splash_correction_t, impact_surface) }, \
+         { "obscuration", NULL, MAVLINK_TYPE_UINT8_T, 0, 31, offsetof(mavlink_splash_correction_t, obscuration) }, \
+         { "command", NULL, MAVLINK_TYPE_UINT8_T, 0, 32, offsetof(mavlink_splash_correction_t, command) }, \
+         { "track_uid", NULL, MAVLINK_TYPE_UINT8_T, 16, 33, offsetof(mavlink_splash_correction_t, track_uid) }, \
          } \
 }
 #endif
@@ -66,12 +87,19 @@ typedef struct __mavlink_splash_correction_t {
  * @param lon [degE7] Observed splash longitude, WGS84.
  * @param alt [m] Observed splash altitude, MSL.
  * @param sequence  Fire mission sequence number this correction applies to.
- * @param type_detected  Type of splash detected (implementation-defined; e.g. 0=unknown, 1=smoke, 2=explosion).
+ * @param type_detected  Coarse splash detector cue (implementation-defined; e.g. 0=unknown, 1=smoke, 2=explosion). Doctrinal observed-fire adjustment is carried by deviation, range_spot, hob, impact_surface, and obscuration.
  * @param cep_expected [m] Estimated CEP of the observed splash.
+ * @param deviation  Deviation spotting relative to the observer-target line.
+ * @param range_spot  Range spotting along the observer-target line.
+ * @param hob  Height-of-burst spotting (observation, not munition/fuze setting).
+ * @param impact_surface  Supplementary: what was struck / what the splash landed in/on.
+ * @param obscuration  Supplementary: cause of obscuration, if observation was masked.
+ * @param command  Procedural fire-mission command accompanying this spotting (NONE if pure spotting).
+ * @param track_uid  Globally-unique track identifier (UUID) of the TRACK_IDENTITY this message correlates to. Ties the engagement/assessment to the authorized track. All-zero if not associated.
  * @return length of the message in bytes (excluding serial stream start sign)
  */
 static inline uint16_t mavlink_msg_splash_correction_pack(uint8_t system_id, uint8_t component_id, mavlink_message_t* msg,
-                               uint64_t time_usec, int32_t lat, int32_t lon, float alt, uint16_t sequence, uint8_t type_detected, float cep_expected)
+                               uint64_t time_usec, int32_t lat, int32_t lon, float alt, uint16_t sequence, uint8_t type_detected, float cep_expected, uint8_t deviation, uint8_t range_spot, uint8_t hob, uint8_t impact_surface, uint8_t obscuration, uint8_t command, const uint8_t *track_uid)
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
     char buf[MAVLINK_MSG_ID_SPLASH_CORRECTION_LEN];
@@ -82,7 +110,13 @@ static inline uint16_t mavlink_msg_splash_correction_pack(uint8_t system_id, uin
     _mav_put_float(buf, 20, cep_expected);
     _mav_put_uint16_t(buf, 24, sequence);
     _mav_put_uint8_t(buf, 26, type_detected);
-
+    _mav_put_uint8_t(buf, 27, deviation);
+    _mav_put_uint8_t(buf, 28, range_spot);
+    _mav_put_uint8_t(buf, 29, hob);
+    _mav_put_uint8_t(buf, 30, impact_surface);
+    _mav_put_uint8_t(buf, 31, obscuration);
+    _mav_put_uint8_t(buf, 32, command);
+    _mav_put_uint8_t_array(buf, 33, track_uid, 16);
         memcpy(_MAV_PAYLOAD_NON_CONST(msg), buf, MAVLINK_MSG_ID_SPLASH_CORRECTION_LEN);
 #else
     mavlink_splash_correction_t packet;
@@ -93,7 +127,13 @@ static inline uint16_t mavlink_msg_splash_correction_pack(uint8_t system_id, uin
     packet.cep_expected = cep_expected;
     packet.sequence = sequence;
     packet.type_detected = type_detected;
-
+    packet.deviation = deviation;
+    packet.range_spot = range_spot;
+    packet.hob = hob;
+    packet.impact_surface = impact_surface;
+    packet.obscuration = obscuration;
+    packet.command = command;
+    mav_array_memcpy(packet.track_uid, track_uid, sizeof(uint8_t)*16);
         memcpy(_MAV_PAYLOAD_NON_CONST(msg), &packet, MAVLINK_MSG_ID_SPLASH_CORRECTION_LEN);
 #endif
 
@@ -113,12 +153,19 @@ static inline uint16_t mavlink_msg_splash_correction_pack(uint8_t system_id, uin
  * @param lon [degE7] Observed splash longitude, WGS84.
  * @param alt [m] Observed splash altitude, MSL.
  * @param sequence  Fire mission sequence number this correction applies to.
- * @param type_detected  Type of splash detected (implementation-defined; e.g. 0=unknown, 1=smoke, 2=explosion).
+ * @param type_detected  Coarse splash detector cue (implementation-defined; e.g. 0=unknown, 1=smoke, 2=explosion). Doctrinal observed-fire adjustment is carried by deviation, range_spot, hob, impact_surface, and obscuration.
  * @param cep_expected [m] Estimated CEP of the observed splash.
+ * @param deviation  Deviation spotting relative to the observer-target line.
+ * @param range_spot  Range spotting along the observer-target line.
+ * @param hob  Height-of-burst spotting (observation, not munition/fuze setting).
+ * @param impact_surface  Supplementary: what was struck / what the splash landed in/on.
+ * @param obscuration  Supplementary: cause of obscuration, if observation was masked.
+ * @param command  Procedural fire-mission command accompanying this spotting (NONE if pure spotting).
+ * @param track_uid  Globally-unique track identifier (UUID) of the TRACK_IDENTITY this message correlates to. Ties the engagement/assessment to the authorized track. All-zero if not associated.
  * @return length of the message in bytes (excluding serial stream start sign)
  */
 static inline uint16_t mavlink_msg_splash_correction_pack_status(uint8_t system_id, uint8_t component_id, mavlink_status_t *_status, mavlink_message_t* msg,
-                               uint64_t time_usec, int32_t lat, int32_t lon, float alt, uint16_t sequence, uint8_t type_detected, float cep_expected)
+                               uint64_t time_usec, int32_t lat, int32_t lon, float alt, uint16_t sequence, uint8_t type_detected, float cep_expected, uint8_t deviation, uint8_t range_spot, uint8_t hob, uint8_t impact_surface, uint8_t obscuration, uint8_t command, const uint8_t *track_uid)
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
     char buf[MAVLINK_MSG_ID_SPLASH_CORRECTION_LEN];
@@ -129,7 +176,13 @@ static inline uint16_t mavlink_msg_splash_correction_pack_status(uint8_t system_
     _mav_put_float(buf, 20, cep_expected);
     _mav_put_uint16_t(buf, 24, sequence);
     _mav_put_uint8_t(buf, 26, type_detected);
-
+    _mav_put_uint8_t(buf, 27, deviation);
+    _mav_put_uint8_t(buf, 28, range_spot);
+    _mav_put_uint8_t(buf, 29, hob);
+    _mav_put_uint8_t(buf, 30, impact_surface);
+    _mav_put_uint8_t(buf, 31, obscuration);
+    _mav_put_uint8_t(buf, 32, command);
+    _mav_put_uint8_t_array(buf, 33, track_uid, 16);
         memcpy(_MAV_PAYLOAD_NON_CONST(msg), buf, MAVLINK_MSG_ID_SPLASH_CORRECTION_LEN);
 #else
     mavlink_splash_correction_t packet;
@@ -140,7 +193,13 @@ static inline uint16_t mavlink_msg_splash_correction_pack_status(uint8_t system_
     packet.cep_expected = cep_expected;
     packet.sequence = sequence;
     packet.type_detected = type_detected;
-
+    packet.deviation = deviation;
+    packet.range_spot = range_spot;
+    packet.hob = hob;
+    packet.impact_surface = impact_surface;
+    packet.obscuration = obscuration;
+    packet.command = command;
+    mav_array_memcpy(packet.track_uid, track_uid, sizeof(uint8_t)*16);
         memcpy(_MAV_PAYLOAD_NON_CONST(msg), &packet, MAVLINK_MSG_ID_SPLASH_CORRECTION_LEN);
 #endif
 
@@ -163,13 +222,20 @@ static inline uint16_t mavlink_msg_splash_correction_pack_status(uint8_t system_
  * @param lon [degE7] Observed splash longitude, WGS84.
  * @param alt [m] Observed splash altitude, MSL.
  * @param sequence  Fire mission sequence number this correction applies to.
- * @param type_detected  Type of splash detected (implementation-defined; e.g. 0=unknown, 1=smoke, 2=explosion).
+ * @param type_detected  Coarse splash detector cue (implementation-defined; e.g. 0=unknown, 1=smoke, 2=explosion). Doctrinal observed-fire adjustment is carried by deviation, range_spot, hob, impact_surface, and obscuration.
  * @param cep_expected [m] Estimated CEP of the observed splash.
+ * @param deviation  Deviation spotting relative to the observer-target line.
+ * @param range_spot  Range spotting along the observer-target line.
+ * @param hob  Height-of-burst spotting (observation, not munition/fuze setting).
+ * @param impact_surface  Supplementary: what was struck / what the splash landed in/on.
+ * @param obscuration  Supplementary: cause of obscuration, if observation was masked.
+ * @param command  Procedural fire-mission command accompanying this spotting (NONE if pure spotting).
+ * @param track_uid  Globally-unique track identifier (UUID) of the TRACK_IDENTITY this message correlates to. Ties the engagement/assessment to the authorized track. All-zero if not associated.
  * @return length of the message in bytes (excluding serial stream start sign)
  */
 static inline uint16_t mavlink_msg_splash_correction_pack_chan(uint8_t system_id, uint8_t component_id, uint8_t chan,
                                mavlink_message_t* msg,
-                                   uint64_t time_usec,int32_t lat,int32_t lon,float alt,uint16_t sequence,uint8_t type_detected,float cep_expected)
+                                   uint64_t time_usec,int32_t lat,int32_t lon,float alt,uint16_t sequence,uint8_t type_detected,float cep_expected,uint8_t deviation,uint8_t range_spot,uint8_t hob,uint8_t impact_surface,uint8_t obscuration,uint8_t command,const uint8_t *track_uid)
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
     char buf[MAVLINK_MSG_ID_SPLASH_CORRECTION_LEN];
@@ -180,7 +246,13 @@ static inline uint16_t mavlink_msg_splash_correction_pack_chan(uint8_t system_id
     _mav_put_float(buf, 20, cep_expected);
     _mav_put_uint16_t(buf, 24, sequence);
     _mav_put_uint8_t(buf, 26, type_detected);
-
+    _mav_put_uint8_t(buf, 27, deviation);
+    _mav_put_uint8_t(buf, 28, range_spot);
+    _mav_put_uint8_t(buf, 29, hob);
+    _mav_put_uint8_t(buf, 30, impact_surface);
+    _mav_put_uint8_t(buf, 31, obscuration);
+    _mav_put_uint8_t(buf, 32, command);
+    _mav_put_uint8_t_array(buf, 33, track_uid, 16);
         memcpy(_MAV_PAYLOAD_NON_CONST(msg), buf, MAVLINK_MSG_ID_SPLASH_CORRECTION_LEN);
 #else
     mavlink_splash_correction_t packet;
@@ -191,7 +263,13 @@ static inline uint16_t mavlink_msg_splash_correction_pack_chan(uint8_t system_id
     packet.cep_expected = cep_expected;
     packet.sequence = sequence;
     packet.type_detected = type_detected;
-
+    packet.deviation = deviation;
+    packet.range_spot = range_spot;
+    packet.hob = hob;
+    packet.impact_surface = impact_surface;
+    packet.obscuration = obscuration;
+    packet.command = command;
+    mav_array_memcpy(packet.track_uid, track_uid, sizeof(uint8_t)*16);
         memcpy(_MAV_PAYLOAD_NON_CONST(msg), &packet, MAVLINK_MSG_ID_SPLASH_CORRECTION_LEN);
 #endif
 
@@ -209,7 +287,7 @@ static inline uint16_t mavlink_msg_splash_correction_pack_chan(uint8_t system_id
  */
 static inline uint16_t mavlink_msg_splash_correction_encode(uint8_t system_id, uint8_t component_id, mavlink_message_t* msg, const mavlink_splash_correction_t* splash_correction)
 {
-    return mavlink_msg_splash_correction_pack(system_id, component_id, msg, splash_correction->time_usec, splash_correction->lat, splash_correction->lon, splash_correction->alt, splash_correction->sequence, splash_correction->type_detected, splash_correction->cep_expected);
+    return mavlink_msg_splash_correction_pack(system_id, component_id, msg, splash_correction->time_usec, splash_correction->lat, splash_correction->lon, splash_correction->alt, splash_correction->sequence, splash_correction->type_detected, splash_correction->cep_expected, splash_correction->deviation, splash_correction->range_spot, splash_correction->hob, splash_correction->impact_surface, splash_correction->obscuration, splash_correction->command, splash_correction->track_uid);
 }
 
 /**
@@ -223,7 +301,7 @@ static inline uint16_t mavlink_msg_splash_correction_encode(uint8_t system_id, u
  */
 static inline uint16_t mavlink_msg_splash_correction_encode_chan(uint8_t system_id, uint8_t component_id, uint8_t chan, mavlink_message_t* msg, const mavlink_splash_correction_t* splash_correction)
 {
-    return mavlink_msg_splash_correction_pack_chan(system_id, component_id, chan, msg, splash_correction->time_usec, splash_correction->lat, splash_correction->lon, splash_correction->alt, splash_correction->sequence, splash_correction->type_detected, splash_correction->cep_expected);
+    return mavlink_msg_splash_correction_pack_chan(system_id, component_id, chan, msg, splash_correction->time_usec, splash_correction->lat, splash_correction->lon, splash_correction->alt, splash_correction->sequence, splash_correction->type_detected, splash_correction->cep_expected, splash_correction->deviation, splash_correction->range_spot, splash_correction->hob, splash_correction->impact_surface, splash_correction->obscuration, splash_correction->command, splash_correction->track_uid);
 }
 
 /**
@@ -237,7 +315,7 @@ static inline uint16_t mavlink_msg_splash_correction_encode_chan(uint8_t system_
  */
 static inline uint16_t mavlink_msg_splash_correction_encode_status(uint8_t system_id, uint8_t component_id, mavlink_status_t* _status, mavlink_message_t* msg, const mavlink_splash_correction_t* splash_correction)
 {
-    return mavlink_msg_splash_correction_pack_status(system_id, component_id, _status, msg,  splash_correction->time_usec, splash_correction->lat, splash_correction->lon, splash_correction->alt, splash_correction->sequence, splash_correction->type_detected, splash_correction->cep_expected);
+    return mavlink_msg_splash_correction_pack_status(system_id, component_id, _status, msg,  splash_correction->time_usec, splash_correction->lat, splash_correction->lon, splash_correction->alt, splash_correction->sequence, splash_correction->type_detected, splash_correction->cep_expected, splash_correction->deviation, splash_correction->range_spot, splash_correction->hob, splash_correction->impact_surface, splash_correction->obscuration, splash_correction->command, splash_correction->track_uid);
 }
 
 /**
@@ -249,12 +327,19 @@ static inline uint16_t mavlink_msg_splash_correction_encode_status(uint8_t syste
  * @param lon [degE7] Observed splash longitude, WGS84.
  * @param alt [m] Observed splash altitude, MSL.
  * @param sequence  Fire mission sequence number this correction applies to.
- * @param type_detected  Type of splash detected (implementation-defined; e.g. 0=unknown, 1=smoke, 2=explosion).
+ * @param type_detected  Coarse splash detector cue (implementation-defined; e.g. 0=unknown, 1=smoke, 2=explosion). Doctrinal observed-fire adjustment is carried by deviation, range_spot, hob, impact_surface, and obscuration.
  * @param cep_expected [m] Estimated CEP of the observed splash.
+ * @param deviation  Deviation spotting relative to the observer-target line.
+ * @param range_spot  Range spotting along the observer-target line.
+ * @param hob  Height-of-burst spotting (observation, not munition/fuze setting).
+ * @param impact_surface  Supplementary: what was struck / what the splash landed in/on.
+ * @param obscuration  Supplementary: cause of obscuration, if observation was masked.
+ * @param command  Procedural fire-mission command accompanying this spotting (NONE if pure spotting).
+ * @param track_uid  Globally-unique track identifier (UUID) of the TRACK_IDENTITY this message correlates to. Ties the engagement/assessment to the authorized track. All-zero if not associated.
  */
 #ifdef MAVLINK_USE_CONVENIENCE_FUNCTIONS
 
-static inline void mavlink_msg_splash_correction_send(mavlink_channel_t chan, uint64_t time_usec, int32_t lat, int32_t lon, float alt, uint16_t sequence, uint8_t type_detected, float cep_expected)
+static inline void mavlink_msg_splash_correction_send(mavlink_channel_t chan, uint64_t time_usec, int32_t lat, int32_t lon, float alt, uint16_t sequence, uint8_t type_detected, float cep_expected, uint8_t deviation, uint8_t range_spot, uint8_t hob, uint8_t impact_surface, uint8_t obscuration, uint8_t command, const uint8_t *track_uid)
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
     char buf[MAVLINK_MSG_ID_SPLASH_CORRECTION_LEN];
@@ -265,7 +350,13 @@ static inline void mavlink_msg_splash_correction_send(mavlink_channel_t chan, ui
     _mav_put_float(buf, 20, cep_expected);
     _mav_put_uint16_t(buf, 24, sequence);
     _mav_put_uint8_t(buf, 26, type_detected);
-
+    _mav_put_uint8_t(buf, 27, deviation);
+    _mav_put_uint8_t(buf, 28, range_spot);
+    _mav_put_uint8_t(buf, 29, hob);
+    _mav_put_uint8_t(buf, 30, impact_surface);
+    _mav_put_uint8_t(buf, 31, obscuration);
+    _mav_put_uint8_t(buf, 32, command);
+    _mav_put_uint8_t_array(buf, 33, track_uid, 16);
     _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_SPLASH_CORRECTION, buf, MAVLINK_MSG_ID_SPLASH_CORRECTION_MIN_LEN, MAVLINK_MSG_ID_SPLASH_CORRECTION_LEN, MAVLINK_MSG_ID_SPLASH_CORRECTION_CRC);
 #else
     mavlink_splash_correction_t packet;
@@ -276,7 +367,13 @@ static inline void mavlink_msg_splash_correction_send(mavlink_channel_t chan, ui
     packet.cep_expected = cep_expected;
     packet.sequence = sequence;
     packet.type_detected = type_detected;
-
+    packet.deviation = deviation;
+    packet.range_spot = range_spot;
+    packet.hob = hob;
+    packet.impact_surface = impact_surface;
+    packet.obscuration = obscuration;
+    packet.command = command;
+    mav_array_memcpy(packet.track_uid, track_uid, sizeof(uint8_t)*16);
     _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_SPLASH_CORRECTION, (const char *)&packet, MAVLINK_MSG_ID_SPLASH_CORRECTION_MIN_LEN, MAVLINK_MSG_ID_SPLASH_CORRECTION_LEN, MAVLINK_MSG_ID_SPLASH_CORRECTION_CRC);
 #endif
 }
@@ -289,7 +386,7 @@ static inline void mavlink_msg_splash_correction_send(mavlink_channel_t chan, ui
 static inline void mavlink_msg_splash_correction_send_struct(mavlink_channel_t chan, const mavlink_splash_correction_t* splash_correction)
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
-    mavlink_msg_splash_correction_send(chan, splash_correction->time_usec, splash_correction->lat, splash_correction->lon, splash_correction->alt, splash_correction->sequence, splash_correction->type_detected, splash_correction->cep_expected);
+    mavlink_msg_splash_correction_send(chan, splash_correction->time_usec, splash_correction->lat, splash_correction->lon, splash_correction->alt, splash_correction->sequence, splash_correction->type_detected, splash_correction->cep_expected, splash_correction->deviation, splash_correction->range_spot, splash_correction->hob, splash_correction->impact_surface, splash_correction->obscuration, splash_correction->command, splash_correction->track_uid);
 #else
     _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_SPLASH_CORRECTION, (const char *)splash_correction, MAVLINK_MSG_ID_SPLASH_CORRECTION_MIN_LEN, MAVLINK_MSG_ID_SPLASH_CORRECTION_LEN, MAVLINK_MSG_ID_SPLASH_CORRECTION_CRC);
 #endif
@@ -303,7 +400,7 @@ static inline void mavlink_msg_splash_correction_send_struct(mavlink_channel_t c
   is usually the receive buffer for the channel, and allows a reply to an
   incoming message with minimum stack space usage.
  */
-static inline void mavlink_msg_splash_correction_send_buf(mavlink_message_t *msgbuf, mavlink_channel_t chan,  uint64_t time_usec, int32_t lat, int32_t lon, float alt, uint16_t sequence, uint8_t type_detected, float cep_expected)
+static inline void mavlink_msg_splash_correction_send_buf(mavlink_message_t *msgbuf, mavlink_channel_t chan,  uint64_t time_usec, int32_t lat, int32_t lon, float alt, uint16_t sequence, uint8_t type_detected, float cep_expected, uint8_t deviation, uint8_t range_spot, uint8_t hob, uint8_t impact_surface, uint8_t obscuration, uint8_t command, const uint8_t *track_uid)
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
     char *buf = (char *)msgbuf;
@@ -314,7 +411,13 @@ static inline void mavlink_msg_splash_correction_send_buf(mavlink_message_t *msg
     _mav_put_float(buf, 20, cep_expected);
     _mav_put_uint16_t(buf, 24, sequence);
     _mav_put_uint8_t(buf, 26, type_detected);
-
+    _mav_put_uint8_t(buf, 27, deviation);
+    _mav_put_uint8_t(buf, 28, range_spot);
+    _mav_put_uint8_t(buf, 29, hob);
+    _mav_put_uint8_t(buf, 30, impact_surface);
+    _mav_put_uint8_t(buf, 31, obscuration);
+    _mav_put_uint8_t(buf, 32, command);
+    _mav_put_uint8_t_array(buf, 33, track_uid, 16);
     _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_SPLASH_CORRECTION, buf, MAVLINK_MSG_ID_SPLASH_CORRECTION_MIN_LEN, MAVLINK_MSG_ID_SPLASH_CORRECTION_LEN, MAVLINK_MSG_ID_SPLASH_CORRECTION_CRC);
 #else
     mavlink_splash_correction_t *packet = (mavlink_splash_correction_t *)msgbuf;
@@ -325,7 +428,13 @@ static inline void mavlink_msg_splash_correction_send_buf(mavlink_message_t *msg
     packet->cep_expected = cep_expected;
     packet->sequence = sequence;
     packet->type_detected = type_detected;
-
+    packet->deviation = deviation;
+    packet->range_spot = range_spot;
+    packet->hob = hob;
+    packet->impact_surface = impact_surface;
+    packet->obscuration = obscuration;
+    packet->command = command;
+    mav_array_memcpy(packet->track_uid, track_uid, sizeof(uint8_t)*16);
     _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_SPLASH_CORRECTION, (const char *)packet, MAVLINK_MSG_ID_SPLASH_CORRECTION_MIN_LEN, MAVLINK_MSG_ID_SPLASH_CORRECTION_LEN, MAVLINK_MSG_ID_SPLASH_CORRECTION_CRC);
 #endif
 }
@@ -389,7 +498,7 @@ static inline uint16_t mavlink_msg_splash_correction_get_sequence(const mavlink_
 /**
  * @brief Get field type_detected from splash_correction message
  *
- * @return  Type of splash detected (implementation-defined; e.g. 0=unknown, 1=smoke, 2=explosion).
+ * @return  Coarse splash detector cue (implementation-defined; e.g. 0=unknown, 1=smoke, 2=explosion). Doctrinal observed-fire adjustment is carried by deviation, range_spot, hob, impact_surface, and obscuration.
  */
 static inline uint8_t mavlink_msg_splash_correction_get_type_detected(const mavlink_message_t* msg)
 {
@@ -404,6 +513,76 @@ static inline uint8_t mavlink_msg_splash_correction_get_type_detected(const mavl
 static inline float mavlink_msg_splash_correction_get_cep_expected(const mavlink_message_t* msg)
 {
     return _MAV_RETURN_float(msg,  20);
+}
+
+/**
+ * @brief Get field deviation from splash_correction message
+ *
+ * @return  Deviation spotting relative to the observer-target line.
+ */
+static inline uint8_t mavlink_msg_splash_correction_get_deviation(const mavlink_message_t* msg)
+{
+    return _MAV_RETURN_uint8_t(msg,  27);
+}
+
+/**
+ * @brief Get field range_spot from splash_correction message
+ *
+ * @return  Range spotting along the observer-target line.
+ */
+static inline uint8_t mavlink_msg_splash_correction_get_range_spot(const mavlink_message_t* msg)
+{
+    return _MAV_RETURN_uint8_t(msg,  28);
+}
+
+/**
+ * @brief Get field hob from splash_correction message
+ *
+ * @return  Height-of-burst spotting (observation, not munition/fuze setting).
+ */
+static inline uint8_t mavlink_msg_splash_correction_get_hob(const mavlink_message_t* msg)
+{
+    return _MAV_RETURN_uint8_t(msg,  29);
+}
+
+/**
+ * @brief Get field impact_surface from splash_correction message
+ *
+ * @return  Supplementary: what was struck / what the splash landed in/on.
+ */
+static inline uint8_t mavlink_msg_splash_correction_get_impact_surface(const mavlink_message_t* msg)
+{
+    return _MAV_RETURN_uint8_t(msg,  30);
+}
+
+/**
+ * @brief Get field obscuration from splash_correction message
+ *
+ * @return  Supplementary: cause of obscuration, if observation was masked.
+ */
+static inline uint8_t mavlink_msg_splash_correction_get_obscuration(const mavlink_message_t* msg)
+{
+    return _MAV_RETURN_uint8_t(msg,  31);
+}
+
+/**
+ * @brief Get field command from splash_correction message
+ *
+ * @return  Procedural fire-mission command accompanying this spotting (NONE if pure spotting).
+ */
+static inline uint8_t mavlink_msg_splash_correction_get_command(const mavlink_message_t* msg)
+{
+    return _MAV_RETURN_uint8_t(msg,  32);
+}
+
+/**
+ * @brief Get field track_uid from splash_correction message
+ *
+ * @return  Globally-unique track identifier (UUID) of the TRACK_IDENTITY this message correlates to. Ties the engagement/assessment to the authorized track. All-zero if not associated.
+ */
+static inline uint16_t mavlink_msg_splash_correction_get_track_uid(const mavlink_message_t* msg, uint8_t *track_uid)
+{
+    return _MAV_RETURN_uint8_t_array(msg, track_uid, 16,  33);
 }
 
 /**
@@ -422,6 +601,13 @@ static inline void mavlink_msg_splash_correction_decode(const mavlink_message_t*
     splash_correction->cep_expected = mavlink_msg_splash_correction_get_cep_expected(msg);
     splash_correction->sequence = mavlink_msg_splash_correction_get_sequence(msg);
     splash_correction->type_detected = mavlink_msg_splash_correction_get_type_detected(msg);
+    splash_correction->deviation = mavlink_msg_splash_correction_get_deviation(msg);
+    splash_correction->range_spot = mavlink_msg_splash_correction_get_range_spot(msg);
+    splash_correction->hob = mavlink_msg_splash_correction_get_hob(msg);
+    splash_correction->impact_surface = mavlink_msg_splash_correction_get_impact_surface(msg);
+    splash_correction->obscuration = mavlink_msg_splash_correction_get_obscuration(msg);
+    splash_correction->command = mavlink_msg_splash_correction_get_command(msg);
+    mavlink_msg_splash_correction_get_track_uid(msg, splash_correction->track_uid);
 #else
         uint8_t len = msg->len < MAVLINK_MSG_ID_SPLASH_CORRECTION_LEN? msg->len : MAVLINK_MSG_ID_SPLASH_CORRECTION_LEN;
         memset(splash_correction, 0, MAVLINK_MSG_ID_SPLASH_CORRECTION_LEN);

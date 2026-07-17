@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define MAVLINK_MSG_ID_TARGET_BOX_COORD 53001
+#define MAVLINK_MSG_ID_TARGET_BOX_COORD 53012
 
 
 typedef struct __mavlink_target_box_coord_t {
@@ -19,11 +19,11 @@ typedef struct __mavlink_target_box_coord_t {
 
 #define MAVLINK_MSG_ID_TARGET_BOX_COORD_LEN 126
 #define MAVLINK_MSG_ID_TARGET_BOX_COORD_MIN_LEN 126
-#define MAVLINK_MSG_ID_53001_LEN 126
-#define MAVLINK_MSG_ID_53001_MIN_LEN 126
+#define MAVLINK_MSG_ID_53012_LEN 126
+#define MAVLINK_MSG_ID_53012_MIN_LEN 126
 
 #define MAVLINK_MSG_ID_TARGET_BOX_COORD_CRC 60
-#define MAVLINK_MSG_ID_53001_CRC 60
+#define MAVLINK_MSG_ID_53012_CRC 60
 
 #define MAVLINK_MSG_TARGET_BOX_COORD_FIELD_LAT_LEN 4
 #define MAVLINK_MSG_TARGET_BOX_COORD_FIELD_LON_LEN 4
@@ -32,7 +32,7 @@ typedef struct __mavlink_target_box_coord_t {
 
 #if MAVLINK_COMMAND_24BIT
 #define MAVLINK_MESSAGE_INFO_TARGET_BOX_COORD { \
-    53001, \
+    53012, \
     "TARGET_BOX_COORD", \
     8, \
     {  { "time_usec", NULL, MAVLINK_TYPE_UINT64_T, 0, 0, offsetof(mavlink_target_box_coord_t, time_usec) }, \

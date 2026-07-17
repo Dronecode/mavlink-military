@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define MAVLINK_MSG_ID_TARGET_HANDOVER 53005
+#define MAVLINK_MSG_ID_TARGET_HANDOVER 53002
 
 
 typedef struct __mavlink_target_handover_t {
@@ -16,12 +16,12 @@ typedef struct __mavlink_target_handover_t {
  float vx; /*< [m/s] Velocity north component (NED).*/
  float vy; /*< [m/s] Velocity east component (NED).*/
  float vz; /*< [m/s] Velocity down component (NED).*/
- float cov_pos_x; /*< [m^2] Position covariance, north axis.*/
- float cov_pos_y; /*< [m^2] Position covariance, east axis.*/
- float cov_pos_z; /*< [m^2] Position covariance, down axis.*/
- float cov_vel_x; /*< [m^2/s^2] Velocity covariance, north axis.*/
- float cov_vel_y; /*< [m^2/s^2] Velocity covariance, east axis.*/
- float cov_vel_z; /*< [m^2/s^2] Velocity covariance, down axis.*/
+ float cov_pos_x; /*<  Position covariance, north axis (m^2).*/
+ float cov_pos_y; /*<  Position covariance, east axis (m^2).*/
+ float cov_pos_z; /*<  Position covariance, down axis (m^2).*/
+ float cov_vel_x; /*<  Velocity covariance, north axis (m^2/s^2).*/
+ float cov_vel_y; /*<  Velocity covariance, east axis (m^2/s^2).*/
+ float cov_vel_z; /*<  Velocity covariance, down axis (m^2/s^2).*/
  uint32_t target_set_id; /*<  Parent target set identifier.*/
  float confidence_score; /*<  Confidence score of identification [0.0-1.0].*/
  char target_name[50]; /*<  Human-readable target name (null-terminated).*/
@@ -30,25 +30,27 @@ typedef struct __mavlink_target_handover_t {
  uint8_t target_class; /*<  Target classification.*/
  uint8_t target_force; /*<  Force affiliation.*/
  uint8_t match_media_type; /*<  Type of matching media referenced by match_media_url.*/
+ uint8_t track_uid[16]; /*<  Globally-unique track identifier (UUID) of the TRACK_IDENTITY this handover transfers. The authoritative correlation handle across aircraft; target_name is a human label only. All-zero if not associated with a track.*/
 } mavlink_target_handover_t;
 
-#define MAVLINK_MSG_ID_TARGET_HANDOVER_LEN 191
-#define MAVLINK_MSG_ID_TARGET_HANDOVER_MIN_LEN 191
-#define MAVLINK_MSG_ID_53005_LEN 191
-#define MAVLINK_MSG_ID_53005_MIN_LEN 191
+#define MAVLINK_MSG_ID_TARGET_HANDOVER_LEN 207
+#define MAVLINK_MSG_ID_TARGET_HANDOVER_MIN_LEN 207
+#define MAVLINK_MSG_ID_53002_LEN 207
+#define MAVLINK_MSG_ID_53002_MIN_LEN 207
 
-#define MAVLINK_MSG_ID_TARGET_HANDOVER_CRC 173
-#define MAVLINK_MSG_ID_53005_CRC 173
+#define MAVLINK_MSG_ID_TARGET_HANDOVER_CRC 253
+#define MAVLINK_MSG_ID_53002_CRC 253
 
 #define MAVLINK_MSG_TARGET_HANDOVER_FIELD_TARGET_NAME_LEN 50
 #define MAVLINK_MSG_TARGET_HANDOVER_FIELD_MATCH_MEDIA_URL_LEN 50
 #define MAVLINK_MSG_TARGET_HANDOVER_FIELD_AUTHORIZATION_LEN 8
+#define MAVLINK_MSG_TARGET_HANDOVER_FIELD_TRACK_UID_LEN 16
 
 #if MAVLINK_COMMAND_24BIT
 #define MAVLINK_MESSAGE_INFO_TARGET_HANDOVER { \
-    53005, \
+    53002, \
     "TARGET_HANDOVER", \
-    23, \
+    24, \
     {  { "time_usec", NULL, MAVLINK_TYPE_UINT64_T, 0, 0, offsetof(mavlink_target_handover_t, time_usec) }, \
          { "detected_first_usec", NULL, MAVLINK_TYPE_UINT64_T, 0, 8, offsetof(mavlink_target_handover_t, detected_first_usec) }, \
          { "valid_until_usec", NULL, MAVLINK_TYPE_UINT64_T, 0, 16, offsetof(mavlink_target_handover_t, valid_until_usec) }, \
@@ -72,12 +74,13 @@ typedef struct __mavlink_target_handover_t {
          { "target_class", NULL, MAVLINK_TYPE_UINT8_T, 0, 188, offsetof(mavlink_target_handover_t, target_class) }, \
          { "target_force", NULL, MAVLINK_TYPE_UINT8_T, 0, 189, offsetof(mavlink_target_handover_t, target_force) }, \
          { "match_media_type", NULL, MAVLINK_TYPE_UINT8_T, 0, 190, offsetof(mavlink_target_handover_t, match_media_type) }, \
+         { "track_uid", NULL, MAVLINK_TYPE_UINT8_T, 16, 191, offsetof(mavlink_target_handover_t, track_uid) }, \
          } \
 }
 #else
 #define MAVLINK_MESSAGE_INFO_TARGET_HANDOVER { \
     "TARGET_HANDOVER", \
-    23, \
+    24, \
     {  { "time_usec", NULL, MAVLINK_TYPE_UINT64_T, 0, 0, offsetof(mavlink_target_handover_t, time_usec) }, \
          { "detected_first_usec", NULL, MAVLINK_TYPE_UINT64_T, 0, 8, offsetof(mavlink_target_handover_t, detected_first_usec) }, \
          { "valid_until_usec", NULL, MAVLINK_TYPE_UINT64_T, 0, 16, offsetof(mavlink_target_handover_t, valid_until_usec) }, \
@@ -101,6 +104,7 @@ typedef struct __mavlink_target_handover_t {
          { "target_class", NULL, MAVLINK_TYPE_UINT8_T, 0, 188, offsetof(mavlink_target_handover_t, target_class) }, \
          { "target_force", NULL, MAVLINK_TYPE_UINT8_T, 0, 189, offsetof(mavlink_target_handover_t, target_force) }, \
          { "match_media_type", NULL, MAVLINK_TYPE_UINT8_T, 0, 190, offsetof(mavlink_target_handover_t, match_media_type) }, \
+         { "track_uid", NULL, MAVLINK_TYPE_UINT8_T, 16, 191, offsetof(mavlink_target_handover_t, track_uid) }, \
          } \
 }
 #endif
@@ -120,12 +124,12 @@ typedef struct __mavlink_target_handover_t {
  * @param vx [m/s] Velocity north component (NED).
  * @param vy [m/s] Velocity east component (NED).
  * @param vz [m/s] Velocity down component (NED).
- * @param cov_pos_x [m^2] Position covariance, north axis.
- * @param cov_pos_y [m^2] Position covariance, east axis.
- * @param cov_pos_z [m^2] Position covariance, down axis.
- * @param cov_vel_x [m^2/s^2] Velocity covariance, north axis.
- * @param cov_vel_y [m^2/s^2] Velocity covariance, east axis.
- * @param cov_vel_z [m^2/s^2] Velocity covariance, down axis.
+ * @param cov_pos_x  Position covariance, north axis (m^2).
+ * @param cov_pos_y  Position covariance, east axis (m^2).
+ * @param cov_pos_z  Position covariance, down axis (m^2).
+ * @param cov_vel_x  Velocity covariance, north axis (m^2/s^2).
+ * @param cov_vel_y  Velocity covariance, east axis (m^2/s^2).
+ * @param cov_vel_z  Velocity covariance, down axis (m^2/s^2).
  * @param target_set_id  Parent target set identifier.
  * @param target_name  Human-readable target name (null-terminated).
  * @param match_media_url  Short URL referencing matching media asset (null-terminated).
@@ -134,10 +138,11 @@ typedef struct __mavlink_target_handover_t {
  * @param target_class  Target classification.
  * @param target_force  Force affiliation.
  * @param match_media_type  Type of matching media referenced by match_media_url.
+ * @param track_uid  Globally-unique track identifier (UUID) of the TRACK_IDENTITY this handover transfers. The authoritative correlation handle across aircraft; target_name is a human label only. All-zero if not associated with a track.
  * @return length of the message in bytes (excluding serial stream start sign)
  */
 static inline uint16_t mavlink_msg_target_handover_pack(uint8_t system_id, uint8_t component_id, mavlink_message_t* msg,
-                               uint64_t time_usec, uint64_t detected_first_usec, uint64_t valid_until_usec, int32_t lat, int32_t lon, float alt, float vx, float vy, float vz, float cov_pos_x, float cov_pos_y, float cov_pos_z, float cov_vel_x, float cov_vel_y, float cov_vel_z, uint32_t target_set_id, const char *target_name, const char *match_media_url, float confidence_score, const uint8_t *authorization, uint8_t target_class, uint8_t target_force, uint8_t match_media_type)
+                               uint64_t time_usec, uint64_t detected_first_usec, uint64_t valid_until_usec, int32_t lat, int32_t lon, float alt, float vx, float vy, float vz, float cov_pos_x, float cov_pos_y, float cov_pos_z, float cov_vel_x, float cov_vel_y, float cov_vel_z, uint32_t target_set_id, const char *target_name, const char *match_media_url, float confidence_score, const uint8_t *authorization, uint8_t target_class, uint8_t target_force, uint8_t match_media_type, const uint8_t *track_uid)
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
     char buf[MAVLINK_MSG_ID_TARGET_HANDOVER_LEN];
@@ -164,6 +169,7 @@ static inline uint16_t mavlink_msg_target_handover_pack(uint8_t system_id, uint8
     _mav_put_char_array(buf, 80, target_name, 50);
     _mav_put_char_array(buf, 130, match_media_url, 50);
     _mav_put_uint8_t_array(buf, 180, authorization, 8);
+    _mav_put_uint8_t_array(buf, 191, track_uid, 16);
         memcpy(_MAV_PAYLOAD_NON_CONST(msg), buf, MAVLINK_MSG_ID_TARGET_HANDOVER_LEN);
 #else
     mavlink_target_handover_t packet;
@@ -190,6 +196,7 @@ static inline uint16_t mavlink_msg_target_handover_pack(uint8_t system_id, uint8
     mav_array_memcpy(packet.target_name, target_name, sizeof(char)*50);
     mav_array_memcpy(packet.match_media_url, match_media_url, sizeof(char)*50);
     mav_array_memcpy(packet.authorization, authorization, sizeof(uint8_t)*8);
+    mav_array_memcpy(packet.track_uid, track_uid, sizeof(uint8_t)*16);
         memcpy(_MAV_PAYLOAD_NON_CONST(msg), &packet, MAVLINK_MSG_ID_TARGET_HANDOVER_LEN);
 #endif
 
@@ -213,12 +220,12 @@ static inline uint16_t mavlink_msg_target_handover_pack(uint8_t system_id, uint8
  * @param vx [m/s] Velocity north component (NED).
  * @param vy [m/s] Velocity east component (NED).
  * @param vz [m/s] Velocity down component (NED).
- * @param cov_pos_x [m^2] Position covariance, north axis.
- * @param cov_pos_y [m^2] Position covariance, east axis.
- * @param cov_pos_z [m^2] Position covariance, down axis.
- * @param cov_vel_x [m^2/s^2] Velocity covariance, north axis.
- * @param cov_vel_y [m^2/s^2] Velocity covariance, east axis.
- * @param cov_vel_z [m^2/s^2] Velocity covariance, down axis.
+ * @param cov_pos_x  Position covariance, north axis (m^2).
+ * @param cov_pos_y  Position covariance, east axis (m^2).
+ * @param cov_pos_z  Position covariance, down axis (m^2).
+ * @param cov_vel_x  Velocity covariance, north axis (m^2/s^2).
+ * @param cov_vel_y  Velocity covariance, east axis (m^2/s^2).
+ * @param cov_vel_z  Velocity covariance, down axis (m^2/s^2).
  * @param target_set_id  Parent target set identifier.
  * @param target_name  Human-readable target name (null-terminated).
  * @param match_media_url  Short URL referencing matching media asset (null-terminated).
@@ -227,10 +234,11 @@ static inline uint16_t mavlink_msg_target_handover_pack(uint8_t system_id, uint8
  * @param target_class  Target classification.
  * @param target_force  Force affiliation.
  * @param match_media_type  Type of matching media referenced by match_media_url.
+ * @param track_uid  Globally-unique track identifier (UUID) of the TRACK_IDENTITY this handover transfers. The authoritative correlation handle across aircraft; target_name is a human label only. All-zero if not associated with a track.
  * @return length of the message in bytes (excluding serial stream start sign)
  */
 static inline uint16_t mavlink_msg_target_handover_pack_status(uint8_t system_id, uint8_t component_id, mavlink_status_t *_status, mavlink_message_t* msg,
-                               uint64_t time_usec, uint64_t detected_first_usec, uint64_t valid_until_usec, int32_t lat, int32_t lon, float alt, float vx, float vy, float vz, float cov_pos_x, float cov_pos_y, float cov_pos_z, float cov_vel_x, float cov_vel_y, float cov_vel_z, uint32_t target_set_id, const char *target_name, const char *match_media_url, float confidence_score, const uint8_t *authorization, uint8_t target_class, uint8_t target_force, uint8_t match_media_type)
+                               uint64_t time_usec, uint64_t detected_first_usec, uint64_t valid_until_usec, int32_t lat, int32_t lon, float alt, float vx, float vy, float vz, float cov_pos_x, float cov_pos_y, float cov_pos_z, float cov_vel_x, float cov_vel_y, float cov_vel_z, uint32_t target_set_id, const char *target_name, const char *match_media_url, float confidence_score, const uint8_t *authorization, uint8_t target_class, uint8_t target_force, uint8_t match_media_type, const uint8_t *track_uid)
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
     char buf[MAVLINK_MSG_ID_TARGET_HANDOVER_LEN];
@@ -257,6 +265,7 @@ static inline uint16_t mavlink_msg_target_handover_pack_status(uint8_t system_id
     _mav_put_char_array(buf, 80, target_name, 50);
     _mav_put_char_array(buf, 130, match_media_url, 50);
     _mav_put_uint8_t_array(buf, 180, authorization, 8);
+    _mav_put_uint8_t_array(buf, 191, track_uid, 16);
         memcpy(_MAV_PAYLOAD_NON_CONST(msg), buf, MAVLINK_MSG_ID_TARGET_HANDOVER_LEN);
 #else
     mavlink_target_handover_t packet;
@@ -283,6 +292,7 @@ static inline uint16_t mavlink_msg_target_handover_pack_status(uint8_t system_id
     mav_array_memcpy(packet.target_name, target_name, sizeof(char)*50);
     mav_array_memcpy(packet.match_media_url, match_media_url, sizeof(char)*50);
     mav_array_memcpy(packet.authorization, authorization, sizeof(uint8_t)*8);
+    mav_array_memcpy(packet.track_uid, track_uid, sizeof(uint8_t)*16);
         memcpy(_MAV_PAYLOAD_NON_CONST(msg), &packet, MAVLINK_MSG_ID_TARGET_HANDOVER_LEN);
 #endif
 
@@ -309,12 +319,12 @@ static inline uint16_t mavlink_msg_target_handover_pack_status(uint8_t system_id
  * @param vx [m/s] Velocity north component (NED).
  * @param vy [m/s] Velocity east component (NED).
  * @param vz [m/s] Velocity down component (NED).
- * @param cov_pos_x [m^2] Position covariance, north axis.
- * @param cov_pos_y [m^2] Position covariance, east axis.
- * @param cov_pos_z [m^2] Position covariance, down axis.
- * @param cov_vel_x [m^2/s^2] Velocity covariance, north axis.
- * @param cov_vel_y [m^2/s^2] Velocity covariance, east axis.
- * @param cov_vel_z [m^2/s^2] Velocity covariance, down axis.
+ * @param cov_pos_x  Position covariance, north axis (m^2).
+ * @param cov_pos_y  Position covariance, east axis (m^2).
+ * @param cov_pos_z  Position covariance, down axis (m^2).
+ * @param cov_vel_x  Velocity covariance, north axis (m^2/s^2).
+ * @param cov_vel_y  Velocity covariance, east axis (m^2/s^2).
+ * @param cov_vel_z  Velocity covariance, down axis (m^2/s^2).
  * @param target_set_id  Parent target set identifier.
  * @param target_name  Human-readable target name (null-terminated).
  * @param match_media_url  Short URL referencing matching media asset (null-terminated).
@@ -323,11 +333,12 @@ static inline uint16_t mavlink_msg_target_handover_pack_status(uint8_t system_id
  * @param target_class  Target classification.
  * @param target_force  Force affiliation.
  * @param match_media_type  Type of matching media referenced by match_media_url.
+ * @param track_uid  Globally-unique track identifier (UUID) of the TRACK_IDENTITY this handover transfers. The authoritative correlation handle across aircraft; target_name is a human label only. All-zero if not associated with a track.
  * @return length of the message in bytes (excluding serial stream start sign)
  */
 static inline uint16_t mavlink_msg_target_handover_pack_chan(uint8_t system_id, uint8_t component_id, uint8_t chan,
                                mavlink_message_t* msg,
-                                   uint64_t time_usec,uint64_t detected_first_usec,uint64_t valid_until_usec,int32_t lat,int32_t lon,float alt,float vx,float vy,float vz,float cov_pos_x,float cov_pos_y,float cov_pos_z,float cov_vel_x,float cov_vel_y,float cov_vel_z,uint32_t target_set_id,const char *target_name,const char *match_media_url,float confidence_score,const uint8_t *authorization,uint8_t target_class,uint8_t target_force,uint8_t match_media_type)
+                                   uint64_t time_usec,uint64_t detected_first_usec,uint64_t valid_until_usec,int32_t lat,int32_t lon,float alt,float vx,float vy,float vz,float cov_pos_x,float cov_pos_y,float cov_pos_z,float cov_vel_x,float cov_vel_y,float cov_vel_z,uint32_t target_set_id,const char *target_name,const char *match_media_url,float confidence_score,const uint8_t *authorization,uint8_t target_class,uint8_t target_force,uint8_t match_media_type,const uint8_t *track_uid)
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
     char buf[MAVLINK_MSG_ID_TARGET_HANDOVER_LEN];
@@ -354,6 +365,7 @@ static inline uint16_t mavlink_msg_target_handover_pack_chan(uint8_t system_id, 
     _mav_put_char_array(buf, 80, target_name, 50);
     _mav_put_char_array(buf, 130, match_media_url, 50);
     _mav_put_uint8_t_array(buf, 180, authorization, 8);
+    _mav_put_uint8_t_array(buf, 191, track_uid, 16);
         memcpy(_MAV_PAYLOAD_NON_CONST(msg), buf, MAVLINK_MSG_ID_TARGET_HANDOVER_LEN);
 #else
     mavlink_target_handover_t packet;
@@ -380,6 +392,7 @@ static inline uint16_t mavlink_msg_target_handover_pack_chan(uint8_t system_id, 
     mav_array_memcpy(packet.target_name, target_name, sizeof(char)*50);
     mav_array_memcpy(packet.match_media_url, match_media_url, sizeof(char)*50);
     mav_array_memcpy(packet.authorization, authorization, sizeof(uint8_t)*8);
+    mav_array_memcpy(packet.track_uid, track_uid, sizeof(uint8_t)*16);
         memcpy(_MAV_PAYLOAD_NON_CONST(msg), &packet, MAVLINK_MSG_ID_TARGET_HANDOVER_LEN);
 #endif
 
@@ -397,7 +410,7 @@ static inline uint16_t mavlink_msg_target_handover_pack_chan(uint8_t system_id, 
  */
 static inline uint16_t mavlink_msg_target_handover_encode(uint8_t system_id, uint8_t component_id, mavlink_message_t* msg, const mavlink_target_handover_t* target_handover)
 {
-    return mavlink_msg_target_handover_pack(system_id, component_id, msg, target_handover->time_usec, target_handover->detected_first_usec, target_handover->valid_until_usec, target_handover->lat, target_handover->lon, target_handover->alt, target_handover->vx, target_handover->vy, target_handover->vz, target_handover->cov_pos_x, target_handover->cov_pos_y, target_handover->cov_pos_z, target_handover->cov_vel_x, target_handover->cov_vel_y, target_handover->cov_vel_z, target_handover->target_set_id, target_handover->target_name, target_handover->match_media_url, target_handover->confidence_score, target_handover->authorization, target_handover->target_class, target_handover->target_force, target_handover->match_media_type);
+    return mavlink_msg_target_handover_pack(system_id, component_id, msg, target_handover->time_usec, target_handover->detected_first_usec, target_handover->valid_until_usec, target_handover->lat, target_handover->lon, target_handover->alt, target_handover->vx, target_handover->vy, target_handover->vz, target_handover->cov_pos_x, target_handover->cov_pos_y, target_handover->cov_pos_z, target_handover->cov_vel_x, target_handover->cov_vel_y, target_handover->cov_vel_z, target_handover->target_set_id, target_handover->target_name, target_handover->match_media_url, target_handover->confidence_score, target_handover->authorization, target_handover->target_class, target_handover->target_force, target_handover->match_media_type, target_handover->track_uid);
 }
 
 /**
@@ -411,7 +424,7 @@ static inline uint16_t mavlink_msg_target_handover_encode(uint8_t system_id, uin
  */
 static inline uint16_t mavlink_msg_target_handover_encode_chan(uint8_t system_id, uint8_t component_id, uint8_t chan, mavlink_message_t* msg, const mavlink_target_handover_t* target_handover)
 {
-    return mavlink_msg_target_handover_pack_chan(system_id, component_id, chan, msg, target_handover->time_usec, target_handover->detected_first_usec, target_handover->valid_until_usec, target_handover->lat, target_handover->lon, target_handover->alt, target_handover->vx, target_handover->vy, target_handover->vz, target_handover->cov_pos_x, target_handover->cov_pos_y, target_handover->cov_pos_z, target_handover->cov_vel_x, target_handover->cov_vel_y, target_handover->cov_vel_z, target_handover->target_set_id, target_handover->target_name, target_handover->match_media_url, target_handover->confidence_score, target_handover->authorization, target_handover->target_class, target_handover->target_force, target_handover->match_media_type);
+    return mavlink_msg_target_handover_pack_chan(system_id, component_id, chan, msg, target_handover->time_usec, target_handover->detected_first_usec, target_handover->valid_until_usec, target_handover->lat, target_handover->lon, target_handover->alt, target_handover->vx, target_handover->vy, target_handover->vz, target_handover->cov_pos_x, target_handover->cov_pos_y, target_handover->cov_pos_z, target_handover->cov_vel_x, target_handover->cov_vel_y, target_handover->cov_vel_z, target_handover->target_set_id, target_handover->target_name, target_handover->match_media_url, target_handover->confidence_score, target_handover->authorization, target_handover->target_class, target_handover->target_force, target_handover->match_media_type, target_handover->track_uid);
 }
 
 /**
@@ -425,7 +438,7 @@ static inline uint16_t mavlink_msg_target_handover_encode_chan(uint8_t system_id
  */
 static inline uint16_t mavlink_msg_target_handover_encode_status(uint8_t system_id, uint8_t component_id, mavlink_status_t* _status, mavlink_message_t* msg, const mavlink_target_handover_t* target_handover)
 {
-    return mavlink_msg_target_handover_pack_status(system_id, component_id, _status, msg,  target_handover->time_usec, target_handover->detected_first_usec, target_handover->valid_until_usec, target_handover->lat, target_handover->lon, target_handover->alt, target_handover->vx, target_handover->vy, target_handover->vz, target_handover->cov_pos_x, target_handover->cov_pos_y, target_handover->cov_pos_z, target_handover->cov_vel_x, target_handover->cov_vel_y, target_handover->cov_vel_z, target_handover->target_set_id, target_handover->target_name, target_handover->match_media_url, target_handover->confidence_score, target_handover->authorization, target_handover->target_class, target_handover->target_force, target_handover->match_media_type);
+    return mavlink_msg_target_handover_pack_status(system_id, component_id, _status, msg,  target_handover->time_usec, target_handover->detected_first_usec, target_handover->valid_until_usec, target_handover->lat, target_handover->lon, target_handover->alt, target_handover->vx, target_handover->vy, target_handover->vz, target_handover->cov_pos_x, target_handover->cov_pos_y, target_handover->cov_pos_z, target_handover->cov_vel_x, target_handover->cov_vel_y, target_handover->cov_vel_z, target_handover->target_set_id, target_handover->target_name, target_handover->match_media_url, target_handover->confidence_score, target_handover->authorization, target_handover->target_class, target_handover->target_force, target_handover->match_media_type, target_handover->track_uid);
 }
 
 /**
@@ -441,12 +454,12 @@ static inline uint16_t mavlink_msg_target_handover_encode_status(uint8_t system_
  * @param vx [m/s] Velocity north component (NED).
  * @param vy [m/s] Velocity east component (NED).
  * @param vz [m/s] Velocity down component (NED).
- * @param cov_pos_x [m^2] Position covariance, north axis.
- * @param cov_pos_y [m^2] Position covariance, east axis.
- * @param cov_pos_z [m^2] Position covariance, down axis.
- * @param cov_vel_x [m^2/s^2] Velocity covariance, north axis.
- * @param cov_vel_y [m^2/s^2] Velocity covariance, east axis.
- * @param cov_vel_z [m^2/s^2] Velocity covariance, down axis.
+ * @param cov_pos_x  Position covariance, north axis (m^2).
+ * @param cov_pos_y  Position covariance, east axis (m^2).
+ * @param cov_pos_z  Position covariance, down axis (m^2).
+ * @param cov_vel_x  Velocity covariance, north axis (m^2/s^2).
+ * @param cov_vel_y  Velocity covariance, east axis (m^2/s^2).
+ * @param cov_vel_z  Velocity covariance, down axis (m^2/s^2).
  * @param target_set_id  Parent target set identifier.
  * @param target_name  Human-readable target name (null-terminated).
  * @param match_media_url  Short URL referencing matching media asset (null-terminated).
@@ -455,10 +468,11 @@ static inline uint16_t mavlink_msg_target_handover_encode_status(uint8_t system_
  * @param target_class  Target classification.
  * @param target_force  Force affiliation.
  * @param match_media_type  Type of matching media referenced by match_media_url.
+ * @param track_uid  Globally-unique track identifier (UUID) of the TRACK_IDENTITY this handover transfers. The authoritative correlation handle across aircraft; target_name is a human label only. All-zero if not associated with a track.
  */
 #ifdef MAVLINK_USE_CONVENIENCE_FUNCTIONS
 
-static inline void mavlink_msg_target_handover_send(mavlink_channel_t chan, uint64_t time_usec, uint64_t detected_first_usec, uint64_t valid_until_usec, int32_t lat, int32_t lon, float alt, float vx, float vy, float vz, float cov_pos_x, float cov_pos_y, float cov_pos_z, float cov_vel_x, float cov_vel_y, float cov_vel_z, uint32_t target_set_id, const char *target_name, const char *match_media_url, float confidence_score, const uint8_t *authorization, uint8_t target_class, uint8_t target_force, uint8_t match_media_type)
+static inline void mavlink_msg_target_handover_send(mavlink_channel_t chan, uint64_t time_usec, uint64_t detected_first_usec, uint64_t valid_until_usec, int32_t lat, int32_t lon, float alt, float vx, float vy, float vz, float cov_pos_x, float cov_pos_y, float cov_pos_z, float cov_vel_x, float cov_vel_y, float cov_vel_z, uint32_t target_set_id, const char *target_name, const char *match_media_url, float confidence_score, const uint8_t *authorization, uint8_t target_class, uint8_t target_force, uint8_t match_media_type, const uint8_t *track_uid)
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
     char buf[MAVLINK_MSG_ID_TARGET_HANDOVER_LEN];
@@ -485,6 +499,7 @@ static inline void mavlink_msg_target_handover_send(mavlink_channel_t chan, uint
     _mav_put_char_array(buf, 80, target_name, 50);
     _mav_put_char_array(buf, 130, match_media_url, 50);
     _mav_put_uint8_t_array(buf, 180, authorization, 8);
+    _mav_put_uint8_t_array(buf, 191, track_uid, 16);
     _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_TARGET_HANDOVER, buf, MAVLINK_MSG_ID_TARGET_HANDOVER_MIN_LEN, MAVLINK_MSG_ID_TARGET_HANDOVER_LEN, MAVLINK_MSG_ID_TARGET_HANDOVER_CRC);
 #else
     mavlink_target_handover_t packet;
@@ -511,6 +526,7 @@ static inline void mavlink_msg_target_handover_send(mavlink_channel_t chan, uint
     mav_array_memcpy(packet.target_name, target_name, sizeof(char)*50);
     mav_array_memcpy(packet.match_media_url, match_media_url, sizeof(char)*50);
     mav_array_memcpy(packet.authorization, authorization, sizeof(uint8_t)*8);
+    mav_array_memcpy(packet.track_uid, track_uid, sizeof(uint8_t)*16);
     _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_TARGET_HANDOVER, (const char *)&packet, MAVLINK_MSG_ID_TARGET_HANDOVER_MIN_LEN, MAVLINK_MSG_ID_TARGET_HANDOVER_LEN, MAVLINK_MSG_ID_TARGET_HANDOVER_CRC);
 #endif
 }
@@ -523,7 +539,7 @@ static inline void mavlink_msg_target_handover_send(mavlink_channel_t chan, uint
 static inline void mavlink_msg_target_handover_send_struct(mavlink_channel_t chan, const mavlink_target_handover_t* target_handover)
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
-    mavlink_msg_target_handover_send(chan, target_handover->time_usec, target_handover->detected_first_usec, target_handover->valid_until_usec, target_handover->lat, target_handover->lon, target_handover->alt, target_handover->vx, target_handover->vy, target_handover->vz, target_handover->cov_pos_x, target_handover->cov_pos_y, target_handover->cov_pos_z, target_handover->cov_vel_x, target_handover->cov_vel_y, target_handover->cov_vel_z, target_handover->target_set_id, target_handover->target_name, target_handover->match_media_url, target_handover->confidence_score, target_handover->authorization, target_handover->target_class, target_handover->target_force, target_handover->match_media_type);
+    mavlink_msg_target_handover_send(chan, target_handover->time_usec, target_handover->detected_first_usec, target_handover->valid_until_usec, target_handover->lat, target_handover->lon, target_handover->alt, target_handover->vx, target_handover->vy, target_handover->vz, target_handover->cov_pos_x, target_handover->cov_pos_y, target_handover->cov_pos_z, target_handover->cov_vel_x, target_handover->cov_vel_y, target_handover->cov_vel_z, target_handover->target_set_id, target_handover->target_name, target_handover->match_media_url, target_handover->confidence_score, target_handover->authorization, target_handover->target_class, target_handover->target_force, target_handover->match_media_type, target_handover->track_uid);
 #else
     _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_TARGET_HANDOVER, (const char *)target_handover, MAVLINK_MSG_ID_TARGET_HANDOVER_MIN_LEN, MAVLINK_MSG_ID_TARGET_HANDOVER_LEN, MAVLINK_MSG_ID_TARGET_HANDOVER_CRC);
 #endif
@@ -537,7 +553,7 @@ static inline void mavlink_msg_target_handover_send_struct(mavlink_channel_t cha
   is usually the receive buffer for the channel, and allows a reply to an
   incoming message with minimum stack space usage.
  */
-static inline void mavlink_msg_target_handover_send_buf(mavlink_message_t *msgbuf, mavlink_channel_t chan,  uint64_t time_usec, uint64_t detected_first_usec, uint64_t valid_until_usec, int32_t lat, int32_t lon, float alt, float vx, float vy, float vz, float cov_pos_x, float cov_pos_y, float cov_pos_z, float cov_vel_x, float cov_vel_y, float cov_vel_z, uint32_t target_set_id, const char *target_name, const char *match_media_url, float confidence_score, const uint8_t *authorization, uint8_t target_class, uint8_t target_force, uint8_t match_media_type)
+static inline void mavlink_msg_target_handover_send_buf(mavlink_message_t *msgbuf, mavlink_channel_t chan,  uint64_t time_usec, uint64_t detected_first_usec, uint64_t valid_until_usec, int32_t lat, int32_t lon, float alt, float vx, float vy, float vz, float cov_pos_x, float cov_pos_y, float cov_pos_z, float cov_vel_x, float cov_vel_y, float cov_vel_z, uint32_t target_set_id, const char *target_name, const char *match_media_url, float confidence_score, const uint8_t *authorization, uint8_t target_class, uint8_t target_force, uint8_t match_media_type, const uint8_t *track_uid)
 {
 #if MAVLINK_NEED_BYTE_SWAP || !MAVLINK_ALIGNED_FIELDS
     char *buf = (char *)msgbuf;
@@ -564,6 +580,7 @@ static inline void mavlink_msg_target_handover_send_buf(mavlink_message_t *msgbu
     _mav_put_char_array(buf, 80, target_name, 50);
     _mav_put_char_array(buf, 130, match_media_url, 50);
     _mav_put_uint8_t_array(buf, 180, authorization, 8);
+    _mav_put_uint8_t_array(buf, 191, track_uid, 16);
     _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_TARGET_HANDOVER, buf, MAVLINK_MSG_ID_TARGET_HANDOVER_MIN_LEN, MAVLINK_MSG_ID_TARGET_HANDOVER_LEN, MAVLINK_MSG_ID_TARGET_HANDOVER_CRC);
 #else
     mavlink_target_handover_t *packet = (mavlink_target_handover_t *)msgbuf;
@@ -590,6 +607,7 @@ static inline void mavlink_msg_target_handover_send_buf(mavlink_message_t *msgbu
     mav_array_memcpy(packet->target_name, target_name, sizeof(char)*50);
     mav_array_memcpy(packet->match_media_url, match_media_url, sizeof(char)*50);
     mav_array_memcpy(packet->authorization, authorization, sizeof(uint8_t)*8);
+    mav_array_memcpy(packet->track_uid, track_uid, sizeof(uint8_t)*16);
     _mav_finalize_message_chan_send(chan, MAVLINK_MSG_ID_TARGET_HANDOVER, (const char *)packet, MAVLINK_MSG_ID_TARGET_HANDOVER_MIN_LEN, MAVLINK_MSG_ID_TARGET_HANDOVER_LEN, MAVLINK_MSG_ID_TARGET_HANDOVER_CRC);
 #endif
 }
@@ -693,7 +711,7 @@ static inline float mavlink_msg_target_handover_get_vz(const mavlink_message_t* 
 /**
  * @brief Get field cov_pos_x from target_handover message
  *
- * @return [m^2] Position covariance, north axis.
+ * @return  Position covariance, north axis (m^2).
  */
 static inline float mavlink_msg_target_handover_get_cov_pos_x(const mavlink_message_t* msg)
 {
@@ -703,7 +721,7 @@ static inline float mavlink_msg_target_handover_get_cov_pos_x(const mavlink_mess
 /**
  * @brief Get field cov_pos_y from target_handover message
  *
- * @return [m^2] Position covariance, east axis.
+ * @return  Position covariance, east axis (m^2).
  */
 static inline float mavlink_msg_target_handover_get_cov_pos_y(const mavlink_message_t* msg)
 {
@@ -713,7 +731,7 @@ static inline float mavlink_msg_target_handover_get_cov_pos_y(const mavlink_mess
 /**
  * @brief Get field cov_pos_z from target_handover message
  *
- * @return [m^2] Position covariance, down axis.
+ * @return  Position covariance, down axis (m^2).
  */
 static inline float mavlink_msg_target_handover_get_cov_pos_z(const mavlink_message_t* msg)
 {
@@ -723,7 +741,7 @@ static inline float mavlink_msg_target_handover_get_cov_pos_z(const mavlink_mess
 /**
  * @brief Get field cov_vel_x from target_handover message
  *
- * @return [m^2/s^2] Velocity covariance, north axis.
+ * @return  Velocity covariance, north axis (m^2/s^2).
  */
 static inline float mavlink_msg_target_handover_get_cov_vel_x(const mavlink_message_t* msg)
 {
@@ -733,7 +751,7 @@ static inline float mavlink_msg_target_handover_get_cov_vel_x(const mavlink_mess
 /**
  * @brief Get field cov_vel_y from target_handover message
  *
- * @return [m^2/s^2] Velocity covariance, east axis.
+ * @return  Velocity covariance, east axis (m^2/s^2).
  */
 static inline float mavlink_msg_target_handover_get_cov_vel_y(const mavlink_message_t* msg)
 {
@@ -743,7 +761,7 @@ static inline float mavlink_msg_target_handover_get_cov_vel_y(const mavlink_mess
 /**
  * @brief Get field cov_vel_z from target_handover message
  *
- * @return [m^2/s^2] Velocity covariance, down axis.
+ * @return  Velocity covariance, down axis (m^2/s^2).
  */
 static inline float mavlink_msg_target_handover_get_cov_vel_z(const mavlink_message_t* msg)
 {
@@ -831,6 +849,16 @@ static inline uint8_t mavlink_msg_target_handover_get_match_media_type(const mav
 }
 
 /**
+ * @brief Get field track_uid from target_handover message
+ *
+ * @return  Globally-unique track identifier (UUID) of the TRACK_IDENTITY this handover transfers. The authoritative correlation handle across aircraft; target_name is a human label only. All-zero if not associated with a track.
+ */
+static inline uint16_t mavlink_msg_target_handover_get_track_uid(const mavlink_message_t* msg, uint8_t *track_uid)
+{
+    return _MAV_RETURN_uint8_t_array(msg, track_uid, 16,  191);
+}
+
+/**
  * @brief Decode a target_handover message into a struct
  *
  * @param msg The message to decode
@@ -862,6 +890,7 @@ static inline void mavlink_msg_target_handover_decode(const mavlink_message_t* m
     target_handover->target_class = mavlink_msg_target_handover_get_target_class(msg);
     target_handover->target_force = mavlink_msg_target_handover_get_target_force(msg);
     target_handover->match_media_type = mavlink_msg_target_handover_get_match_media_type(msg);
+    mavlink_msg_target_handover_get_track_uid(msg, target_handover->track_uid);
 #else
         uint8_t len = msg->len < MAVLINK_MSG_ID_TARGET_HANDOVER_LEN? msg->len : MAVLINK_MSG_ID_TARGET_HANDOVER_LEN;
         memset(target_handover, 0, MAVLINK_MSG_ID_TARGET_HANDOVER_LEN);

@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define MAVLINK_MSG_ID_RWS_STATE 53010
+#define MAVLINK_MSG_ID_RWS_STATE 53041
 
 
 typedef struct __mavlink_rws_state_t {
@@ -15,17 +15,17 @@ typedef struct __mavlink_rws_state_t {
 
 #define MAVLINK_MSG_ID_RWS_STATE_LEN 60
 #define MAVLINK_MSG_ID_RWS_STATE_MIN_LEN 60
-#define MAVLINK_MSG_ID_53010_LEN 60
-#define MAVLINK_MSG_ID_53010_MIN_LEN 60
+#define MAVLINK_MSG_ID_53041_LEN 60
+#define MAVLINK_MSG_ID_53041_MIN_LEN 60
 
 #define MAVLINK_MSG_ID_RWS_STATE_CRC 175
-#define MAVLINK_MSG_ID_53010_CRC 175
+#define MAVLINK_MSG_ID_53041_CRC 175
 
 #define MAVLINK_MSG_RWS_STATE_FIELD_WEAPON_STRING_LEN 50
 
 #if MAVLINK_COMMAND_24BIT
 #define MAVLINK_MESSAGE_INFO_RWS_STATE { \
-    53010, \
+    53041, \
     "RWS_STATE", \
     4, \
     {  { "time_usec", NULL, MAVLINK_TYPE_UINT64_T, 0, 0, offsetof(mavlink_rws_state_t, time_usec) }, \
