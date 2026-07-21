@@ -1199,6 +1199,20 @@
       <entry value="4" name="MAVLINK_M_TASKING_ACTIVE">   <description>Tasking in progress.</description></entry>
     </enum>
 
+    <enum name="MAVLINK_M_COORD_TYPE">
+      <description>
+        Preferred display representation for geographic coordinates. This is an
+        OPTIONAL, ADVISORY presentation hint for the operator UI only: on-wire
+        lat/lon are ALWAYS WGS84 degE7 regardless of this value, and a consumer
+        must not reinterpret the numeric coordinate based on it. It indicates how
+        coordinates should be shown to, or were selected by, the operator.
+      </description>
+      <entry value="0" name="MAVLINK_M_COORD_TYPE_WGS84_DECIMAL"><description>Decimal degrees (WGS84). Default when the field is unset.</description></entry>
+      <entry value="1" name="MAVLINK_M_COORD_TYPE_WGS84_DMS">    <description>Degrees, minutes, seconds (WGS84).</description></entry>
+      <entry value="2" name="MAVLINK_M_COORD_TYPE_MGRS">         <description>Military Grid Reference System.</description></entry>
+      <entry value="3" name="MAVLINK_M_COORD_TYPE_UTM">          <description>Universal Transverse Mercator.</description></entry>
+    </enum>
+
   </enums>
 
   <messages>
@@ -1217,6 +1231,7 @@
       <field type="float"    name="radius"        units="m"   >Radius of the circular target set area.</field>
       <field type="uint64_t" name="time_start"    units="us"  >Area validity start time (UNIX epoch, microseconds UTC). 0 = immediate.</field>
       <field type="uint64_t" name="time_end"      units="us"  >Area validity end time (UNIX epoch, microseconds UTC). 0 = indefinite.</field>
+      <field type="uint8_t"  name="coord_type"    enum="MAVLINK_M_COORD_TYPE">Preferred coordinate display representation (advisory). On-wire lat/lon remain WGS84 degE7; 0 = decimal degrees when unset.</field>
     </message>
 
     <!-- ============================================================ -->
@@ -1232,6 +1247,7 @@
       <field type="float[4]"    name="alt"        units="m"   >Corner altitudes, MSL.</field>
       <field type="uint64_t" name="time_start"    units="us"  >Area validity start time (UNIX epoch, microseconds UTC). 0 = immediate.</field>
       <field type="uint64_t" name="time_end"      units="us"  >Area validity end time (UNIX epoch, microseconds UTC). 0 = indefinite.</field>
+      <field type="uint8_t"  name="coord_type"    enum="MAVLINK_M_COORD_TYPE">Preferred coordinate display representation (advisory). On-wire lat/lon remain WGS84 degE7; 0 = decimal degrees when unset.</field>
     </message>
 
     <!-- ============================================================ -->
@@ -1276,6 +1292,7 @@
       <field type="uint8_t"  name="tle_category" enum="MAVLINK_M_TLE_CATEGORY">Target-location-error category (label only, not a mensuration figure).</field>
       <field type="uint8_t"  name="dmpi_reference_kind" enum="MAVLINK_M_DMPI_REFERENCE_KIND">How the DMPI reference is expressed. A mensurated DMPI tied to a weapon solution is NOT carried.</field>
       <field type="uint8_t"  name="restricted_target_flags" enum="MAVLINK_M_RESTRICTED_TARGET_FLAGS">No-strike / restricted-target / no-fire-area context flags (bitmask).</field>
+      <field type="uint8_t"  name="coord_type" enum="MAVLINK_M_COORD_TYPE">Preferred coordinate display representation (advisory). On-wire lat/lon remain WGS84 degE7; 0 = decimal degrees when unset.</field>
     </message>
 
     <!-- ============================================================ -->
@@ -1298,6 +1315,7 @@
       <field type="uint8_t"  name="hob_intent"    enum="MAVLINK_M_HOB_INTENT">Airburst height-of-burst intent for proximity/time modes (descriptive selector, not a value).</field>
       <field type="uint8_t"  name="fuze_mofa_capable"          >1 if the fielded fuze is multi-option (e.g. M782 MOFA) and settable to any mode; 0 otherwise. Capability flag, not a mode.</field>
       <field type="uint8_t[16]" name="track_uid">Globally-unique track identifier (UUID) of the TRACK_IDENTITY this message correlates to. Ties the engagement/assessment to the authorized track. All-zero if not associated.</field>
+      <field type="uint8_t"  name="coord_type" enum="MAVLINK_M_COORD_TYPE">Preferred coordinate display representation (advisory). On-wire lat/lon remain WGS84 degE7; 0 = decimal degrees when unset.</field>
     </message>
 
     <!-- ============================================================ -->
@@ -1327,6 +1345,7 @@
       <field type="uint8_t"  name="obscuration"    enum="MAVLINK_M_SPLASH_OBSCURATION">Supplementary: cause of obscuration, if observation was masked.</field>
       <field type="uint8_t"  name="command"        enum="MAVLINK_M_FIRE_MISSION_COMMAND">Procedural fire-mission command accompanying this spotting (NONE if pure spotting).</field>
       <field type="uint8_t[16]" name="track_uid">Globally-unique track identifier (UUID) of the TRACK_IDENTITY this message correlates to. Ties the engagement/assessment to the authorized track. All-zero if not associated.</field>
+      <field type="uint8_t"  name="coord_type" enum="MAVLINK_M_COORD_TYPE">Preferred coordinate display representation (advisory). On-wire lat/lon remain WGS84 degE7; 0 = decimal degrees when unset.</field>
     </message>
 
     <!-- ============================================================ -->
@@ -1358,6 +1377,7 @@
       <field type="uint8_t"   name="target_force"     enum="MAVLINK_M_TARGET_FORCE">Force affiliation.</field>
       <field type="uint8_t"   name="match_media_type" enum="MAVLINK_M_MATCH_MEDIA_TYPE">Type of matching media referenced by match_media_url.</field>
       <field type="uint8_t[16]" name="track_uid">Globally-unique track identifier (UUID) of the TRACK_IDENTITY this handover transfers. The authoritative correlation handle across aircraft; target_name is a human label only. All-zero if not associated with a track.</field>
+      <field type="uint8_t"   name="coord_type" enum="MAVLINK_M_COORD_TYPE">Preferred coordinate display representation (advisory). On-wire lat/lon remain WGS84 degE7; 0 = decimal degrees when unset.</field>
     </message>
 
     <!-- ============================================================ -->
@@ -1389,6 +1409,7 @@
       <field type="uint8_t"   name="physical_damage"  enum="MAVLINK_M_PHYSICAL_DAMAGE">Discrete physical damage state (combat-assessment layer).</field>
       <field type="uint8_t"   name="reattack_recommended"          >Reattack recommendation: 1 = yes, 0 = no. Operational output of BDA.</field>
       <field type="uint8_t[16]" name="track_uid">Globally-unique track identifier (UUID) of the TRACK_IDENTITY this message correlates to. Ties the engagement/assessment to the authorized track. All-zero if not associated.</field>
+      <field type="uint8_t"   name="coord_type" enum="MAVLINK_M_COORD_TYPE">Preferred coordinate display representation (advisory). On-wire lat/lon remain WGS84 degE7; 0 = decimal degrees when unset.</field>
     </message>
 
     <!-- ============================================================ -->
@@ -1476,6 +1497,7 @@
       <field type="float"    name="accuracy_pitch" units="rad" >Pitch orientation accuracy (1-sigma).</field>
       <field type="float"    name="accuracy_yaw"  units="rad"  >Yaw orientation accuracy (1-sigma).</field>
       <field type="uint8_t"  name="coordinate_frame" enum="MAV_FRAME">Coordinate frame for offset and orientation. See MAV_FRAME.</field>
+      <field type="uint8_t"  name="coord_type" enum="MAVLINK_M_COORD_TYPE">Preferred coordinate display representation for lat/lon (advisory). On-wire lat/lon remain WGS84 degE7; 0 = decimal degrees when unset.</field>
     </message>
 
     <!-- ============================================================ -->
@@ -1597,6 +1619,7 @@
       <field type="uint8_t"  name="target_class"  enum="MAVLINK_M_TARGET_CLASS">Provisional target classification from the sensing platform, qualified by confidence_score. A hint, not an identification.</field>
       <field type="uint8_t"  name="target_force"  enum="MAVLINK_M_TARGET_FORCE">Provisional force affiliation from the sensing platform, qualified by confidence_score. A hint, not a combat-ID determination; do not use as a release input.</field>
       <field type="char[20]" name="name"                        >Short human-readable label (null-terminated).</field>
+      <field type="uint8_t"  name="coord_type"    enum="MAVLINK_M_COORD_TYPE">Preferred coordinate display representation (advisory). On-wire lat/lon remain WGS84 degE7; 0 = decimal degrees when unset.</field>
     </message>
 
     <!-- ============================================================ -->
@@ -1815,6 +1838,7 @@
       <field type="uint8_t"   name="external_track_type" enum="MAVLINK_M_TRACK_NUMBER_TYPE">Namespace of external_track_number.</field>
       <field type="uint8_t"   name="stanag_identity"  enum="MAVLINK_M_STANAG_IDENTITY">Standard identity (normally FRIEND for own-force PPLI).</field>
       <field type="uint8_t"   name="ppli_type"       enum="MAVLINK_M_PPLI_TYPE">Participant environment/type.</field>
+      <field type="uint8_t"   name="coord_type" enum="MAVLINK_M_COORD_TYPE">Preferred coordinate display representation (advisory). On-wire lat/lon remain WGS84 degE7; 0 = decimal degrees when unset.</field>
     </message>
 
     <!-- 53035: STORE_MUNITION -->
