@@ -1283,6 +1283,8 @@
     <message id="53020" name="FIRES">
       <description>Fire mission order. Commands an effector to engage a WGS84 coordinate with a specified expected impact time and CEP.</description>
       <field type="uint64_t" name="time_usec"         units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint8_t"  name="target_system"                 >System ID of the intended recipient. 0 = every system.</field>
+      <field type="uint8_t"  name="target_component"              >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
       <field type="uint64_t" name="time_impact_usec"  units="us"  >Expected time of impact (UNIX epoch, microseconds UTC).</field>
       <field type="int32_t"  name="lat"               units="degE7">Target latitude, WGS84.</field>
       <field type="int32_t"  name="lon"               units="degE7">Target longitude, WGS84.</field>
@@ -1314,6 +1316,8 @@
         supplementary sensor context.
       </description>
       <field type="uint64_t" name="time_usec"     units="us"  >Timestamp of observation (UNIX epoch, microseconds UTC).</field>
+      <field type="uint8_t"  name="target_system"             >System ID of the intended recipient. 0 = every system.</field>
+      <field type="uint8_t"  name="target_component"          >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
       <field type="int32_t"  name="lat"           units="degE7">Observed splash latitude, WGS84.</field>
       <field type="int32_t"  name="lon"           units="degE7">Observed splash longitude, WGS84.</field>
       <field type="float"    name="alt"           units="m"   >Observed splash altitude, MSL.</field>
@@ -1335,6 +1339,8 @@
     <message id="53002" name="TARGET_HANDOVER">
       <description>Transfers tracking responsibility for a target to another system, including kinematic state, classification, identification media, and authorization.</description>
       <field type="uint64_t"  name="time_usec"         units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint8_t"  name="target_system"                  >System ID of the intended recipient. 0 = every system.</field>
+      <field type="uint8_t"  name="target_component"               >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
       <field type="uint64_t"  name="detected_first_usec" units="us">Time target was first detected (UNIX epoch, microseconds UTC).</field>
       <field type="uint64_t"  name="valid_until_usec"  units="us"  >Handover data validity expiry (UNIX epoch, microseconds UTC).</field>
       <field type="int32_t"   name="lat"               units="degE7">Target latitude, WGS84.</field>
@@ -1421,6 +1427,8 @@
     <message id="53031" name="ESAD_ARMING">
       <description>ESAD arming command for one or more ESAD instances. arming_challenge_hash must match the active ESAD_STATE challenge for the selected instance. For esad_id = 0, each targeted ESAD must have advertised the same challenge hash; otherwise receivers reject the broadcast command.</description>
       <field type="uint64_t" name="time_usec"            units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint8_t"  name="target_system"                  >System ID of the intended recipient. 0 = every system.</field>
+      <field type="uint8_t"  name="target_component"               >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
       <field type="uint8_t"  name="esad_id"                        >Vehicle-local ESAD instance identifier to arm or disarm. 0 = all ESAD instances selected by store_id, 1-254 = specific ESAD instance, 255 = reserved.</field>
       <field type="uint32_t" name="arming_challenge_hash"          >Challenge hash matching the selected ESAD instance challenge. For esad_id = 0, the same hash must be active on every targeted ESAD.</field>
       <field type="uint8_t"  name="arming_request"  enum="MAVLINK_M_ESAD_ARMING_REQUEST">Requested arming state change.</field>
@@ -1444,6 +1452,8 @@
         ESAD_STATE.trigger_distance_mode.
       </description>
       <field type="uint64_t" name="time_usec"            units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint8_t"  name="target_system"                  >System ID of the intended recipient. 0 = every system.</field>
+      <field type="uint8_t"  name="target_component"               >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
       <field type="uint32_t" name="arming_challenge_hash"          >Challenge hash matching the active ESAD_STATE hash for the target store.</field>
       <field type="uint8_t"  name="esad_id"                        >Vehicle-local ESAD instance identifier to configure. 0 = all ESAD instances selected by store_id, 1-254 = specific ESAD instance, 255 = reserved.</field>
       <field type="uint8_t"  name="store_id"                       >Target store instance identifier. 0 = all stores / broadcast.</field>
@@ -1502,6 +1512,8 @@
         optional point of interest to slew to.
       </description>
       <field type="uint64_t" name="time_usec"    units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint8_t"  name="target_system"           >System ID of the intended recipient. 0 = every system.</field>
+      <field type="uint8_t"  name="target_component"        >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
       <field type="uint16_t" name="task_id"                 >Tasking correlation id (echoed in the status response).</field>
       <field type="uint8_t"  name="sensor_mode"  enum="MAVLINK_M_SENSOR_MODE">Commanded sensor/payload mode.</field>
       <field type="uint8_t"  name="status"        enum="MAVLINK_M_TASKING_STATUS">Tasking-status response (ACK/REJECTED/COMPLETE/ACTIVE).</field>
@@ -1521,6 +1533,8 @@
         value. Danger close is a flag; RED tables are never embedded.
       </description>
       <field type="uint64_t" name="time_usec"       units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint8_t"  name="target_system"               >System ID of the intended recipient. 0 = every system.</field>
+      <field type="uint8_t"  name="target_component"            >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
       <field type="int32_t"  name="ip_lat"          units="degE7">Line 1: initial point / battle position latitude, WGS84.</field>
       <field type="int32_t"  name="ip_lon"          units="degE7">Line 1: initial point / battle position longitude, WGS84.</field>
       <field type="uint16_t" name="heading_deg"     units="deg" >Line 2: heading (IP to target).</field>
@@ -1550,6 +1564,8 @@
         and must not be wired as an automated release path.
       </description>
       <field type="uint64_t" name="time_usec"    units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint8_t"  name="target_system"          >System ID of the intended recipient. 0 = every system.</field>
+      <field type="uint8_t"  name="target_component"       >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
       <field type="uint16_t" name="sequence"               >Engagement sequence this handshake applies to.</field>
       <field type="uint8_t"  name="tac_type"     enum="MAVLINK_M_TAC_TYPE">Type of terminal attack control (1/2/3).</field>
       <field type="uint8_t"  name="clearance"    enum="MAVLINK_M_CAS_CLEARANCE">Clearance / abort verb (human authority).</field>
@@ -1746,6 +1762,8 @@
         they do not require the authorization trail that initiating fire does.
       </description>
       <field type="uint64_t"  name="time_usec"     units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint8_t"  name="target_system"               >System ID of the intended recipient. 0 = every system.</field>
+      <field type="uint8_t"  name="target_component"            >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
       <field type="uint8_t[16]" name="track_uid"                >Track UID the directive applies to. All-zero if addressed by sequence only.</field>
       <field type="uint16_t"  name="sequence"                  >Fire mission sequence number the directive applies to.</field>
       <field type="uint32_t"  name="effector_id"               >Effector the directive is addressed to. 0 = all assigned.</field>
@@ -1767,6 +1785,8 @@
         elements a VMF/Link-16 packer requires. Descriptive intent only.
       </description>
       <field type="uint64_t" name="time_usec"       units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint8_t"  name="target_system"              >System ID of the intended recipient. 0 = every system.</field>
+      <field type="uint8_t"  name="target_component"           >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
       <field type="uint16_t" name="sequence"                   >Fire-mission sequence number this CFF applies to.</field>
       <field type="uint8_t"  name="mission_type"    enum="MAVLINK_M_MISSION_TYPE">Warning-order mission type.</field>
       <field type="uint8_t"  name="location_method" enum="MAVLINK_M_TARGET_LOCATION_METHOD">Method of target location.</field>
@@ -1859,6 +1879,8 @@
         and ENGAGEMENT_DIRECTIVE (abort/check-fire) already in the dialect.
       </description>
       <field type="uint64_t"  name="time_usec"     units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint8_t"  name="target_system"            >System ID of the intended recipient. 0 = every system.</field>
+      <field type="uint8_t"  name="target_component"         >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
       <field type="uint8_t[16]" name="track_uid"             >128-bit track UID of the engaged object (see TRACK_IDENTITY).</field>
       <field type="uint8_t"   name="consent_state" enum="MAVLINK_M_LM_CONSENT_STATE">Man-in-the-loop consent-to-strike state (recorded human decision, not a trigger).</field>
       <field type="uint8_t"   name="terminate"     enum="MAVLINK_M_LM_TERMINATE">Abort / wave-off / self-destruct action.</field>
