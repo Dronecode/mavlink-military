@@ -1622,15 +1622,17 @@
       <description>
         Generic acknowledgment for MAVLink-M messages. A recipient emits this in
         response to an acknowledged MAVLink-M message to close the loop on
-        delivery and acceptance. Keyed by the acknowledged message ID plus an
+        delivery and acceptance, addressed to the system and component that
+        sent that message. Keyed by the acknowledged message ID plus an
         instance identifier (e.g. cue_id, target_set_id, or sequence) so the
-        originator can match the ACK to the specific item.
+        originator can match the ACK to the specific item. The acknowledging
+        system identifies itself in the MAVLink frame header.
       </description>
       <field type="uint64_t" name="time_usec"     units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint8_t"  name="target_system"              >System ID of the recipient: the source system ID in the frame header of the acknowledged message, not that message's own target_system. Never 0.</field>
+      <field type="uint8_t"  name="target_component"           >Component ID of the recipient: the source component ID in the frame header of the acknowledged message. Never 0.</field>
       <field type="uint32_t" name="ack_msgid"                  >MAVLink message ID being acknowledged (e.g. 53001 for TARGET_CUE).</field>
       <field type="uint32_t" name="ack_instance"               >Instance identifier of the acknowledged item (e.g. cue_id / target_set_id / sequence). 0 if not applicable.</field>
-      <field type="uint8_t"  name="origin_sysid"               >System ID of the originator of the acknowledged message.</field>
-      <field type="uint8_t"  name="ack_sysid"                  >System ID of the system issuing this acknowledgment.</field>
       <field type="uint8_t"  name="result"        enum="MAVLINK_M_ACK_RESULT">Result of receiving/processing the acknowledged message.</field>
       <field type="char[50]" name="reason"                     >Optional human-readable reason, primarily for REJECTED/FAILED (null-terminated).</field>
     </message>
