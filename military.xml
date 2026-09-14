@@ -43,10 +43,12 @@
       those standards.
 
   MESSAGE ID ALLOCATION
-    IDs are grouped by function, with gaps reserved for growth. The upstream
-    MAVLink all.xml allocation table reserves 53000-53999 for this dialect. This
-    file uses the low 53000-53099 window for the initial shared MAVLink-M
-    messages and commands, reserves 53100-53899 for future shared growth, and
+    IDs are grouped by function, with gaps reserved for growth.
+    The pinned MAVLink all.xml registry records 53000-53999 as reserved but does
+    not currently name this dialect as the owner. Pending allocation review, this
+    file provisionally uses the low 53000-53099 window for the initial MAVLink-M
+    messages and commands, uses 53100-53107 for generic payload discovery and
+    status, reserves 53108-53899 for future shared growth, and
     reserves 53900-53999 for private/downstream implementor-specific messages.
 
     Track & identity (53000-53009)
@@ -90,10 +92,20 @@
       53060 CAS_9LINE             close-air-support 9-line brief
       53061 TERMINAL_CONTROL      terminal attack control handshake
 
+    Generic payload discovery and status (53100-53107)
+      53100 PAYLOAD_INFO                       function discovery
+      53101 PAYLOAD_STATE                      current function state
+      53102 PAYLOAD_RESOURCE                   finite-resource status
+      53103 PAYLOAD_INHIBIT                    reported inhibition
+      53104 PAYLOAD_MEASUREMENT                typed measurement
+      53105 PAYLOAD_OPERATION_REQUEST          generic lifecycle request
+      53106 PAYLOAD_OPERATION_STATUS           lifecycle request result
+      53107 PAYLOAD_CATALOGUE_STATUS           metadata catalogue version
+
     Official shared growth
       53062-53089 reserved for future shared messages in the initial compact
       block, 53094-53099 reserved for future shared MAV_CMD entries, and
-      53100-53899 reserved for future shared MAVLink-M allocations.
+      53108-53899 reserved for future shared MAVLink-M allocations.
 
     MAV_CMD entries (53090-53093):
       STORE_ARM, STORE_RUN_BIT, STORE_REQUEST_STATUS, STORE_SET_DECEL_THRESHOLD
@@ -196,8 +208,6 @@
 -->
 <mavlink>
   <include>common.xml</include>
-  <version>1</version>
-  <dialect>0</dialect>
 
   <enums>
 
@@ -1199,6 +1209,223 @@
       <entry value="4" name="MAVLINK_M_TASKING_ACTIVE">   <description>Tasking in progress.</description></entry>
     </enum>
 
+    <!-- ===== Generic payload enumerations ===== -->
+    <enum name="COMP_METADATA_TYPE">
+      <description>MAVLink-M addition to the metadata types defined by the Component Metadata service.</description>
+      <entry value="53000" name="COMP_METADATA_TYPE_PAYLOAD_CATALOGUE"><description>A catalogue of payloads, functions, inhibitions, and generic measurements managed by a component. The catalogue uses the MAVLink-M payload metadata schema and binds descriptions to the runtime payload, function, instance, descriptor revision, inhibition, and measurement identifiers.</description></entry>
+    </enum>
+
+    <enum name="PAYLOAD_CATEGORY">
+      <description>Broad category of a payload used for discovery and display. The category describes the hardware's role; the activation pattern describes how each function operates.</description>
+      <entry value="0" name="PAYLOAD_CATEGORY_UNKNOWN"><description>Payload category is unknown or not reported.</description></entry>
+      <entry value="1" name="PAYLOAD_CATEGORY_SENSOR"><description>Payload primarily observes or measures.</description></entry>
+      <entry value="2" name="PAYLOAD_CATEGORY_EFFECTOR"><description>Payload produces a physical or non-physical effect. Mission-specific contracts remain separate.</description></entry>
+      <entry value="3" name="PAYLOAD_CATEGORY_DELIVERY"><description>Payload carries, dispenses, or delivers one or more items.</description></entry>
+      <entry value="4" name="PAYLOAD_CATEGORY_COMMUNICATION"><description>Payload provides a communications or relay function.</description></entry>
+      <entry value="5" name="PAYLOAD_CATEGORY_SAFETY_SYSTEM"><description>Payload is a safety or safe-and-arm subsystem.</description></entry>
+      <entry value="6" name="PAYLOAD_CATEGORY_SUPPORT"><description>Payload provides a supporting mechanical, electrical, or computing function.</description></entry>
+      <entry value="255" name="PAYLOAD_CATEGORY_OTHER"><description>A payload category not represented by another value.</description></entry>
+    </enum>
+
+    <enum name="PAYLOAD_ACTIVATION_PATTERN">
+      <description>Describes how a payload function operates and whether activation consumes a finite resource. The function may be single-use, multiple-use, indefinitely repeatable, or continuous. This classification applies to functions, not hardware products.</description>
+      <entry value="0" name="PAYLOAD_ACTIVATION_PATTERN_UNKNOWN"><description>Behavior pattern is unknown or not reported.</description></entry>
+      <entry value="1" name="PAYLOAD_ACTIVATION_PATTERN_SINGLE"><description>One discrete action is available per loaded item.</description></entry>
+      <entry value="2" name="PAYLOAD_ACTIVATION_PATTERN_MULTIPLE"><description>A finite number of discrete actions is available.</description></entry>
+      <entry value="3" name="PAYLOAD_ACTIVATION_PATTERN_INDEFINITE"><description>Discrete actions may be repeated without a protocol-defined exhaustion count.</description></entry>
+      <entry value="4" name="PAYLOAD_ACTIVATION_PATTERN_CONTINUOUS"><description>The function may remain active over a period of time.</description></entry>
+    </enum>
+
+    <enum name="PAYLOAD_ACTIVATION_STATE">
+      <description>Lifecycle state of a payload function. Interpretation of transitions is constrained by the advertised activation pattern. The same transitions apply whether the change was caused by a PAYLOAD_OPERATION_REQUEST, by a capability action whose lifecycleEffect is not none, or by an action carried through another bound service. Defined values have a minimum pairwise Hamming distance of four. An unrecognized value must be treated as unknown and must not be corrected into a defined state.</description>
+      <entry value="0" name="PAYLOAD_ACTIVATION_STATE_UNKNOWN"><description>Lifecycle state is unknown or not reported.</description></entry>
+      <entry value="15" name="PAYLOAD_ACTIVATION_STATE_DISARMED"><description>The function is disarmed or otherwise in its defined safe state.</description></entry>
+      <entry value="51" name="PAYLOAD_ACTIVATION_STATE_ARMING"><description>The function is transitioning toward its armed state.</description></entry>
+      <entry value="60" name="PAYLOAD_ACTIVATION_STATE_ARMED"><description>The function reports that it is armed. This state does not grant permission to activate it.</description></entry>
+      <entry value="85" name="PAYLOAD_ACTIVATION_STATE_ACTIVATING"><description>An accepted activation, from any of the sources named above, is in progress.</description></entry>
+      <entry value="90" name="PAYLOAD_ACTIVATION_STATE_ACTIVE"><description>The function is active. For a continuous function this state persists until deactivation or failure.</description></entry>
+      <entry value="102" name="PAYLOAD_ACTIVATION_STATE_INACTIVE"><description>The function is not active and is not changing lifecycle state. Use this for a non-armable function that is waiting to operate, or for a continuous function after it has stopped. Use DISARMED for an armable function in its safe state and COMPLETED after a discrete activation finishes. The availability field separately reports whether the function can currently be used.</description></entry>
+      <entry value="105" name="PAYLOAD_ACTIVATION_STATE_DEACTIVATING"><description>The function is transitioning out of its active state.</description></entry>
+      <entry value="150" name="PAYLOAD_ACTIVATION_STATE_COMPLETED"><description>The most recently accepted discrete activation, from any of the sources named above, completed.</description></entry>
+    </enum>
+
+    <enum name="PAYLOAD_CAPABILITY_FLAGS" bitmask="true">
+      <description>Provisional reports and lifecycle operations supported by a payload function. A zero mask means no optional capability has been declared. Advertising an operation does not authorize a requester to invoke it.</description>
+      <entry value="1" name="PAYLOAD_CAPABILITY_FLAG_RESOURCE"><description>The function reports finite-resource state.</description></entry>
+      <entry value="2" name="PAYLOAD_CAPABILITY_FLAG_INHIBIT"><description>The function reports individual inhibitions. Its matching payload-catalogue entry lists the inhibition records that receivers should expect.</description></entry>
+      <entry value="4" name="PAYLOAD_CAPABILITY_FLAG_MEASUREMENT"><description>The function reports typed measurements. Its matching payload-catalogue entry lists the measurements defined for the function.</description></entry>
+      <entry value="8" name="PAYLOAD_CAPABILITY_FLAG_ARM_DISARM"><description>The function accepts generic arm and disarm lifecycle requests.</description></entry>
+      <entry value="16" name="PAYLOAD_CAPABILITY_FLAG_ACTIVATE_DEACTIVATE"><description>The function accepts generic activate and deactivate lifecycle requests.</description></entry>
+      <entry value="32" name="PAYLOAD_CAPABILITY_FLAG_RESET"><description>The function accepts a generic reset request.</description></entry>
+      <entry value="64" name="PAYLOAD_CAPABILITY_FLAG_SELF_TEST"><description>The function accepts a generic self-test request.</description></entry>
+    </enum>
+
+    <enum name="PAYLOAD_OPERATION">
+      <description>Simple generic lifecycle operation requested from a payload function. Mission-specific tasking, firing, targeting, and device configuration require separate contracts. Defined values have a minimum pairwise Hamming distance of four. An unrecognized value must be rejected and must not be corrected into a defined operation.</description>
+      <entry value="0" name="PAYLOAD_OPERATION_NONE"><description>No operation requested.</description></entry>
+      <entry value="15" name="PAYLOAD_OPERATION_ARM"><description>Request transition to the armed state.</description></entry>
+      <entry value="51" name="PAYLOAD_OPERATION_DISARM"><description>Request transition to the safe or disarmed state.</description></entry>
+      <entry value="60" name="PAYLOAD_OPERATION_ACTIVATE"><description>Request one discrete activation or start a continuous activation, according to the advertised activation pattern.</description></entry>
+      <entry value="85" name="PAYLOAD_OPERATION_DEACTIVATE"><description>Request a continuous or otherwise stoppable function to stop. It does not reverse a completed discrete activation.</description></entry>
+      <entry value="90" name="PAYLOAD_OPERATION_RESET"><description>Request a non-destructive reset. It must not replenish a consumed resource or clear a physical safety interlock.</description></entry>
+      <entry value="102" name="PAYLOAD_OPERATION_RUN_SELF_TEST"><description>Request a non-destructive self-test.</description></entry>
+    </enum>
+
+    <enum name="PAYLOAD_OPERATION_STAGE">
+      <description>Processing stage of a correlated payload operation. Defined values have a minimum pairwise Hamming distance of four. An unrecognized value must be treated as unknown and must not be corrected into a defined stage.</description>
+      <entry value="0" name="PAYLOAD_OPERATION_STAGE_UNKNOWN"><description>Processing stage is unknown.</description></entry>
+      <entry value="15" name="PAYLOAD_OPERATION_STAGE_RECEIVED"><description>The request was received and parsed. No acceptance is implied.</description></entry>
+      <entry value="51" name="PAYLOAD_OPERATION_STAGE_ACCEPTED"><description>The request was accepted for processing. Completion is not implied.</description></entry>
+      <entry value="60" name="PAYLOAD_OPERATION_STAGE_EXECUTING"><description>The requested transition or operation is in progress.</description></entry>
+      <entry value="85" name="PAYLOAD_OPERATION_STAGE_COMPLETED"><description>The requested operation completed.</description></entry>
+      <entry value="90" name="PAYLOAD_OPERATION_STAGE_REJECTED"><description>The request was rejected without execution.</description></entry>
+      <entry value="102" name="PAYLOAD_OPERATION_STAGE_FAILED"><description>Processing began but the requested operation failed.</description></entry>
+    </enum>
+
+    <enum name="PAYLOAD_OPERATION_RESULT">
+      <description>Result or rejection reason for a correlated payload operation. Defined values have a minimum pairwise Hamming distance of four. An unrecognized value must be treated as unknown and must not be corrected into a defined result.</description>
+      <entry value="0" name="PAYLOAD_OPERATION_RESULT_UNKNOWN"><description>Result is unknown or no final result is available.</description></entry>
+      <entry value="15" name="PAYLOAD_OPERATION_RESULT_SUCCESS"><description>The operation completed successfully.</description></entry>
+      <entry value="51" name="PAYLOAD_OPERATION_RESULT_UNSUPPORTED"><description>The payload or function does not support the requested operation.</description></entry>
+      <entry value="60" name="PAYLOAD_OPERATION_RESULT_INVALID_TARGET"><description>The addressed payload or function is invalid.</description></entry>
+      <entry value="85" name="PAYLOAD_OPERATION_RESULT_STALE_INSTANCE"><description>The instance epoch does not match the current payload instance.</description></entry>
+      <entry value="90" name="PAYLOAD_OPERATION_RESULT_EXPIRED"><description>The request expired before it could be accepted.</description></entry>
+      <entry value="102" name="PAYLOAD_OPERATION_RESULT_INHIBITED"><description>An active or indeterminate inhibition prevents the operation.</description></entry>
+      <entry value="105" name="PAYLOAD_OPERATION_RESULT_UNAVAILABLE"><description>The payload function is unavailable or its required resource is unavailable.</description></entry>
+      <entry value="150" name="PAYLOAD_OPERATION_RESULT_FAULT"><description>A payload or function fault prevented or terminated the operation.</description></entry>
+      <entry value="153" name="PAYLOAD_OPERATION_RESULT_DENIED"><description>The authenticated requester is not permitted to perform the operation.</description></entry>
+      <entry value="165" name="PAYLOAD_OPERATION_RESULT_DUPLICATE"><description>The request duplicates a request already processed in this session.</description></entry>
+      <entry value="170" name="PAYLOAD_OPERATION_RESULT_FAILED"><description>The operation failed for another reason.</description></entry>
+    </enum>
+
+    <enum name="PAYLOAD_TIME_BASIS">
+      <description>Provisional basis for an observation timestamp. The original reporting component owns the observation clock. Receivers and gateways must preserve the timestamp and its basis; packet arrival time is not a substitute. TIMESYNC may map an instance-monotonic clock to the receiver's clock when the reporting component uses the same clock for both. The receiver needs a current offset estimate based on repeated TIMESYNC exchanges and must convert TIMESYNC nanoseconds to the microseconds used here.</description>
+      <entry value="0" name="PAYLOAD_TIME_BASIS_UNKNOWN"><description>Timestamp basis is unknown; the receiver cannot establish absolute age from this value alone.</description></entry>
+      <entry value="1" name="PAYLOAD_TIME_BASIS_UNIX_UTC"><description>Microseconds since the UNIX epoch in UTC. The receiver can determine report age only when it trusts both its own UTC clock and the reporting component's UTC clock; TIMESYNC does not establish trusted UTC.</description></entry>
+      <entry value="2" name="PAYLOAD_TIME_BASIS_INSTANCE_MONOTONIC"><description>Microseconds from the monotonic clock owned by the original reporting component for the reported instance epoch. The component must use this same clock for TIMESYNC responses. If it converts a payload-native timestamp, it reports the converted time and includes the conversion uncertainty in time_uncertainty_usec.</description></entry>
+    </enum>
+
+    <enum name="PAYLOAD_AVAILABILITY">
+      <description>Provisional availability of a payload function, independent of its health and activity. Defined values have a minimum pairwise Hamming distance of four. An unrecognized value must be treated as unknown and must not be corrected into a defined state.</description>
+      <entry value="0" name="PAYLOAD_AVAILABILITY_UNKNOWN"><description>Availability is unknown or not reported.</description></entry>
+      <entry value="15" name="PAYLOAD_AVAILABILITY_NOT_PRESENT"><description>The function or its required payload is not present.</description></entry>
+      <entry value="51" name="PAYLOAD_AVAILABILITY_UNAVAILABLE"><description>The function is present but unavailable.</description></entry>
+      <entry value="60" name="PAYLOAD_AVAILABILITY_AVAILABLE"><description>The reporting source states that the function is available. This does not grant permission to use it.</description></entry>
+    </enum>
+
+    <enum name="PAYLOAD_HEALTH">
+      <description>Source-reported health of a payload function. Health does not imply availability, safety, or permission. Defined values have a minimum pairwise Hamming distance of four. An unrecognized value must be treated as unknown and must not be corrected into a defined state.</description>
+      <entry value="0" name="PAYLOAD_HEALTH_UNKNOWN"><description>Health is unknown or not reported.</description></entry>
+      <entry value="15" name="PAYLOAD_HEALTH_NOMINAL"><description>The reporting source states that the function is healthy.</description></entry>
+      <entry value="51" name="PAYLOAD_HEALTH_DEGRADED"><description>The function is operating with a reported degradation.</description></entry>
+      <entry value="60" name="PAYLOAD_HEALTH_FAULT"><description>The function has detected a fault that prevents normal operation or makes its output unreliable. Use data_quality or measurement_validity to report missing or invalid output when the function itself has not reported a fault.</description></entry>
+    </enum>
+
+    <enum name="PAYLOAD_DATA_QUALITY">
+      <description>Usability of the data produced by a payload function, independent of function health. Defined values have a minimum pairwise Hamming distance of four. An unrecognized value must be treated as unknown and must not be corrected into a defined state.</description>
+      <entry value="0" name="PAYLOAD_DATA_QUALITY_UNKNOWN"><description>Data quality is unknown or not reported.</description></entry>
+      <entry value="15" name="PAYLOAD_DATA_QUALITY_NOT_APPLICABLE"><description>The function does not produce data for which quality is reported.</description></entry>
+      <entry value="51" name="PAYLOAD_DATA_QUALITY_UNUSABLE"><description>The function is producing data, but the data is not usable.</description></entry>
+      <entry value="60" name="PAYLOAD_DATA_QUALITY_DEGRADED"><description>The produced data is usable with reduced quality.</description></entry>
+      <entry value="85" name="PAYLOAD_DATA_QUALITY_NOMINAL"><description>The reporting source states that the produced data has nominal quality.</description></entry>
+    </enum>
+
+    <enum name="PAYLOAD_RESOURCE_STATE">
+      <description>Provisional state of a finite resource used by a single-use or multiple-use function. Defined values have a minimum pairwise Hamming distance of four. An unrecognized value must be treated as unknown and must not be corrected into a defined state.</description>
+      <entry value="0" name="PAYLOAD_RESOURCE_UNKNOWN"><description>Resource state or count is unknown.</description></entry>
+      <entry value="15" name="PAYLOAD_RESOURCE_AVAILABLE"><description>At least one action remains available according to the reporting source.</description></entry>
+      <entry value="51" name="PAYLOAD_RESOURCE_EXHAUSTED"><description>No actions remain until the resource is replenished or the item is replaced.</description></entry>
+    </enum>
+
+    <enum name="PAYLOAD_INHIBIT_STATE">
+      <description>Provisional read-only state of one reported inhibition. It cannot configure or override a device interlock. Defined values have a minimum pairwise Hamming distance of four. An unrecognized value must be treated as unknown and must not be corrected into a defined state.</description>
+      <entry value="0" name="PAYLOAD_INHIBIT_UNKNOWN"><description>The inhibition state is unknown.</description></entry>
+      <entry value="15" name="PAYLOAD_INHIBIT_CLEAR"><description>The reported inhibition is not active.</description></entry>
+      <entry value="51" name="PAYLOAD_INHIBIT_ACTIVE"><description>The reported inhibition is active.</description></entry>
+      <entry value="60" name="PAYLOAD_INHIBIT_FAULT"><description>The inhibition source or its state cannot be evaluated reliably.</description></entry>
+    </enum>
+
+    <enum name="PAYLOAD_INHIBIT_REASON">
+      <description>Provisional category for why a function is inhibited. Numeric thresholds and device-internal configuration are not carried here.</description>
+      <entry value="0" name="PAYLOAD_INHIBIT_REASON_UNKNOWN"><description>Reason is unknown or not reported.</description></entry>
+      <entry value="1" name="PAYLOAD_INHIBIT_REASON_DEVICE_INTERLOCK"><description>A device-owned interlock is active.</description></entry>
+      <entry value="2" name="PAYLOAD_INHIBIT_REASON_HEALTH"><description>A health or fault condition inhibits the function.</description></entry>
+      <entry value="3" name="PAYLOAD_INHIBIT_REASON_RESOURCE"><description>A required finite resource is unavailable or exhausted.</description></entry>
+      <entry value="4" name="PAYLOAD_INHIBIT_REASON_ENVIRONMENT"><description>An environmental condition reported by the device inhibits the function.</description></entry>
+      <entry value="5" name="PAYLOAD_INHIBIT_REASON_COMMUNICATION"><description>A required communication or confirmation is unavailable.</description></entry>
+      <entry value="6" name="PAYLOAD_INHIBIT_REASON_EXTERNAL_PERMISSION"><description>A required external permission has not been confirmed. This status does not evaluate or grant permission.</description></entry>
+    </enum>
+
+    <enum name="PAYLOAD_MEASUREMENT_KIND">
+      <description>Provisional typed payload or equipment measurement with a canonical unit. These kinds are used only when no existing MAVLink message has the semantics of the reported equipment and reading. A matching physical quantity or unit alone is not sufficient reason to use this enum. Values 1-32767 are reserved for shared kinds defined by MAVLink-M, values 32768-65534 are available for private kinds defined by a vendor or downstream implementor, and 65535 is reserved and must not be sent. A receiver preserves an unknown kind numerically when possible but must not use its value because its unit and value semantics are unknown. For every recognized shared kind, a usable value must be finite, satisfy the range stated by its entry, and have measurement_validity set to VALID.</description>
+      <entry value="0" name="PAYLOAD_MEASUREMENT_UNKNOWN"><description>Measurement kind and unit are unknown; the numeric value must not be used.</description></entry>
+      <entry value="1" name="PAYLOAD_MEASUREMENT_TEMPERATURE_C"><description>Temperature in degrees Celsius for a payload part or other equipment measurement that is not part of a standard equipment report. Any finite value is valid; NaN and infinity are invalid. Use the temperature field in SCALED_PRESSURE, BATTERY_STATUS, an IMU message, or another applicable standard message when it describes that equipment.</description></entry>
+      <entry value="2" name="PAYLOAD_MEASUREMENT_VOLTAGE_V"><description>Electric potential in volts for an arbitrary payload circuit, rail, or test point. Any finite value is valid; NaN and infinity are invalid. The catalogue identifies the measured points and polarity. Use BATTERY_STATUS for a battery, POWER_STATUS for its defined vehicle rails, and an applicable ESC, generator, winch, or other standard equipment message when its semantics fit.</description></entry>
+      <entry value="3" name="PAYLOAD_MEASUREMENT_DISTANCE_M"><description>Distance in metres for a payload or mechanism measurement that is not a rangefinder, obstacle, or standard equipment report. A finite non-negative value is valid; a negative value, NaN, or infinity is invalid. Use DISTANCE_SENSOR for an onboard rangefinder, OBSTACLE_DISTANCE for an obstacle array, and WINCH_STATUS for winch line length when their semantics fit.</description></entry>
+      <entry value="4" name="PAYLOAD_MEASUREMENT_PRESSURE_PA"><description>Pressure in pascals for an equipment pressure such as a hydraulic, pneumatic, coolant, or chamber pressure. Any finite value is valid; NaN and infinity are invalid. The catalogue identifies whether the value is absolute, gauge, or differential and its reference. Use SCALED_PRESSURE, SCALED_PRESSURE2, or SCALED_PRESSURE3 for their defined atmospheric-pressure reports.</description></entry>
+      <entry value="5" name="PAYLOAD_MEASUREMENT_SPEED_M_S"><description>Scalar speed in metres per second for a payload part or mechanism not described by a standard motion or equipment message. A finite non-negative value is valid; a negative value, NaN, or infinity is invalid. Use the applicable standard message for vehicle airspeed, groundspeed, velocity, wind, winch line motion, or other defined motion, and identify the moving part and reference in the payload catalogue.</description></entry>
+      <entry value="6" name="PAYLOAD_MEASUREMENT_ACCELERATION_M_S2"><description>Scalar acceleration magnitude in metres per second squared for a payload part or mechanism not described by a standard motion message. A finite non-negative value is valid; a negative value, NaN, or infinity is invalid. Use the applicable IMU, high-resolution sensor, or vibration message when its semantics fit, and identify the measured part and reference frame in the payload catalogue.</description></entry>
+      <entry value="7" name="PAYLOAD_MEASUREMENT_DURATION_S"><description>Elapsed duration in seconds for a payload operation, state, or equipment event not described by a standard message. A finite non-negative value is valid; a negative value, NaN, or infinity is invalid. Use CAMERA_CAPTURE_STATUS for camera recording time, BATTERY_STATUS for remaining battery time, GENERATOR_STATUS for generator runtime or maintenance time, ILLUMINATOR_STATUS for illuminator strobe periods, and another applicable standard message when its semantics fit. This observational measurement does not configure a fuze, arming delay, initiation time, or other safety-critical timing.</description></entry>
+      <entry value="8" name="PAYLOAD_MEASUREMENT_CURRENT_A"><description>Electrical current in amperes for an arbitrary payload circuit, rail, or test point. Any finite value is valid; NaN and infinity are invalid. The catalogue identifies the measured path and sign convention. Use BATTERY_STATUS for battery current and an applicable ESC, generator, winch, or other standard equipment message when its semantics fit.</description></entry>
+      <entry value="9" name="PAYLOAD_MEASUREMENT_POWER_W"><description>Electrical power in watts for an arbitrary payload circuit, rail, load, or source. Any finite value is valid; NaN and infinity are invalid. The catalogue identifies the measured path and sign convention. Use an applicable battery, generator, ESC, or other standard equipment message when it describes the same equipment and reading.</description></entry>
+      <entry value="10" name="PAYLOAD_MEASUREMENT_FREQUENCY_HZ"><description>Frequency in hertz for a payload oscillator, channel, carrier, repetition, or other periodic equipment property not described by a standard message. A finite non-negative value is valid; a negative value, NaN, or infinity is invalid. The catalogue identifies the physical meaning. Use CELLULAR_STATUS for its defined cellular band frequency and another applicable standard message when its semantics fit.</description></entry>
+      <entry value="11" name="PAYLOAD_MEASUREMENT_DATA_RATE_BPS"><description>Data rate in bits per second for a payload stream, recording path, or communications path not described by a standard message. A finite non-negative value is valid; a negative value, NaN, or infinity is invalid. The catalogue identifies the direction and interface. Use LINK_NODE_STATUS for its MAVLink-node byte rates, ONBOARD_COMPUTER_STATUS for its defined link rates, STORAGE_INFORMATION for storage read or write speed, CELLULAR_STATUS for cellular link rates, and another applicable standard message when its semantics fit.</description></entry>
+      <entry value="65535" name="PAYLOAD_MEASUREMENT_RESERVED"><description>This value is reserved and must not be sent. A receiver that sees it treats the measurement kind as unknown and does not use the numeric value.</description></entry>
+    </enum>
+
+    <enum name="PAYLOAD_MEASUREMENT_VALIDITY">
+      <description>Provisional validity of a typed measurement. Defined values have a minimum pairwise Hamming distance of four. An unrecognized value must be treated as unknown and must not be corrected into a defined validity state.</description>
+      <entry value="0" name="PAYLOAD_MEASUREMENT_VALIDITY_UNKNOWN"><description>Validity is unknown or not reported.</description></entry>
+      <entry value="15" name="PAYLOAD_MEASUREMENT_VALIDITY_VALID"><description>The reporting source states that the value is valid.</description></entry>
+      <entry value="51" name="PAYLOAD_MEASUREMENT_VALIDITY_INVALID"><description>The value is invalid and must not be used.</description></entry>
+      <entry value="60" name="PAYLOAD_MEASUREMENT_VALIDITY_NOT_AVAILABLE"><description>No current value is available.</description></entry>
+      <entry value="85" name="PAYLOAD_MEASUREMENT_VALIDITY_OUT_OF_RANGE"><description>The observed value is outside the defined usable range.</description></entry>
+    </enum>
+
+    <enum name="PAYLOAD_MEASUREMENT_FLAGS" bitmask="true">
+      <description>Shows which optional numeric fields the sender supplied. Receivers must ignore an optional field when its flag is clear, even if the decoded field contains zero or another value. This distinction is needed because MAVLink 2 decoders fill missing extension bytes with zero. Static identity and descriptive metadata come from the payload catalogue, not this mask.</description>
+      <entry value="1" name="PAYLOAD_MEASUREMENT_FLAG_UNCERTAINTY"><description>The sender supplied uncertainty. Zero is a valid supplied value. When this flag is clear, receivers must ignore the decoded uncertainty field.</description></entry>
+      <entry value="2" name="PAYLOAD_MEASUREMENT_FLAG_MINIMUM"><description>The sender supplied valid_minimum. Zero is a valid supplied value. When this flag is clear, receivers must ignore the decoded valid_minimum field.</description></entry>
+      <entry value="4" name="PAYLOAD_MEASUREMENT_FLAG_MAXIMUM"><description>The sender supplied valid_maximum. Zero is a valid supplied value. When this flag is clear, receivers must ignore the decoded valid_maximum field.</description></entry>
+    </enum>
+
+    <enum name="PAYLOAD_FUNCTION_TYPE">
+      <description>Identifies what a payload function does. function_type gives the function a shared meaning, while function_id identifies a particular instance on the payload. The type does not say whether the function is available, whether it may be used, or which optional operations it supports. Each entry lists the activation patterns that make sense for that function and any existing MAVLink service that applies.</description>
+      <entry value="0" name="PAYLOAD_FUNCTION_TYPE_UNKNOWN"><description>The function type is not known or was not reported. Use the UNKNOWN activation pattern. A receiver cannot work out the function type from its category, label, or capability flags.</description></entry>
+      <entry value="100" name="PAYLOAD_FUNCTION_TYPE_VISIBLE_IMAGING"><description>Captures visible-light images or video. Use INDEFINITE for individual image captures and CONTINUOUS for video streaming or recording. When available, the MAVLink Camera Protocol handles discovery, capture, streaming, storage, zoom, focus, and camera status.</description></entry>
+      <entry value="101" name="PAYLOAD_FUNCTION_TYPE_INFRARED_IMAGING"><description>Captures infrared images or video, including SWIR, MWIR, and LWIR. Use INDEFINITE for individual image captures and CONTINUOUS for video streaming or recording. When available, the MAVLink Camera Protocol handles the camera functions. Camera metadata or a vendor extension identifies the spectral band and sensor configuration.</description></entry>
+      <entry value="102" name="PAYLOAD_FUNCTION_TYPE_GIMBAL_POINTING"><description>Points a stabilized payload mount and reports its orientation. Use the CONTINUOUS activation pattern. When available, MAVLink Gimbal Protocol v2 handles control ownership, attitude and rate commands, and gimbal status.</description></entry>
+      <entry value="103" name="PAYLOAD_FUNCTION_TYPE_TARGET_TRACKING"><description>Tracks a selected object or region in an image or by geographic position. Use the CONTINUOUS activation pattern. When available, use the Camera Protocol tracking commands and CAMERA_TRACKING_IMAGE_STATUS or CAMERA_TRACKING_GEO_STATUS. SENSOR_TASKING can provide mission-level tasking, but it does not replace the camera tracking service.</description></entry>
+      <entry value="104" name="PAYLOAD_FUNCTION_TYPE_GEOPOINTING"><description>Calculates the geographic position of the sensor line of sight or an observed object. Use INDEFINITE for one-time position solutions and CONTINUOUS for regularly updated solutions. CAMERA_FOV_STATUS or CAMERA_TRACKING_GEO_STATUS can carry the result when their definitions fit. TARGET_CUE and track messages can share the resulting mission information.</description></entry>
+      <entry value="200" name="PAYLOAD_FUNCTION_TYPE_LASER_POINTER"><description>Projects a visible or infrared beam for pointing or alignment. Use the CONTINUOUS activation pattern. MAVLink does not currently define a complete service for laser pointers, so control uses a separately defined service or vendor extension. Generic ACTIVATE and DEACTIVATE operations may be used only when the function advertises them and the requester is authorized.</description></entry>
+      <entry value="201" name="PAYLOAD_FUNCTION_TYPE_LASER_RANGEFINDER"><description>Measures the distance to an object with a laser. Use INDEFINITE for individual measurements and CONTINUOUS for repeated ranging. DISTANCE_SENSOR reports the range, sensor identity, orientation, limits, variance, field of view, and signal quality when its representation fits. Camera and gimbal services can provide pointing context, but they do not control the rangefinder.</description></entry>
+      <entry value="202" name="PAYLOAD_FUNCTION_TYPE_LASER_DESIGNATOR"><description>Projects a controlled laser beam to designate an object. Use the CONTINUOUS activation pattern. The standard Camera and Gimbal Protocols do not authorize or fully control designation. SENSOR_TASKING can describe the sensor task, but it cannot turn on the designator. A separate authenticated service or vendor extension handles activation. Laser codes and internal device settings are outside this generic payload interface.</description></entry>
+      <entry value="300" name="PAYLOAD_FUNCTION_TYPE_RF_ELECTRONIC_SUPPORT"><description>Listens for radio-frequency emissions and may detect, classify, direction-find, or locate their sources. It may also provide threat warning or cue other sensors. This type is passive and does not describe electronic attack or RF transmission. Use the CONTINUOUS activation pattern. MAVLink does not currently define a dedicated electronic-support service. SENSOR_TASKING can provide mission-level tasking, while TRACK_IDENTITY, TARGET_CUE, and related track messages can carry the observations. Device settings and emitter libraries use a separate interface.</description></entry>
+      <entry value="400" name="PAYLOAD_FUNCTION_TYPE_ELECTRONIC_SAFE_AND_ARM"><description>Manages the safe and armed states of a store and reports its interlocks, initiation path, and other safety information. Use the SINGLE activation pattern. ESAD_STATE provides the detailed status, and ESAD_ARMING or MAV_CMD_MAVLINK_M_STORE_ARM handles authenticated arm and disarm requests. ESAD_CONFIG handles only its defined coarse modes. Generic payload operations cannot bypass these messages, program a fuze, choose a height of burst, or initiate the store.</description></entry>
+      <entry value="500" name="PAYLOAD_FUNCTION_TYPE_CARGO_GRIPPER"><description>Grasps, holds, or releases cargo with a reusable gripper or attachment mechanism. Use the INDEFINITE activation pattern because grasp and release actions can normally be repeated without a protocol-defined limit. MAV_CMD_DO_GRIPPER provides the standard grasp, release, and hold operations when its addressing and behavior fit. Generic ACTIVATE and DEACTIVATE operations may be used only when the advertised default actions are unambiguous; grip force, position, and other device settings require the gripper service or a separate interface.</description></entry>
+      <entry value="501" name="PAYLOAD_FUNCTION_TYPE_CARGO_WINCH"><description>Raises, lowers, holds, or releases cargo on a line. Use the CONTINUOUS activation pattern because rate-controlled motion can remain active until stopped; finite length moves are operations within the same function. MAV_CMD_DO_WINCH handles length, rate, freewheel, and lock requests, and WINCH_STATUS reports line, motion, load, electrical, temperature, and mechanism state when their definitions fit. Generic activation does not replace those controls.</description></entry>
+      <entry value="502" name="PAYLOAD_FUNCTION_TYPE_CARGO_RELEASE"><description>Releases or detaches carried cargo without providing a reusable grasp function. Use SINGLE when one loaded item can be released, MULTIPLE when a finite number of loaded items can be released independently, or INDEFINITE for a reusable release mechanism. MAV_CMD_DO_GRIPPER may be used when the release is implemented as an addressable gripper; otherwise MAVLink does not define a dedicated cargo-release service. Item selection, release authorization, and mission-specific delivery tasking require a separate interface.</description></entry>
+      <entry value="503" name="PAYLOAD_FUNCTION_TYPE_CARGO_DISPENSING"><description>Dispenses discrete items or material from onboard storage. Use MULTIPLE for a finite number of discrete dispensing actions; PAYLOAD_RESOURCE reports the remaining count, one unit per future dispensing action. Use CONTINUOUS for metered delivery while active; PAYLOAD_RESOURCE does not apply to continuous operation, so a continuous dispenser instead reports remaining material, when it can be observed, as a catalogue-defined PAYLOAD_MEASUREMENT reading with the catalogue stating its unit. MAVLink does not currently define a general dispensing service; item selection, quantity, delivery rate, and mission-specific delivery tasking require a separate interface.</description></entry>
+      <entry value="600" name="PAYLOAD_FUNCTION_TYPE_COMMUNICATIONS_RELAY"><description>Receives and retransmits communications to extend coverage or connect participants in the same communications domain. Use the CONTINUOUS activation pattern. This type does not imply a particular bearer, waveform, frequency, network protocol, or security domain. MAVLink does not currently define a general communications-relay service; RADIO_STATUS describes a MAVLink radio link but does not configure or control this function. Routing, waveform, keying, and spectrum configuration require a separate interface.</description></entry>
+      <entry value="601" name="PAYLOAD_FUNCTION_TYPE_COMMUNICATIONS_GATEWAY"><description>Bridges communications between different bearers, waveforms, networks, protocol domains, or security domains. Use the CONTINUOUS activation pattern. Unlike a relay, a gateway may translate addressing, framing, protocols, or data representations. MAVLink does not currently define a general communications-gateway service. Routing policy, translation rules, waveform configuration, keying, and security-boundary behavior require a separate interface.</description></entry>
+      <entry value="700" name="PAYLOAD_FUNCTION_TYPE_DATA_RECORDING"><description>Records mission, sensor, communications, or payload data for later retrieval or analysis. Use the CONTINUOUS activation pattern for a recording session. Generic ACTIVATE and DEACTIVATE operations may start and stop the advertised default recording only when the function supports them. The MAVLink Camera Protocol remains applicable to camera-native image and video recording. MAVLink does not currently define a general recording-control service; Log Transfer or MAVLink FTP may retrieve recorded artifacts when explicitly supported, but neither defines the recording function. Stream selection, format, retention policy, and storage management require a separate interface.</description></entry>
+      <entry value="701" name="PAYLOAD_FUNCTION_TYPE_DATA_PROCESSING"><description>Processes, transforms, fuses, compresses, or analyzes data when no more specific standard function type applies. Use INDEFINITE for separately requested processing jobs or CONTINUOUS for stream processing. Do not use this type in place of a defined function such as TARGET_TRACKING, GEOPOINTING, or RF_ELECTRONIC_SUPPORT. MAVLink does not currently define a general data-processing service. Inputs, outputs, algorithms, parameters, and result formats require a separate interface or payload-catalogue definition.</description></entry>
+      <entry value="800" name="PAYLOAD_FUNCTION_TYPE_ILLUMINATION"><description>Projects visible or non-visible light to illuminate an external area or object. Use the CONTINUOUS activation pattern. The MAVLink Illuminator Protocol uses MAV_CMD_DO_ILLUMINATOR_CONFIGURE to control enable state, brightness, mode, and strobing, and ILLUMINATOR_STATUS reports configuration, temperature, and faults. This type does not describe indicator lights or the narrow pointing and designation roles represented by the laser function types.</description></entry>
+      <entry value="801" name="PAYLOAD_FUNCTION_TYPE_POWER_SUPPORT"><description>Provides, conditions, switches, or distributes electrical power for other payload equipment. Use the CONTINUOUS activation pattern. POWER_STATUS, BATTERY_STATUS, GENERATOR_STATUS, and other standard equipment messages remain authoritative when their definitions fit, but MAVLink does not currently define a complete service for controlling arbitrary payload power distribution. Generic activation may enable only the advertised default output; rail selection, voltage or current limits, sequencing, and load-shedding policy require a separate interface.</description></entry>
+      <entry value="802" name="PAYLOAD_FUNCTION_TYPE_THERMAL_MANAGEMENT"><description>Heats, cools, or otherwise regulates the temperature of payload equipment. Use the CONTINUOUS activation pattern. Standard equipment messages report temperature when they describe the relevant equipment; otherwise PAYLOAD_MEASUREMENT may report catalogue-defined temperatures. MAVLink does not currently define a general thermal-management service. Generic activation may enable only the advertised default regulation mode; setpoints, operating modes, and control-loop configuration require a separate interface.</description></entry>
+      <entry value="803" name="PAYLOAD_FUNCTION_TYPE_ENVIRONMENTAL_SUPPORT"><description>Provides environmental support other than temperature regulation, such as pressurization, purge gas, dehumidification, or contamination control. Use the CONTINUOUS activation pattern. Existing pressure or other equipment messages remain applicable only when their defined semantics fit; otherwise PAYLOAD_MEASUREMENT may report catalogue-defined readings. MAVLink does not currently define a general environmental-support service. Medium selection, setpoints, flow rates, and operating modes require a separate interface.</description></entry>
+      <entry value="65534" name="PAYLOAD_FUNCTION_TYPE_VENDOR_DEFINED"><description>The function has a meaning defined by a vendor or downstream implementor because no standard type fits. activation_pattern describes how it operates, and the private ICD explains its meaning and service relationship. Receivers that do not know that private definition treat the function type as unknown. Use a standard function type whenever one applies.</description></entry>
+      <entry value="65535" name="PAYLOAD_FUNCTION_TYPE_RESERVED"><description>This value is reserved and must not be sent. A receiver that sees it treats the function type as unknown and does not use it to choose or allow an operation.</description></entry>
+    </enum>
+
+    <enum name="PAYLOAD_CATALOGUE_STATE">
+      <description>Describes whether the reporting component can provide its current payload catalogue. Defined values have a minimum pairwise Hamming distance of four. An unrecognized value must be treated as unknown and must not be corrected into a defined state.</description>
+      <entry value="0" name="PAYLOAD_CATALOGUE_STATE_UNKNOWN"><description>The component has not reported whether the catalogue is available.</description></entry>
+      <entry value="15" name="PAYLOAD_CATALOGUE_STATE_AVAILABLE"><description>The current catalogue is ready to download from the URI advertised through Component Metadata.</description></entry>
+      <entry value="51" name="PAYLOAD_CATALOGUE_STATE_GENERATING"><description>The component is building a new catalogue. Clients can continue using matching runtime information and retry after another status update.</description></entry>
+      <entry value="60" name="PAYLOAD_CATALOGUE_STATE_UNAVAILABLE"><description>The component cannot currently provide the catalogue. Clients use PAYLOAD_INFO as the fallback and treat unmatched cached descriptions as stale.</description></entry>
+    </enum>
+
   </enums>
 
   <messages>
@@ -1868,6 +2095,388 @@
       <field type="int32_t"   name="loiter_lat"    units="degE7">Loiter/orbit station latitude, WGS84. INT32_MAX = not provided (0 is a valid coordinate).</field>
       <field type="int32_t"   name="loiter_lon"    units="degE7">Loiter/orbit station longitude, WGS84. INT32_MAX = not provided (0 is a valid coordinate).</field>
       <field type="uint8_t"   name="dmpi_kind"     enum="MAVLINK_M_DMPI_REFERENCE_KIND">How the desired point of impact is referenced (no mensurated coordinate).</field>
+    </message>
+
+    <!-- ============================================================ -->
+    <!-- 53100-53107: PROVISIONAL GENERIC PAYLOAD MESSAGES          -->
+    <!-- Names and IDs require working-group review before release.   -->
+    <!-- These messages report payload information and provide generic lifecycle operations. -->
+    <!-- ============================================================ -->
+    <message id="53100" name="PAYLOAD_INFO">
+      <description>
+        Reports the current wire-level description of one payload function. The
+        MAVLink packet source identifies the payload manager; one manager component
+        can represent several logical payloads and functions. The manager allocates
+        payload_id and the function_id values within each payload. These logical IDs
+        are not MAVLink routing addresses. instance_epoch changes when the payload
+        is replaced or the reporting component restarts. function_type, payload
+        category, activation pattern, and capability flags provide enough information
+        to identify and safely interpret the function when richer metadata is not
+        available. Component Metadata may provide names, product details,
+        documentation, and bindings to other MAVLink services. This message describes
+        capabilities and does not authorize their use. A client can request these
+        messages with MAV_CMD_REQUEST_MESSAGE: request parameter 1 is payload_id,
+        request parameter 2 is function_id, and request parameter 3 is zero. A zero
+        selector requests all current entries at that level; a nonzero function_id
+        requires a nonzero payload_id. The receiver answers an accepted request with
+        one PAYLOAD_INFO for every matching current function. For
+        MAV_CMD_SET_MESSAGE_INTERVAL the same selectors are command parameters 3 and
+        4, and parameters 5 and 6 are unused and set to 0 or NaN; the receiver reads
+        NaN in either as 0, as common.xml allows for this command. The
+        command-level COMMAND_ACK does not acknowledge or delimit the reports.
+      </description>
+      <field type="uint64_t" name="observation_time_usec" units="us">Time when the information was observed, interpreted using time_basis. Forwarders and retransmitters must preserve this value. 0 when no usable timestamp is available.</field>
+      <field type="uint64_t" name="instance_epoch">Source-generated instance value that changes after replacement or reporting-process restart. 0 if the source cannot provide restart identity; receivers then treat continuity across a reconnect as unknown.</field>
+      <field type="uint32_t" name="time_uncertainty_usec" units="us">Upper bound on the reporting component's timestamp and source-clock conversion uncertainty. It does not include transport delay or the receiver's clock-offset uncertainty. UINT32_MAX if unknown.</field>
+      <field type="uint32_t" name="descriptor_revision">Revision of this function's description, including its matching payload-catalogue entry. It starts at 1 within an instance epoch and increases whenever that function description changes. It is not a MAVLink wire version, shared dialect-definition version, or metadata-schema version. 0 means the revision is unknown.</field>
+      <field type="uint32_t" name="capability_flags" enum="PAYLOAD_CAPABILITY_FLAGS">Optional report types declared by this function. Unknown flag bits must be ignored and preserved by gateways when possible.</field>
+      <field type="uint16_t" name="payload_id">Logical payload identifier allocated by this payload manager. It is unique within the manager's MAVLink system/component namespace and is not a routing address. Values 1-65534 identify a payload, 0 means unknown, and 65535 is reserved.</field>
+      <field type="uint16_t" name="function_id">Logical function identifier allocated by this payload manager and unique within payload_id. It is not a MAVLink component ID. Values 1-65534 identify a function, 0 means unknown, and 65535 is reserved.</field>
+      <field type="uint16_t" name="function_type" enum="PAYLOAD_FUNCTION_TYPE">Standardized purpose of this function. Zero means unknown.</field>
+      <field type="uint8_t" name="original_system_id">MAVLink system ID of the payload manager that allocated payload_id and function_id. On a direct report it matches the packet source; a republishing gateway preserves the original value. 0 if unavailable.</field>
+      <field type="uint8_t" name="original_component_id">MAVLink component ID of the payload manager that allocated payload_id and function_id. On a direct report it matches the packet source; a republishing gateway preserves the original value. 0 if unavailable.</field>
+      <field type="uint8_t" name="time_basis" enum="PAYLOAD_TIME_BASIS">Basis of observation_time_usec.</field>
+      <field type="uint8_t" name="payload_category" enum="PAYLOAD_CATEGORY">Broad category of the payload.</field>
+      <field type="uint8_t" name="activation_pattern" enum="PAYLOAD_ACTIVATION_PATTERN">Reported behavior pattern for this function. This is not an activation request.</field>
+      <field type="char[32]" name="payload_label">Optional null-terminated display label. An all-zero array means absent; software must use the numeric identity rather than this label for correlation.</field>
+      <field type="char[32]" name="function_label">Optional null-terminated display label. An all-zero array means absent; software must use the numeric identity rather than this label for correlation.</field>
+    </message>
+
+    <message id="53101" name="PAYLOAD_STATE">
+      <description>
+        Reports the current state of one payload function. Availability,
+        activation state, health, and data quality are reported independently.
+        Interpret the activation state using the activation pattern advertised in
+        PAYLOAD_INFO. Use the observation time and validity period to
+        detect stale reports; forwarding systems must preserve the original
+        observation time. Reported state does not grant permission to operate the
+        function or override a device safety interlock.
+
+        This is an independent observation. It does not replace or refresh resource
+        or inhibition reports. Matching instance epochs, nearby observation times,
+        or equal sequence numbers do not make separate reports a single status
+        snapshot. Receivers must show this report with its own age and freshness and
+        must not use it alone to conclude that the function is ready, safe, or
+        permitted to operate.
+
+        activation_state reports the function's observed lifecycle whichever
+        interface caused the change. A PAYLOAD_OPERATION_REQUEST, a
+        capability action whose lifecycleEffect is not none, and an action
+        carried through another bound service move it through the same
+        transitions: an action with lifecycleEffect activate, arm, disarm, or
+        deactivate is reported exactly as the ACTIVATE, ARM, DISARM, or
+        DEACTIVATE operation would be for the advertised activation pattern. A
+        capability action whose lifecycleEffect is none, and a property read or
+        write, never change activation_state. After a request fails or is
+        cancelled, activation_state reports the state actually observed.
+
+        A client can request current reports with MAV_CMD_REQUEST_MESSAGE: request
+        parameters 1 and 2 are payload_id and function_id, and request parameter 3
+        is zero. Zero selects all current entries at that level; a nonzero
+        function_id requires a nonzero payload_id. The receiver answers an accepted
+        request with one PAYLOAD_STATE for every matching function for
+        which state is available. For MAV_CMD_SET_MESSAGE_INTERVAL the same
+        selectors are command parameters 3 and 4, and parameters 5 and 6 are unused
+        and set to 0 or NaN; the receiver reads NaN in either as 0, as common.xml
+        allows for this command. The command-level COMMAND_ACK does not acknowledge
+        or delimit the reports.
+      </description>
+      <field type="uint64_t" name="observation_time_usec" units="us">Time when this state was observed, interpreted using time_basis. Forwarders and retransmitters must preserve this value. 0 when no usable timestamp is available.</field>
+      <field type="uint64_t" name="instance_epoch">Instance value from PAYLOAD_INFO. A changed value identifies a replacement or restart. 0 means continuity is unknown.</field>
+      <field type="uint32_t" name="report_sequence">Sequence number for new state observations from this original system and component, scoped to payload_id, instance_epoch, and function_id. It increases monotonically and wraps modulo 2^32. Forwarding or retransmitting the same observation must preserve its sequence number, timestamp, and validity period. Do not compare it across streams or across different or unknown instance epochs.</field>
+      <field type="uint32_t" name="valid_for_msec" units="ms">Duration after observation time for which this report may be presented as current. The receiver can determine this only when it has a usable clock mapping and must include both time_uncertainty_usec and its clock-offset uncertainty in the age calculation. If age cannot be determined, it must be presented as unknown rather than inferred from arrival time. 0 means no lifetime was supplied and the receiving profile applies its conservative configured policy.</field>
+      <field type="uint32_t" name="time_uncertainty_usec" units="us">Upper bound on the reporting component's timestamp and source-clock conversion uncertainty. It does not include transport delay or the receiver's clock-offset uncertainty. The receiver combines this value with its clock-offset uncertainty when deciding whether the report is current. UINT32_MAX if unknown.</field>
+      <field type="uint16_t" name="payload_id">Manager-local logical payload identifier matching PAYLOAD_INFO. It is not a routing address. 0 means unknown.</field>
+      <field type="uint16_t" name="function_id">Manager-local logical function identifier scoped to payload_id and matching PAYLOAD_INFO. It is not a component ID. 0 means unknown.</field>
+      <field type="uint8_t" name="original_system_id">MAVLink system ID of the payload manager that owns the logical IDs. On a direct report it matches the packet source; a republishing gateway preserves the original value. 0 if unavailable.</field>
+      <field type="uint8_t" name="original_component_id">MAVLink component ID of the payload manager that owns the logical IDs. On a direct report it matches the packet source; a republishing gateway preserves the original value. 0 if unavailable.</field>
+      <field type="uint8_t" name="time_basis" enum="PAYLOAD_TIME_BASIS">Basis of observation_time_usec.</field>
+      <field type="uint8_t" name="availability" enum="PAYLOAD_AVAILABILITY">Observed availability of the function.</field>
+      <field type="uint8_t" name="activation_state" enum="PAYLOAD_ACTIVATION_STATE">Observed lifecycle state interpreted using the declared activation pattern.</field>
+      <field type="uint8_t" name="health" enum="PAYLOAD_HEALTH">Observed health of the function.</field>
+      <field type="uint8_t" name="data_quality" enum="PAYLOAD_DATA_QUALITY">Reported usability of the function's output, independent of function health.</field>
+    </message>
+
+    <message id="53102" name="PAYLOAD_RESOURCE">
+      <description>
+        Reports the usable resource remaining for a payload function with a finite
+        number of discrete activations. One resource unit represents one future
+        activation. A unit is removed from remaining_count when it can no longer be
+        used again, whether the operation completed, failed, or was interrupted. If
+        the unit is confirmed reusable, the count does not change. If its disposition
+        is unknown, report an UNKNOWN resource state and an unknown remaining count
+        until it is reconciled. A single-use function has a capacity of one.
+        replenishment_epoch changes when units are added or the loaded resource is
+        replaced. Do not use this message for indefinite or continuous operation,
+        elapsed runtime, electrical power, storage space, or event counting.
+        Functions that share a resource pool report the same nonzero resource_id.
+
+        This is an independent observation of one resource. It does not replace or
+        refresh function state or inhibition reports. Receivers must show this report
+        with its own age and freshness. A missing, stale, or age-unknown resource
+        report must not be treated as available. An exhausted resource remains
+        visible alongside conflicting reports rather than being replaced by whichever
+        report arrived last.
+
+        A client can request current reports with MAV_CMD_REQUEST_MESSAGE: request
+        parameters 1, 2, and 3 are payload_id, function_id, and resource_id. Zero
+        selects all current entries at that level; a nonzero function_id requires a
+        nonzero payload_id, and a nonzero resource_id requires both. The receiver
+        answers an accepted request with one PAYLOAD_RESOURCE for every
+        matching current resource. For MAV_CMD_SET_MESSAGE_INTERVAL the same
+        selectors are command parameters 3, 4, and 5, and parameter 6 is unused and
+        set to 0 or NaN. As common.xml allows for this command, the receiver reads
+        NaN in parameter 5 or 6 as 0. The command-level COMMAND_ACK does not
+        acknowledge or delimit the reports.
+      </description>
+      <field type="uint64_t" name="observation_time_usec" units="us">Time when this resource state was observed, interpreted using time_basis. Forwarders and retransmitters must preserve this value. 0 when no usable timestamp is available.</field>
+      <field type="uint64_t" name="instance_epoch">Instance value from PAYLOAD_INFO. 0 means continuity is unknown.</field>
+      <field type="uint32_t" name="report_sequence">Sequence number for new resource observations from this original system and component, scoped to payload_id, instance_epoch, function_id, and resource_id. It increases monotonically and wraps modulo 2^32. Forwarding or retransmitting the same observation must preserve its sequence number, timestamp, and validity period. Do not compare it across streams or across different or unknown instance epochs.</field>
+      <field type="uint32_t" name="valid_for_msec" units="ms">Duration after observation time for which this report may be presented as current. The receiver can determine this only when it has a usable clock mapping and must include both time_uncertainty_usec and its clock-offset uncertainty in the age calculation. If age cannot be determined, it must be presented as unknown rather than inferred from arrival time. 0 means no lifetime was supplied and the receiving profile applies its conservative configured policy.</field>
+      <field type="uint32_t" name="time_uncertainty_usec" units="us">Upper bound on the reporting component's timestamp and source-clock conversion uncertainty. It does not include transport delay or the receiver's clock-offset uncertainty. The receiver combines this value with its clock-offset uncertainty when deciding whether the report is current. UINT32_MAX if unknown.</field>
+      <field type="uint32_t" name="replenishment_epoch">Counter that changes when the finite resource is replenished or the loaded item is replaced. 0 if unknown; otherwise begins at 1 and wraps modulo 2^32.</field>
+      <field type="uint32_t" name="remaining_count">Number of discrete activations remaining. UINT32_MAX if unknown. Zero means exhausted only when resource_state is PAYLOAD_RESOURCE_EXHAUSTED.</field>
+      <field type="uint32_t" name="capacity">Maximum number of discrete activations available in the current replenishment epoch. UINT32_MAX if unknown.</field>
+      <field type="uint16_t" name="payload_id">Manager-local logical payload identifier matching PAYLOAD_INFO. It is not a routing address. 0 means unknown.</field>
+      <field type="uint16_t" name="function_id">Manager-local logical function identifier scoped to payload_id and matching PAYLOAD_INFO. It is not a component ID. 0 means unknown.</field>
+      <field type="uint16_t" name="resource_id">Identifies the resource pool within payload_id and instance_epoch. Values 1-65534 identify a pool, 0 means the pool is not identified, and 65535 is reserved.</field>
+      <field type="uint8_t" name="original_system_id">MAVLink system ID of the payload manager that owns the logical IDs. On a direct report it matches the packet source; a republishing gateway preserves the original value. 0 if unavailable.</field>
+      <field type="uint8_t" name="original_component_id">MAVLink component ID of the payload manager that owns the logical IDs. On a direct report it matches the packet source; a republishing gateway preserves the original value. 0 if unavailable.</field>
+      <field type="uint8_t" name="time_basis" enum="PAYLOAD_TIME_BASIS">Basis of observation_time_usec.</field>
+      <field type="uint8_t" name="resource_state" enum="PAYLOAD_RESOURCE_STATE">Observed state of the finite resource.</field>
+    </message>
+
+    <message id="53103" name="PAYLOAD_INHIBIT">
+      <description>
+        Reports one condition that may prevent a payload function from operating.
+        Each condition has an inhibit_id that remains stable within the current
+        instance epoch. A related measurement may be identified by measurement_id
+        when it provides supporting information. This message only reports the
+        condition; it cannot configure, clear, or override a device interlock.
+
+        This is an independent observation of one inhibition. It does not replace or
+        refresh function state, resource reports, or other inhibition IDs. Receivers
+        must show this report with its own age and freshness. A missing, stale, or
+        age-unknown inhibition report must not be treated as clear. If reports appear
+        inconsistent or were observed at different times, the receiver keeps the
+        individual facts visible and marks the overall condition as unknown,
+        incomplete, or inconsistent instead of deriving readiness, safety, or
+        permission.
+
+        The current matching payload catalogue lists every inhibition record the
+        receiver should expect. If that catalogue is missing or stale, the
+        inhibition inventory is unknown. A listed inhibition with no report for the
+        current instance epoch is missing; one whose validity period has expired is
+        stale. Neither is treated as clear. Silence does not remove an inhibition.
+        It is removed only when a newer matching function description leaves out its
+        inhibit_id, and that ID must not be reused during the same instance epoch. A
+        report with an unlisted nonzero inhibit_id is shown as unrecognized and
+        prompts a catalogue refresh. A receiver may say that all expected inhibition
+        records report clear only when every listed record has a current CLEAR
+        report. That statement does not mean the function is safe, ready, or
+        permitted to operate.
+
+        A client can request current reports with MAV_CMD_REQUEST_MESSAGE: request
+        parameters 1, 2, and 3 are payload_id, function_id, and inhibit_id. Zero
+        selects all current entries at that level; a nonzero function_id requires a
+        nonzero payload_id, and a nonzero inhibit_id requires both. The receiver
+        answers an accepted request with one PAYLOAD_INHIBIT for every
+        matching current inhibition. For MAV_CMD_SET_MESSAGE_INTERVAL the same
+        selectors are command parameters 3, 4, and 5, and parameter 6 is unused and
+        set to 0 or NaN. As common.xml allows for this command, the receiver reads
+        NaN in parameter 5 or 6 as 0. The command-level COMMAND_ACK does not
+        acknowledge or delimit the reports.
+      </description>
+      <field type="uint64_t" name="observation_time_usec" units="us">Time when this inhibition was observed, interpreted using time_basis. Forwarders and retransmitters must preserve this value. 0 when no usable timestamp is available.</field>
+      <field type="uint64_t" name="instance_epoch">Instance value from PAYLOAD_INFO. 0 means continuity is unknown.</field>
+      <field type="uint32_t" name="report_sequence">Sequence number for new inhibition observations from this original system and component, scoped to payload_id, instance_epoch, function_id, and inhibit_id. It increases monotonically and wraps modulo 2^32. Forwarding or retransmitting the same observation must preserve its sequence number, timestamp, and validity period. Do not compare it across streams or across different or unknown instance epochs.</field>
+      <field type="uint32_t" name="valid_for_msec" units="ms">Duration after observation time for which this report may be presented as current. The receiver can determine this only when it has a usable clock mapping and must include both time_uncertainty_usec and its clock-offset uncertainty in the age calculation. If age cannot be determined, it must be presented as unknown rather than inferred from arrival time. 0 means no lifetime was supplied and the receiving profile applies its conservative configured policy.</field>
+      <field type="uint32_t" name="time_uncertainty_usec" units="us">Upper bound on the reporting component's timestamp and source-clock conversion uncertainty. It does not include transport delay or the receiver's clock-offset uncertainty. The receiver combines this value with its clock-offset uncertainty when deciding whether the report is current. UINT32_MAX if unknown.</field>
+      <field type="uint16_t" name="payload_id">Manager-local logical payload identifier matching PAYLOAD_INFO. It is not a routing address. 0 means unknown.</field>
+      <field type="uint16_t" name="function_id">Manager-local logical function identifier scoped to payload_id and matching PAYLOAD_INFO. It is not a component ID. 0 means unknown.</field>
+      <field type="uint16_t" name="inhibit_id">Identifier of this inhibition in the matching payload-catalogue function, unique within payload_id, instance_epoch, and function_id. Values 1-65534 identify an inhibition, 0 means unidentified, and 65535 is reserved. A nonzero value must not be reassigned during the same instance epoch.</field>
+      <field type="uint16_t" name="measurement_id">Related typed-measurement identifier within this payload_id, instance_epoch, and function_id when one provides supporting evidence. 0 means no measurement reference.</field>
+      <field type="uint8_t" name="original_system_id">MAVLink system ID of the payload manager that owns the logical IDs. On a direct report it matches the packet source; a republishing gateway preserves the original value. 0 if unavailable.</field>
+      <field type="uint8_t" name="original_component_id">MAVLink component ID of the payload manager that owns the logical IDs. On a direct report it matches the packet source; a republishing gateway preserves the original value. 0 if unavailable.</field>
+      <field type="uint8_t" name="reason_source_component_id">Component ID of the subsystem that owns this condition. 0 if unavailable.</field>
+      <field type="uint8_t" name="time_basis" enum="PAYLOAD_TIME_BASIS">Basis of observation_time_usec.</field>
+      <field type="uint8_t" name="inhibit_state" enum="PAYLOAD_INHIBIT_STATE">Observed state of the inhibition.</field>
+      <field type="uint8_t" name="inhibit_reason" enum="PAYLOAD_INHIBIT_REASON">Reported reason category.</field>
+    </message>
+
+    <message id="53104" name="PAYLOAD_MEASUREMENT">
+      <description>
+        Reports one measurement from a payload function when no existing MAVLink
+        message has the semantics of the reported equipment and reading. An
+        existing standard message must be used when its meaning fits; matching a
+        physical quantity or unit alone is not sufficient. For example, use
+        DISTANCE_SENSOR for an onboard rangefinder, SCALED_PRESSURE variants for
+        their defined pressure-sensor reports, and BATTERY_STATUS for a battery.
+        measurement_kind defines the value and its canonical unit. The payload
+        catalogue identifies and describes each nonzero measurement_id, including
+        the physical part or location measured. The value may be used only when
+        measurement_validity is VALID and the measurement kind is recognized.
+        measurement_flags says which optional uncertainty and range fields the
+        sender supplied. Receivers use the flags rather than the decoded values
+        or payload length because omitted MAVLink 2 extension bytes decode as
+        zero. A flagged field whose value is zero is still present.
+
+        The current matching payload catalogue is the complete inventory of
+        measurements defined for the function. The inventory says which records
+        exist; it does not require every measurement to be streamed continuously. A
+        listed measurement with no report for the current instance epoch is shown as
+        not reported. A report whose validity period has expired is shown as stale,
+        and neither case is given a default value. Silence does not remove a
+        measurement. It is removed only when a newer matching function description
+        leaves out its measurement_id, and that ID must not be reused during the same
+        instance epoch. A report with an unlisted nonzero measurement_id may still be
+        shown using its runtime kind and value, but its physical meaning is
+        unrecognized and the receiver should refresh the catalogue.
+
+        A client can request current reports with MAV_CMD_REQUEST_MESSAGE: request
+        parameters 1, 2, and 3 are payload_id, function_id, and measurement_id. Zero
+        selects all current entries at that level; a nonzero function_id requires a
+        nonzero payload_id, and a nonzero measurement_id requires both. The receiver
+        answers an accepted request with one PAYLOAD_MEASUREMENT for every
+        matching current measurement. For MAV_CMD_SET_MESSAGE_INTERVAL the same
+        selectors are command parameters 3, 4, and 5, and parameter 6 is unused and
+        set to 0 or NaN. As common.xml allows for this command, the receiver reads
+        NaN in parameter 5 or 6 as 0. The command-level COMMAND_ACK does not
+        acknowledge or delimit the reports.
+      </description>
+      <field type="uint64_t" name="observation_time_usec" units="us">Time when this measurement was observed, interpreted using time_basis. Forwarders and retransmitters must preserve this value. 0 when no usable timestamp is available.</field>
+      <field type="uint64_t" name="instance_epoch">Instance value from PAYLOAD_INFO. 0 means continuity is unknown.</field>
+      <field type="float" name="value">Observed value in the canonical unit selected by measurement_kind. NaN unless measurement_validity is PAYLOAD_MEASUREMENT_VALIDITY_VALID.</field>
+      <field type="uint32_t" name="report_sequence">Sequence number for new measurement observations from this original system and component, scoped to payload_id, instance_epoch, function_id, and measurement_id. It increases monotonically and wraps modulo 2^32. Forwarding or retransmitting the same observation must preserve its sequence number, timestamp, and validity period. Do not compare it across streams or across different or unknown instance epochs.</field>
+      <field type="uint32_t" name="valid_for_msec" units="ms">Duration after observation time for which this report may be presented as current. The receiver can determine this only when it has a usable clock mapping and must include both time_uncertainty_usec and its clock-offset uncertainty in the age calculation. If age cannot be determined, it must be presented as unknown rather than inferred from arrival time. 0 means no lifetime was supplied and the receiving profile applies its conservative configured policy.</field>
+      <field type="uint32_t" name="time_uncertainty_usec" units="us">Upper bound on the reporting component's timestamp and source-clock conversion uncertainty. It does not include transport delay or the receiver's clock-offset uncertainty. The receiver combines this value with its clock-offset uncertainty when deciding whether the report is current. UINT32_MAX if unknown.</field>
+      <field type="uint32_t" name="measurement_flags" enum="PAYLOAD_MEASUREMENT_FLAGS">Shows which optional numeric measurement fields the sender supplied. A receiver must ignore a field when its flag is clear. Unknown bits must be ignored and preserved by gateways when possible.</field>
+      <field type="uint16_t" name="payload_id">Manager-local logical payload identifier matching PAYLOAD_INFO. It is not a routing address. 0 means unknown.</field>
+      <field type="uint16_t" name="function_id">Manager-local logical function identifier scoped to payload_id and matching PAYLOAD_INFO. It is not a component ID. 0 means unknown.</field>
+      <field type="uint16_t" name="measurement_id">Identifier of the physical measurement, unique within payload_id, instance_epoch, and function_id. Values 1-65534 identify a measurement, 0 means unidentified, and 65535 is reserved. A nonzero value must not be reassigned to a different measurement within the same instance epoch.</field>
+      <field type="uint8_t" name="original_system_id">MAVLink system ID of the payload manager that owns the logical IDs. On a direct report it matches the packet source; a republishing gateway preserves the original value. 0 if unavailable.</field>
+      <field type="uint8_t" name="original_component_id">MAVLink component ID of the payload manager that owns the logical IDs. On a direct report it matches the packet source; a republishing gateway preserves the original value. 0 if unavailable.</field>
+      <field type="uint8_t" name="time_basis" enum="PAYLOAD_TIME_BASIS">Basis of observation_time_usec.</field>
+      <field type="uint16_t" name="measurement_kind" enum="PAYLOAD_MEASUREMENT_KIND">Type and canonical unit of value. Values 1-32767 are shared, 32768-65534 are private, 0 is unknown, and 65535 is reserved.</field>
+      <field type="uint8_t" name="measurement_validity" enum="PAYLOAD_MEASUREMENT_VALIDITY">Validity of value.</field>
+      <field type="uint8_t" name="health" enum="PAYLOAD_HEALTH">Observed health of the sensor or measurement source.</field>
+      <field type="float" name="uncertainty">Sender's estimate of the standard deviation (1 sigma) of value, in the same canonical unit. It is not a confidence interval or worst-case error bound. The value must be finite and non-negative; zero is valid. If the uncertainty flag is set but this value is negative or non-finite, the receiver treats uncertainty as unavailable, does not replace it with zero, and does not reject an otherwise valid measurement solely because its uncertainty is invalid. Ignore this field when PAYLOAD_MEASUREMENT_FLAG_UNCERTAINTY is not set.</field>
+      <field type="float" name="valid_minimum">Lower usable bound in the same canonical unit as value. The value must be finite; zero is valid. If the minimum flag is set but this value is non-finite, the receiver treats the lower bound as unavailable. Ignore this field when PAYLOAD_MEASUREMENT_FLAG_MINIMUM is not set.</field>
+      <field type="float" name="valid_maximum">Upper usable bound in the same canonical unit as value. The value must be finite; zero is valid. If the maximum flag is set but this value is non-finite, the receiver treats the upper bound as unavailable. Ignore this field when PAYLOAD_MEASUREMENT_FLAG_MAXIMUM is not set. When both bounds are supplied, valid_minimum must not be greater than valid_maximum; if it is, the receiver treats both bounds as unavailable.</field>
+    </message>
+
+    <message id="53105" name="PAYLOAD_OPERATION_REQUEST">
+      <description>
+        Requests a lifecycle operation on one payload function. The function must
+        advertise support for the requested operation in PAYLOAD_INFO.
+        ACTIVATE performs one discrete action or starts continuous operation,
+        depending on the advertised activation pattern. DEACTIVATE stops a
+        continuous or otherwise stoppable operation and cannot undo a completed
+        discrete action.
+
+        Before acting on the request, the receiver must verify the payload instance
+        and apply the application's freshness, replay-protection, requester-
+        authorization, health, resource, and inhibition policies. The application
+        must define these policies, including their clock, storage, restart, and
+        one-way-link assumptions. Successful decoding, CRC validation, or MAVLink 2
+        signature verification does not establish permission to operate the payload
+        or that operation is safe. Sending this request establishes only a sent
+        outcome; receipt and physical completion require separate confirmation and
+        must remain unconfirmed when no reply is available. Use a mission-specific
+        message for targeting, firing data, or device configuration. This request
+        cannot override a device safety interlock. The receiver scopes duplicate
+        detection by requester_system_id, requester_component_id, session_id, and
+        request_id. The same session_id and request_id from a different requester
+        identify a different request and must not be rejected as a duplicate.
+      </description>
+      <field type="uint64_t" name="request_time_usec" units="us">Time the requester created the request, interpreted using time_basis. 0 is invalid for an operation request.</field>
+      <field type="uint64_t" name="instance_epoch">Required current instance value from PAYLOAD_INFO. A receiver rejects zero or a value that does not match the addressed payload instance.</field>
+      <field type="uint32_t" name="request_id">Requester-assigned identifier for duplicate detection and result correlation. It must be unique within the combination of requester_system_id, requester_component_id, and session_id while that session remains valid.</field>
+      <field type="uint32_t" name="session_id">Requester-assigned session identifier scoped to requester_system_id and requester_component_id. 0 is invalid for an operation request.</field>
+      <field type="uint32_t" name="valid_for_msec" units="ms">Maximum request lifetime measured from request_time_usec. 0 is invalid; an expired request is rejected without execution.</field>
+      <field type="uint16_t" name="payload_id">Manager-local logical payload identifier from PAYLOAD_INFO. It is interpreted by target_system and target_component, not by MAVLink routing. 0 is invalid.</field>
+      <field type="uint16_t" name="function_id">Manager-local logical function identifier scoped to payload_id. It is not a component ID. 0 is invalid.</field>
+      <field type="uint8_t" name="target_system">MAVLink system ID of the payload manager that must process the request. 0 is invalid.</field>
+      <field type="uint8_t" name="target_component">MAVLink component ID of the payload manager that must process the request. 0 is invalid.</field>
+      <field type="uint8_t" name="requester_system_id">Original requesting MAVLink system ID, retained across an authorized gateway. 0 is invalid.</field>
+      <field type="uint8_t" name="requester_component_id">Original requesting MAVLink component ID, retained across an authorized gateway. 0 is invalid.</field>
+      <field type="uint8_t" name="time_basis" enum="PAYLOAD_TIME_BASIS">Basis of request_time_usec. UNKNOWN is invalid for an operation request.</field>
+      <field type="uint8_t" name="operation" enum="PAYLOAD_OPERATION">Requested lifecycle operation. NONE is invalid.</field>
+    </message>
+
+    <message id="53106" name="PAYLOAD_OPERATION_STATUS">
+      <description>
+        Reports the processing status of a PAYLOAD_OPERATION_REQUEST. The
+        target system and component identify the original requester. Together with
+        session_id and request_id they identify that request without requiring those
+        two identifiers to be globally unique across clients. RECEIVED and ACCEPTED
+        confirm processing progress but do not mean that the physical operation has
+        completed. The resulting payload state and resource count are reported
+        separately. If no result is received, the requester must treat the outcome
+        as unknown. The requester accepts a status only when target_system and
+        target_component match its requester identity, the packet source and
+        responder IDs identify the addressed manager, and the session, request,
+        operation, payload, requested instance, and function values match the
+        request. current_instance_epoch reports the responder's current identity
+        and is not part of request correlation; it may differ from the requested
+        instance for STALE_INSTANCE or be 0 when the payload cannot be identified.
+        Clients using the same requester system and component identity cannot
+        distinguish otherwise identical requests and must coordinate their session
+        and request identifiers or use distinct MAVLink component identities.
+      </description>
+      <field type="uint64_t" name="result_time_usec" units="us">Time the responder produced this result, interpreted using time_basis. 0 when no usable timestamp is available.</field>
+      <field type="uint64_t" name="requested_instance_epoch">Instance epoch copied from PAYLOAD_OPERATION_REQUEST. It identifies the instance addressed by the request and is used for result correlation.</field>
+      <field type="uint64_t" name="current_instance_epoch">Current instance epoch for the addressed payload_id at the responder. It equals requested_instance_epoch when that instance processed the request, contains the replacement epoch when known for STALE_INSTANCE, and is 0 when the addressed payload cannot be identified. It is not used for request correlation.</field>
+      <field type="uint32_t" name="request_id">Request identifier copied from PAYLOAD_OPERATION_REQUEST.</field>
+      <field type="uint32_t" name="session_id">Session identifier copied from PAYLOAD_OPERATION_REQUEST.</field>
+      <field type="uint16_t" name="payload_id">Addressed payload identifier copied from PAYLOAD_OPERATION_REQUEST.</field>
+      <field type="uint16_t" name="function_id">Addressed function identifier copied from PAYLOAD_OPERATION_REQUEST.</field>
+      <field type="uint8_t" name="responder_system_id">MAVLink system ID of the payload manager producing the result. It must match the request target and the direct packet source unless an authorized gateway preserves the original responder identity.</field>
+      <field type="uint8_t" name="responder_component_id">MAVLink component ID of the payload manager producing the result. It must match the request target and the direct packet source unless an authorized gateway preserves the original responder identity.</field>
+      <field type="uint8_t" name="time_basis" enum="PAYLOAD_TIME_BASIS">Basis of result_time_usec.</field>
+      <field type="uint8_t" name="operation" enum="PAYLOAD_OPERATION">Operation copied from the request.</field>
+      <field type="uint8_t" name="stage" enum="PAYLOAD_OPERATION_STAGE">Current processing stage.</field>
+      <field type="uint16_t" name="result" enum="PAYLOAD_OPERATION_RESULT">Result or rejection reason appropriate to stage.</field>
+      <field type="uint8_t" name="progress_pct" units="%">Profile-defined progress from 0 to 100. 255 if unknown or not applicable. Progress is advisory and does not replace the processing stage.</field>
+      <field type="uint8_t" name="target_system">Destination MAVLink system ID copied from requester_system_id in PAYLOAD_OPERATION_REQUEST. It identifies the original requester across an authorized gateway. 0 is invalid.</field>
+      <field type="uint8_t" name="target_component">Destination MAVLink component ID copied from requester_component_id in PAYLOAD_OPERATION_REQUEST. It identifies the original requester across an authorized gateway. 0 is invalid.</field>
+    </message>
+
+    <message id="53107" name="PAYLOAD_CATALOGUE_STATUS">
+      <description>
+        Announces the current version of the payload catalogue published through
+        Component Metadata. The reporting component sends this message after startup
+        and whenever a payload is attached, removed, replaced, or described
+        differently. Clients can also request it with MAV_CMD_REQUEST_MESSAGE. A
+        changed manager_epoch means the payload manager restarted. A changed
+        catalogue_revision or catalogue_file_crc means the client must check its
+        cache and download the current catalogue when it is available. Clients that
+        need a bounded time for detecting changes can request periodic delivery with
+        MAV_CMD_SET_MESSAGE_INTERVAL. For MAV_CMD_REQUEST_MESSAGE, request parameters
+        1 through 3 must be zero; an accepted request is answered by exactly one
+        PAYLOAD_CATALOGUE_STATUS. For MAV_CMD_SET_MESSAGE_INTERVAL, command
+        parameters 3 through 5 must be zero. The command-level COMMAND_ACK does not
+        acknowledge the status report.
+
+        report_sequence only advances when the manager generates a genuinely new
+        status; forwarding or retransmitting an existing status must preserve it
+        unchanged, along with observation_time_usec and time_basis. A client
+        establishes that a received status is a current confirmation, rather than a
+        delayed, repeated, or reordered copy of an earlier one, only when its
+        report_sequence is strictly greater than the highest value already accepted
+        for this manager_epoch from this original system and component.
+      </description>
+      <field type="uint64_t" name="manager_epoch">Source-generated value that changes whenever the reporting payload manager restarts. 0 means the manager cannot provide restart identity.</field>
+      <field type="uint64_t" name="observation_time_usec" units="us">Time when this status was generated, interpreted using time_basis. Forwarders and retransmitters must preserve this value. 0 when no usable timestamp is available.</field>
+      <field type="uint32_t" name="catalogue_revision">Revision of the complete payload catalogue within manager_epoch. It starts at 1 and changes whenever an entry is added, removed, or updated. 0 means the revision is unknown.</field>
+      <field type="uint32_t" name="catalogue_file_crc">CRC32 of the exact catalogue file available at the URI advertised for COMP_METADATA_TYPE_PAYLOAD_CATALOGUE. This field is meaningful only when catalogue_state is AVAILABLE.</field>
+      <field type="uint32_t" name="report_sequence">Sequence number for new catalogue status reports from this original system and component, scoped to manager_epoch. It increases monotonically and wraps modulo 2^32. Forwarding or retransmitting the same status must preserve its sequence number, timestamp, and time basis. A receiver must not treat a status as a current confirmation unless its value is strictly greater than the highest value already accepted for this manager_epoch. 0 means the manager cannot provide this sequence.</field>
+      <field type="uint16_t" name="payload_count">Number of payload entries in the current catalogue. 0 means the catalogue is empty. UINT16_MAX means the count is unknown.</field>
+      <field type="uint16_t" name="function_count">Total number of function entries in the current catalogue. 0 means the catalogue is empty. UINT16_MAX means the count is unknown.</field>
+      <field type="uint8_t" name="original_system_id">MAVLink system ID of the payload manager that owns the catalogue and allocates its logical IDs. On a direct report it matches the packet source; a republishing gateway preserves the original value. 0 if unavailable.</field>
+      <field type="uint8_t" name="original_component_id">MAVLink component ID of the payload manager that owns the catalogue and allocates its logical IDs. On a direct report it matches the packet source; a republishing gateway preserves the original value. 0 if unavailable.</field>
+      <field type="uint8_t" name="catalogue_state" enum="PAYLOAD_CATALOGUE_STATE">Whether the current catalogue can be downloaded.</field>
+      <field type="uint8_t" name="time_basis" enum="PAYLOAD_TIME_BASIS">Basis of observation_time_usec.</field>
     </message>
 
   </messages>

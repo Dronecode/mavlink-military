@@ -1,9 +1,11 @@
 # MAVLink-M message ID mapping
 
-**Status: active allocation for this dialect.** Upstream MAVLink `all.xml`
-reserves `53000-53999`; this dialect uses `53000-53099` for the initial shared
-MAVLink-M messages and commands, `53100-53899` for future shared growth, and
-`53900-53999` for private/downstream implementor-specific messages.
+**Status: provisional use pending allocation review.** The pinned upstream
+MAVLink `all.xml` registry reserves `53000-53999`, but does not currently name
+this dialect as the owner. This dialect uses `53000-53099` for the initial
+shared MAVLink-M messages and commands, `53100-53107` for generic payload
+discovery, `53108-53899` for future shared growth, and `53900-53999` for
+private/downstream implementor-specific messages.
 
 The earlier development block used `60000-60099`, which collides with upstream
 `storm32` and `AVSSUAS` allocations. The former optional extension messages have
@@ -45,6 +47,27 @@ not part of the shared generated dialect in this repository.
 Rule for message IDs from the development block: **new = old - 7000**. Internal
 functional grouping is preserved.
 
+## Generic payload messages
+
+These provisional shared messages describe payload functions, report their
+state, and provide simple lifecycle operations. Rich descriptions are available
+through the payload catalogue.
+
+| Name | ID |
+| --- | --- |
+| PAYLOAD_INFO | 53100 |
+| PAYLOAD_STATE | 53101 |
+| PAYLOAD_RESOURCE | 53102 |
+| PAYLOAD_INHIBIT | 53103 |
+| PAYLOAD_MEASUREMENT | 53104 |
+| PAYLOAD_OPERATION_REQUEST | 53105 |
+| PAYLOAD_OPERATION_STATUS | 53106 |
+| PAYLOAD_CATALOGUE_STATUS | 53107 |
+
+The payload catalogue uses metadata type `COMP_METADATA_TYPE_PAYLOAD_CATALOGUE`
+with value 53000. This is a Component Metadata type value, not a MAVLink message
+ID.
+
 ## MAV_CMD entries
 
 | Name | Old value | New value |
@@ -63,7 +86,7 @@ window as the messages.
 | --- | --- |
 | 53062-53089 | Future shared MAVLink-M messages accepted into this dialect. |
 | 53094-53099 | Future shared MAVLink-M command entries. |
-| 53100-53899 | Future shared MAVLink-M allocations as the dialect grows. |
+| 53108-53899 | Future shared MAVLink-M allocations as the dialect grows. |
 | 53900-53999 | Private/downstream implementor-specific messages. These are not shared IDs and require a private ICD between participating systems. |
 
 ## Prior Dronecode `military.xml` IDs
