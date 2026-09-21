@@ -104,11 +104,12 @@
 
     Official shared growth
       53062-53089 reserved for future shared messages in the initial compact
-      block, 53094-53099 reserved for future shared MAV_CMD entries, and
+      block, 53095-53099 reserved for future shared MAV_CMD entries, and
       53109-53899 reserved for future shared MAVLink-M allocations.
 
-    MAV_CMD entries (53090-53093):
-      STORE_ARM, STORE_RUN_BIT, STORE_REQUEST_STATUS, STORE_SET_DECEL_THRESHOLD
+    MAV_CMD entries (53090-53094):
+      STORE_ARM (deprecated), STORE_RUN_BIT, STORE_REQUEST_STATUS,
+      STORE_SET_DECEL_THRESHOLD, STORE_SAFE
 
     Private/downstream implementation block (53900-53999)
       Reserved for unshared implementor-specific messages carried in downstream
@@ -150,9 +151,10 @@
     carrying descriptive intent and observations only.
       Carried:     fuze MODE and airburst intent; munition family/class;
                    spotting values; method-of-engagement enums; mission type;
-                   danger-close flag; target-location-error category label; CDE
-                   level number; PID status; BDA state; affiliation; laser-code
-                   SLOT (that a code is assigned, and which platform lases).
+                   danger-close declaration; target-location-error category
+                   label; CDE level number; PID status; BDA state; affiliation;
+                   laser-code SLOT (that a code is assigned, and which platform
+                   lases).
       Not carried: actual fuze timing values; actual laser PRF code values;
                    radar/EW configuration; weaponeering / JMEM / firing-table
                    data; specific CEP / mensuration performance figures; a
@@ -165,17 +167,45 @@
     - Enums reserve value 0 for an UNKNOWN / UNSPECIFIED / NONE state, so a
       zero-filled (unset, trailing-zero-truncated) field never decodes as a
       substantive default the sender did not choose.
+    - Twenty-two safety-critical status, command and answer enums (ESAD
+      arming, munition, ignition, pin, arm-delay and trigger-distance state,
+      and the ESAD arming request; RWS arming state; loitering-munition
+      consent and terminate; store readiness and store sensor health;
+      engagement directive; CAS clearance, terminal attack control type and
+      abort authority; fire-mission command and call-for-fire method of
+      control; the danger-close declaration of a call for fire or CAS brief;
+      sensor mode and tasking status; the MAVLINK_M_ACK result) use extended
+      Hamming[8,4,4] codewords instead of sequential values, as does param 2
+      of MAV_CMD_MAVLINK_M_STORE_SAFE. Any two valid values differ in at
+      least four bits, so a change of one to three bits to a valid value
+      yields a byte that is not a valid value. This targets corruption the
+      packet CRC cannot see (before the sender computes it, or after the
+      receiver validates it). It does not reject every corrupted value, it
+      does not protect against a message deliberately changed or replayed,
+      which message signing (SAFETY BOUNDARIES) is for, and the dialect does
+      not itself implement the required receiver check. See
+      https://mavlink-m.dronecode.org/en/guide/status_field_encoding.html
+      for the affected fields, the codeword table, the receiver and sender
+      requirements, and wire-compatibility notes, and
+      https://mavlink-m.dronecode.org/en/guide/refusals_and_resends.html
+      for what follows a refused message. Any other enum in this
+      dialect keeps sequential values unless its own description gives a
+      minimum pairwise Hamming distance between its values.
     - Numeric sentinels are out of range, never a legal value: lat/lon use
       INT32_MAX for "not provided" (0,0 is a valid point); headings/attitude use
       0xFFFF (0 is a valid bearing); altitude uses NaN; counts/durations use 0
       only where 0 is not itself legal.
     - Two-state fields use a plain uint8 boolean for permanently-binary facts and
       an enum where the field is a category that could gain a third value and
-      benefits from an explicit UNSPECIFIED state.
-    - Two enums keep 0 as an action, MAVLINK_M_ENGAGEMENT_DIRECTIVE_ABORT and
-      MAVLINK_M_ESAD_REQUEST_DISARM, so a zero-filled ENGAGEMENT_DIRECTIVE or
-      ESAD_ARMING is a valid stop sent to every system. Both fail toward safe;
-      a sender never transmits an unset message.
+      benefits from an explicit UNSPECIFIED state, or where an unset value,
+      or one with up to three changed bits, must never read as the less
+      cautious of the two states (ABORT_AUTHORITY, DANGER_CLOSE).
+    - A sender never transmits an unset ENGAGEMENT_DIRECTIVE or ESAD_ARMING:
+      a stop in either names MAVLINK_M_ENGAGEMENT_DIRECTIVE_ABORT,
+      MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE or
+      MAVLINK_M_ESAD_REQUEST_DISARM, and a zero-filled one decodes as
+      MAVLINK_M_ENGAGEMENT_DIRECTIVE_NONE or MAVLINK_M_ESAD_REQUEST_NONE,
+      which no receiver acts on.
 
   COORDINATE DATUM
     All altitudes are MSL (mean sea level). Joint networks often pass targeting
@@ -191,7 +221,10 @@
       translates between the DroneCAN component messages and these MAVLink-M
       messages. MAVLink-M is the stable abstraction; component-bus definitions
       map onto it. Enum semantics and value assignments must be kept aligned
-      across the two definitions by the implementer.
+      across the two definitions by the implementer. A bridge or gateway
+      carrying a Hamming-encoded field follows
+      https://mavlink-m.dronecode.org/en/guide/status_field_encoding.html#bridges-and-gateways
+      for values it cannot map.
     - Authentication is per-bus. On the MAVLink leg it comes from message
       signing, which SAFETY BOUNDARIES requires; the arming_challenge_hash
       only ties a command to the state the ESAD advertised, and every
@@ -252,7 +285,11 @@
       far-side participant only with what that participant reported; on
       its own it sends at most MAVLINK_M_ACK_RECEIVED or the rejection a
       receiver rule requires, and nothing for a message sent to every
-      system. It carries every repeat of a stop.
+      system. It carries every repeat of a stop. It does not refuse a copy
+      that differs from a message it has forwarded only in commanded fields
+      whose values are not listed: it neither forwards nor answers that copy
+      and records nothing for it, so the far-side participant's answer to
+      that message stands.
     - Every system. target_system 0 means every system on this MAVLink
       network. A gateway carries a stop sent with 0 to the far-side
       participants it represents as their own network's stop, with the same
@@ -261,9 +298,11 @@
       every system.
     - Definitions. A router or gateway that reads these messages uses the
       same definition as the systems around it. One built from another
-      definition drops every changed message as a CRC error, stops
-      included, and one built without the dialect forwards each message it
-      cannot read to every link.
+      definition drops every message whose CRC_EXTRA changed, stops
+      included, as a CRC error, and reads every other message, and every
+      command carried in COMMAND_LONG or COMMAND_INT, with its own
+      definition's meaning; one built without the dialect forwards each
+      message it cannot read to every link.
 
   SAFETY BOUNDARIES (normative for implementers)
     - Message signing. Every system that sends or uses this dialect uses
@@ -352,15 +391,26 @@
       the first moment the clock is back within it; a restart is recorded
       as a stop covering everything, and acts as a
       MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE for every engagement kept
-      through it. A receiver that cannot keep every record replaces them
-      with one covering everything at the latest of their times. It
-      rejects a start whose time_usec is later than its own clock plus the
-      maximum clock offset, answering MAVLINK_M_ACK_FAILED, and may reject
-      one older than the maximum age it is configured with, answering
-      MAVLINK_M_ACK_EXPIRED. One that does keeps each record until more
-      than that age plus the offset has passed since the record was made,
-      and one that does not keeps it while it runs. It never rejects a
-      stop for its time.
+      through it. A receiver that refuses an ESAD_ARMING,
+      ENGAGEMENT_DIRECTIVE, SPLASH_CORRECTION, TERMINAL_CONTROL,
+      LOITER_MUNITION_CONTROL or MAV_CMD_MAVLINK_M_STORE_SAFE for its
+      commanded value, as their descriptions say, records the refusal as a
+      stop covering everything, since the value it could not read may have
+      been a stop; the refusal does not act as a
+      MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE, and the receiver does not
+      keep the refused message as processed, so a later copy of it is
+      checked again. Nor does a receiver keep as processed a message sent to
+      every system that it does not act on because, as it reads it, the
+      message carries no stop, so the repeats of a stop sent to every system
+      still reach a receiver whose copy was damaged. A receiver that cannot
+      keep every record replaces them with one covering everything at the
+      latest of their times. It rejects a start whose time_usec is later
+      than its own clock plus the maximum clock offset, answering
+      MAVLINK_M_ACK_FAILED, and may reject one older than the maximum age it
+      is configured with, answering MAVLINK_M_ACK_EXPIRED. One that does
+      keeps each record until more than that age plus the offset has passed
+      since the record was made, and one that does not keeps it while it
+      runs. It never rejects a stop for its time.
     - TARGET_AUTHORIZATION is a descriptive record and MUST NOT be treated as a
       release interlock. Release authority resides in the crewed C2 system.
       Token anti-spoofing is a C2 / gateway / secure-enclave responsibility.
@@ -559,21 +609,31 @@
       <description>
         Type of terminal attack control, a defined construct in JP 3-09.3 (Close
         Air Support). The three types are distinguished by what the terminal
-        controller can visually acquire before granting clearance.
+        controller can visually acquire before granting clearance. Defined
+        values have a minimum pairwise Hamming distance of four. An
+        unrecognized value must be rejected and must not be corrected into a
+        defined type.
       </description>
-      <entry value="0" name="MAVLINK_M_TAC_TYPE_NONE"><description>Not under terminal attack control.</description></entry>
-      <entry value="1" name="MAVLINK_M_TAC_TYPE_1"><description>Type 1: controller must visually acquire both the attacking aircraft and the target before clearance.</description></entry>
-      <entry value="2" name="MAVLINK_M_TAC_TYPE_2"><description>Type 2: controller clears an individual attack without visually acquiring the aircraft and/or target at release.</description></entry>
-      <entry value="3" name="MAVLINK_M_TAC_TYPE_3"><description>Type 3: controller grants clearance for multiple attacks within a defined engagement/period under stated restrictions.</description></entry>
+      <entry value="0"   name="MAVLINK_M_TAC_TYPE_NONE"><description>Not under terminal attack control.</description></entry>
+      <entry value="15"  name="MAVLINK_M_TAC_TYPE_1"><description>Type 1: controller must visually acquire both the attacking aircraft and the target before clearance.</description></entry>
+      <entry value="51"  name="MAVLINK_M_TAC_TYPE_2"><description>Type 2: controller clears an individual attack without visually acquiring the aircraft and/or target at release.</description></entry>
+      <entry value="60"  name="MAVLINK_M_TAC_TYPE_3"><description>Type 3: controller grants clearance for multiple attacks within a defined engagement/period under stated restrictions.</description></entry>
+    </enum>
+
+    <enum name="ABORT_AUTHORITY">
+      <description>Whether a valid abort authority is established for a terminal attack control engagement. An enum rather than a plain boolean, because a receiver checks it before it acts on MAVLINK_M_CAS_CLEARED_HOT. Defined values have a minimum pairwise Hamming distance of four. An unrecognized value must be rejected and must not be corrected into a defined state.</description>
+      <entry value="0"   name="ABORT_AUTHORITY_UNKNOWN"><description>Not reported. A zero-filled or unset field decodes as this value; a receiver treats it as ABORT_AUTHORITY_NOT_ESTABLISHED.</description></entry>
+      <entry value="15"  name="ABORT_AUTHORITY_NOT_ESTABLISHED"><description>No valid abort authority is established for this engagement.</description></entry>
+      <entry value="51"  name="ABORT_AUTHORITY_ESTABLISHED"><description>A valid abort authority is established for this engagement.</description></entry>
     </enum>
 
     <enum name="MAVLINK_M_CAS_CLEARANCE">
-      <description>CAS clearance / abort handshake verbs (JP 3-09.3). Human-authority instruments.</description>
-      <entry value="0" name="MAVLINK_M_CAS_NONE"><description>No clearance state.</description></entry>
-      <entry value="1" name="MAVLINK_M_CAS_CONTINUE"><description>Continue.</description></entry>
-      <entry value="2" name="MAVLINK_M_CAS_CLEARED_HOT"><description>Cleared hot.</description></entry>
-      <entry value="3" name="MAVLINK_M_CAS_ABORT"><description>Abort.</description></entry>
-      <entry value="4" name="MAVLINK_M_CAS_CEASE_FIRE"><description>Cease fire.</description></entry>
+      <description>CAS clearance / abort handshake verbs (JP 3-09.3). MAVLINK_M_CAS_CONTINUE and MAVLINK_M_CAS_CLEARED_HOT record a human decision; MAVLINK_M_CAS_ABORT and MAVLINK_M_CAS_CEASE_FIRE are safety actions (see TERMINAL_CONTROL). Defined values have a minimum pairwise Hamming distance of four. An unrecognized value must be rejected and must not be corrected into a defined verb.</description>
+      <entry value="0"   name="MAVLINK_M_CAS_NONE"><description>No clearance state.</description></entry>
+      <entry value="15"  name="MAVLINK_M_CAS_CONTINUE"><description>Continue.</description></entry>
+      <entry value="51"  name="MAVLINK_M_CAS_CLEARED_HOT"><description>Cleared hot.</description></entry>
+      <entry value="60"  name="MAVLINK_M_CAS_ABORT"><description>Abort.</description></entry>
+      <entry value="85"  name="MAVLINK_M_CAS_CEASE_FIRE"><description>Cease fire.</description></entry>
     </enum>
 
     <enum name="MAVLINK_M_AIRCRAFT_CALL">
@@ -602,26 +662,29 @@
     </enum>
 
     <enum name="MAVLINK_M_ESAD_ARMING_STATUS">
-      <description>ESAD arming state.</description>
-      <entry value="0" name="MAVLINK_M_ESAD_ARMING_DISARMED">  <description>System is disarmed.</description></entry>
-      <entry value="1" name="MAVLINK_M_ESAD_ARMING_ARMED">     <description>System is armed.</description></entry>
-      <entry value="2" name="MAVLINK_M_ESAD_ARMING_FAULT">     <description>Arming fault detected.</description></entry>
+      <description>ESAD arming state. Defined values have a minimum pairwise Hamming distance of four. An unrecognized value must be treated as unknown and must not be corrected into a defined state.</description>
+      <entry value="0"   name="MAVLINK_M_ESAD_ARMING_UNKNOWN"><description>Arming state unknown or not reported. A zero-filled or unset field decodes as this value.</description></entry>
+      <entry value="15"  name="MAVLINK_M_ESAD_ARMING_DISARMED">  <description>System is disarmed.</description></entry>
+      <entry value="51"  name="MAVLINK_M_ESAD_ARMING_ARMED">     <description>System is armed.</description></entry>
+      <entry value="60"  name="MAVLINK_M_ESAD_ARMING_FAULT">     <description>Arming fault detected.</description></entry>
     </enum>
 
     <enum name="MAVLINK_M_ESAD_MUNITION_STATUS">
-      <description>ESAD munition readiness state.</description>
-      <entry value="0" name="MAVLINK_M_ESAD_MUNITION_NOT_PRESENT"><description>No munition present.</description></entry>
-      <entry value="1" name="MAVLINK_M_ESAD_MUNITION_PRESENT">    <description>Munition present and not ready.</description></entry>
-      <entry value="2" name="MAVLINK_M_ESAD_MUNITION_READY">      <description>Munition present and ready.</description></entry>
-      <entry value="3" name="MAVLINK_M_ESAD_MUNITION_FAULT">      <description>Munition fault detected.</description></entry>
+      <description>ESAD munition readiness state. Defined values have a minimum pairwise Hamming distance of four. An unrecognized value must be treated as unknown and must not be corrected into a defined state.</description>
+      <entry value="0"   name="MAVLINK_M_ESAD_MUNITION_UNKNOWN"><description>Munition state unknown or not reported. A zero-filled or unset field decodes as this value.</description></entry>
+      <entry value="15"  name="MAVLINK_M_ESAD_MUNITION_NOT_PRESENT"><description>No munition present.</description></entry>
+      <entry value="51"  name="MAVLINK_M_ESAD_MUNITION_PRESENT">    <description>Munition present and not ready.</description></entry>
+      <entry value="60"  name="MAVLINK_M_ESAD_MUNITION_READY">      <description>Munition present and ready.</description></entry>
+      <entry value="85"  name="MAVLINK_M_ESAD_MUNITION_FAULT">      <description>Munition fault detected.</description></entry>
     </enum>
 
     <enum name="MAVLINK_M_ESAD_IGNITION_STATUS">
-      <description>ESAD ignition circuit state.</description>
-      <entry value="0" name="MAVLINK_M_ESAD_IGNITION_OPEN">    <description>Ignition circuit open.</description></entry>
-      <entry value="1" name="MAVLINK_M_ESAD_IGNITION_CLOSED">  <description>Ignition circuit closed.</description></entry>
-      <entry value="2" name="MAVLINK_M_ESAD_IGNITION_FIRED">   <description>Ignition has fired.</description></entry>
-      <entry value="3" name="MAVLINK_M_ESAD_IGNITION_FAULT">   <description>Ignition circuit fault.</description></entry>
+      <description>ESAD ignition circuit state. Defined values have a minimum pairwise Hamming distance of four. An unrecognized value must be treated as unknown and must not be corrected into a defined state.</description>
+      <entry value="0"   name="MAVLINK_M_ESAD_IGNITION_UNKNOWN"><description>Ignition circuit state unknown or not reported. A zero-filled or unset field decodes as this value.</description></entry>
+      <entry value="15"  name="MAVLINK_M_ESAD_IGNITION_OPEN">    <description>Ignition circuit open.</description></entry>
+      <entry value="51"  name="MAVLINK_M_ESAD_IGNITION_CLOSED">  <description>Ignition circuit closed.</description></entry>
+      <entry value="60"  name="MAVLINK_M_ESAD_IGNITION_FIRED">   <description>Ignition has fired.</description></entry>
+      <entry value="85"  name="MAVLINK_M_ESAD_IGNITION_FAULT">   <description>Ignition circuit fault.</description></entry>
     </enum>
 
     <enum name="MAVLINK_M_ESAD_FAULT_FLAGS" bitmask="true">
@@ -636,17 +699,18 @@
     </enum>
 
     <enum name="MAVLINK_M_ESAD_ARMING_REQUEST">
-      <description>ESAD arming command.</description>
-      <entry value="0" name="MAVLINK_M_ESAD_REQUEST_DISARM"><description>Request disarm.</description></entry>
-      <entry value="1" name="MAVLINK_M_ESAD_REQUEST_ARM">   <description>Request arm.</description></entry>
+      <description>ESAD arming command. Defined values have a minimum pairwise Hamming distance of four. An unrecognized value must be rejected and must not be corrected into a defined request.</description>
+      <entry value="0"   name="MAVLINK_M_ESAD_REQUEST_NONE"><description>No arming action requested. A zero-filled or unset field decodes as this value. A receiver arms and disarms nothing on it: it refuses an ESAD_ARMING addressed to it, or a MAV_CMD_MAVLINK_M_STORE_SAFE, that carries it as it refuses a value that is not listed, and does not act on an ESAD_ARMING sent to every system that carries it.</description></entry>
+      <entry value="15"  name="MAVLINK_M_ESAD_REQUEST_ARM">   <description>Request arm.</description></entry>
+      <entry value="51"  name="MAVLINK_M_ESAD_REQUEST_DISARM"><description>Request disarm.</description></entry>
     </enum>
 
     <!-- ===== ESAD physical safety-input status (read-only reporting) ===== -->
     <enum name="MAVLINK_M_ESAD_PIN_STATE">
-      <description>State of the physical safety pull-pin on an ESAD. Read-only status.</description>
-      <entry value="0" name="MAVLINK_M_ESAD_PIN_UNKNOWN"><description>Pin state not determined.</description></entry>
-      <entry value="1" name="MAVLINK_M_ESAD_PIN_PRESENT"><description>Pin present (device mechanically safed).</description></entry>
-      <entry value="2" name="MAVLINK_M_ESAD_PIN_REMOVED"><description>Pin removed (mechanical safety released).</description></entry>
+      <description>State of the physical safety pull-pin on an ESAD. Read-only status. Defined values have a minimum pairwise Hamming distance of four. An unrecognized value must be treated as unknown and must not be corrected into a defined state.</description>
+      <entry value="0"   name="MAVLINK_M_ESAD_PIN_UNKNOWN"><description>Pin state not determined.</description></entry>
+      <entry value="15"  name="MAVLINK_M_ESAD_PIN_PRESENT"><description>Pin present (device mechanically safed).</description></entry>
+      <entry value="51"  name="MAVLINK_M_ESAD_PIN_REMOVED"><description>Pin removed (mechanical safety released).</description></entry>
     </enum>
 
     <enum name="MAVLINK_M_ESAD_ARM_DELAY_SETTING">
@@ -654,11 +718,14 @@
         Selected arming-delay setting: how long after the in-flight-event signal
         the ESAD will PERMIT arming. Reports the physical switch detent position.
         This is a safety timer setting, not a fuze timing value.
+        Defined values have a minimum pairwise Hamming distance of four. An
+        unrecognized value must be treated as unknown and must not be
+        corrected into a defined state.
       </description>
-      <entry value="0" name="MAVLINK_M_ESAD_ARM_DELAY_UNKNOWN"><description>Setting not determined.</description></entry>
-      <entry value="1" name="MAVLINK_M_ESAD_ARM_DELAY_90S">   <description>90 second arming delay.</description></entry>
-      <entry value="2" name="MAVLINK_M_ESAD_ARM_DELAY_60S">   <description>60 second arming delay.</description></entry>
-      <entry value="3" name="MAVLINK_M_ESAD_ARM_DELAY_30S">   <description>30 second arming delay.</description></entry>
+      <entry value="0"   name="MAVLINK_M_ESAD_ARM_DELAY_UNKNOWN"><description>Setting not determined.</description></entry>
+      <entry value="15"  name="MAVLINK_M_ESAD_ARM_DELAY_90S">   <description>90 second arming delay.</description></entry>
+      <entry value="51"  name="MAVLINK_M_ESAD_ARM_DELAY_60S">   <description>60 second arming delay.</description></entry>
+      <entry value="60"  name="MAVLINK_M_ESAD_ARM_DELAY_30S">   <description>30 second arming delay.</description></entry>
     </enum>
 
     <enum name="MAVLINK_M_ESAD_TRIGGER_DISTANCE_MODE">
@@ -672,18 +739,23 @@
         fuze-configuration channel. On devices with a physical switch this reports
         the switch position; on devices that accept ESAD_CONFIG it reports the mode
         currently in effect.
+        Defined values have a minimum pairwise Hamming distance of four. An
+        unrecognized value must not be corrected into a defined state: in
+        ESAD_STATE it must be treated as unknown, and an ESAD_CONFIG carrying
+        one, or carrying MAVLINK_M_ESAD_TRIG_DIST_UNKNOWN, must be rejected.
       </description>
-      <entry value="0" name="MAVLINK_M_ESAD_TRIG_DIST_UNKNOWN"><description>Mode not determined.</description></entry>
-      <entry value="1" name="MAVLINK_M_ESAD_TRIG_DIST_2M">     <description>2 metre standoff mode.</description></entry>
-      <entry value="2" name="MAVLINK_M_ESAD_TRIG_DIST_4M">     <description>4 metre standoff mode.</description></entry>
-      <entry value="3" name="MAVLINK_M_ESAD_TRIG_DIST_MANUAL"> <description>Manual mode (standoff governed by the platform/operator, not an auto standoff).</description></entry>
+      <entry value="0"   name="MAVLINK_M_ESAD_TRIG_DIST_UNKNOWN"><description>Mode not determined. A zero-filled or unset field decodes as this value. In ESAD_STATE it reports a mode the device has not determined; a receiver refuses an ESAD_CONFIG carrying it as it refuses a value that is not listed.</description></entry>
+      <entry value="15"  name="MAVLINK_M_ESAD_TRIG_DIST_2M">     <description>2 metre standoff mode.</description></entry>
+      <entry value="51"  name="MAVLINK_M_ESAD_TRIG_DIST_4M">     <description>4 metre standoff mode.</description></entry>
+      <entry value="60"  name="MAVLINK_M_ESAD_TRIG_DIST_MANUAL"> <description>Manual mode (standoff governed by the platform/operator, not an auto standoff).</description></entry>
     </enum>
 
     <enum name="MAVLINK_M_RWS_ARMING_STATE">
-      <description>Remote weapon system arming state.</description>
-      <entry value="0" name="MAVLINK_M_RWS_ARMING_SAFE">  <description>Weapon system safe.</description></entry>
-      <entry value="1" name="MAVLINK_M_RWS_ARMING_ARMED"> <description>Weapon system armed.</description></entry>
-      <entry value="2" name="MAVLINK_M_RWS_ARMING_FAULT"> <description>Weapon system fault.</description></entry>
+      <description>Remote weapon system arming state. Defined values have a minimum pairwise Hamming distance of four. An unrecognized value must be treated as unknown and must not be corrected into a defined state.</description>
+      <entry value="0"   name="MAVLINK_M_RWS_ARMING_UNKNOWN"><description>Arming state unknown or not reported. A zero-filled or unset field decodes as this value.</description></entry>
+      <entry value="15"  name="MAVLINK_M_RWS_ARMING_SAFE">  <description>Weapon system safe.</description></entry>
+      <entry value="51"  name="MAVLINK_M_RWS_ARMING_ARMED"> <description>Weapon system armed.</description></entry>
+      <entry value="60"  name="MAVLINK_M_RWS_ARMING_FAULT"> <description>Weapon system fault.</description></entry>
     </enum>
 
     <enum name="MAVLINK_M_MATCH_MEDIA_TYPE">
@@ -780,20 +852,23 @@
         Procedural fire-mission control commands exchanged in the observer/FDC
         digital handshake (ATP 3-09.30; map to VMF K02.16 End of Mission and
         K02.22 Subsequent Adjust flows). These are control verbs, not spotting.
+        Defined values have a minimum pairwise Hamming distance of four. An
+        unrecognized value must be rejected and must not be corrected into a
+        defined command.
       </description>
-      <entry value="0"  name="MAVLINK_M_FMC_NONE">                <description>No command.</description></entry>
-      <entry value="1"  name="MAVLINK_M_FMC_FIRE_FOR_EFFECT">      <description>Enter fire for effect.</description></entry>
-      <entry value="2"  name="MAVLINK_M_FMC_END_OF_MISSION">       <description>End of mission (EOM).</description></entry>
-      <entry value="3"  name="MAVLINK_M_FMC_RECORD_AS_TARGET">     <description>Record the current data as a target.</description></entry>
-      <entry value="4"  name="MAVLINK_M_FMC_REPEAT">               <description>Repeat the last fire.</description></entry>
-      <entry value="5"  name="MAVLINK_M_FMC_CHECK_FIRING">         <description>Check firing (temporary halt).</description></entry>
-      <entry value="6"  name="MAVLINK_M_FMC_CANCEL_CHECK_FIRING">  <description>Cancel check firing / resume.</description></entry>
-      <entry value="7"  name="MAVLINK_M_FMC_CEASE_LOADING">        <description>Cease loading.</description></entry>
-      <entry value="8"  name="MAVLINK_M_FMC_CANCEL_AT_MY_COMMAND"><description>Cancel At My Command.</description></entry>
-      <entry value="9"  name="MAVLINK_M_FMC_CANCEL_HIGH_ANGLE">    <description>Cancel high angle.</description></entry>
-      <entry value="10" name="MAVLINK_M_FMC_CHECK_SOLUTION">       <description>Check fire-control solution (NSFS).</description></entry>
-      <entry value="11" name="MAVLINK_M_FMC_FRESH_TARGET">         <description>Fresh target: interrupt current mission for higher-priority target (NSFS).</description></entry>
-      <entry value="12" name="MAVLINK_M_FMC_NEW_TARGET">           <description>New target: engage additional non-priority target, continue original (NSFS).</description></entry>
+      <entry value="0"   name="MAVLINK_M_FMC_NONE">                <description>No command.</description></entry>
+      <entry value="15"  name="MAVLINK_M_FMC_FIRE_FOR_EFFECT">      <description>Enter fire for effect.</description></entry>
+      <entry value="51"  name="MAVLINK_M_FMC_END_OF_MISSION">       <description>End of mission (EOM).</description></entry>
+      <entry value="60"  name="MAVLINK_M_FMC_RECORD_AS_TARGET">     <description>Record the current data as a target.</description></entry>
+      <entry value="85"  name="MAVLINK_M_FMC_REPEAT">               <description>Repeat the last fire.</description></entry>
+      <entry value="90"  name="MAVLINK_M_FMC_CHECK_FIRING">         <description>Check firing (temporary halt).</description></entry>
+      <entry value="102" name="MAVLINK_M_FMC_CANCEL_CHECK_FIRING">  <description>Cancel check firing / resume.</description></entry>
+      <entry value="105" name="MAVLINK_M_FMC_CEASE_LOADING">        <description>Cease loading.</description></entry>
+      <entry value="150" name="MAVLINK_M_FMC_CANCEL_AT_MY_COMMAND"><description>Cancel At My Command.</description></entry>
+      <entry value="153" name="MAVLINK_M_FMC_CANCEL_HIGH_ANGLE">    <description>Cancel high angle.</description></entry>
+      <entry value="165" name="MAVLINK_M_FMC_CHECK_SOLUTION">       <description>Check fire-control solution (NSFS).</description></entry>
+      <entry value="170" name="MAVLINK_M_FMC_FRESH_TARGET">         <description>Fresh target: interrupt current mission for higher-priority target (NSFS).</description></entry>
+      <entry value="195" name="MAVLINK_M_FMC_NEW_TARGET">           <description>New target: engage additional non-priority target, continue original (NSFS).</description></entry>
     </enum>
 
     <!-- ===== call-for-fire method of engagement (ATP 3-09.30 / VMF K02.4) ===== -->
@@ -859,17 +934,21 @@
       <description>
         Result of receiving/processing a MAVLink-M message, reported via
         MAVLINK_M_ACK. Distinguishes "received" from "accepted" so a sender
-        can tell delivery from agreement.
+        can tell delivery from agreement. Defined values have a minimum
+        pairwise Hamming distance of four. An unrecognized value must be
+        treated as unknown, which the originator handles as an acknowledgment
+        it did not receive, and must not be corrected into a defined result.
       </description>
-      <entry value="0" name="MAVLINK_M_ACK_RECEIVED">   <description>Message was received and parsed. No acceptance implied.</description></entry>
-      <entry value="1" name="MAVLINK_M_ACK_ACCEPTED">   <description>Message was received and accepted/actioned by the recipient.</description></entry>
-      <entry value="2" name="MAVLINK_M_ACK_REJECTED">   <description>Message was received but rejected (e.g. operator declined the cue).</description></entry>
-      <entry value="3" name="MAVLINK_M_ACK_UNSUPPORTED"><description>Message type or requested action is not supported by the recipient.</description></entry>
-      <entry value="4" name="MAVLINK_M_ACK_FAILED">     <description>Message was received but processing failed (e.g. malformed or stale, or a start (SAFETY BOUNDARIES) dated later than the receiving system's clock plus the maximum clock offset).</description></entry>
-      <entry value="5" name="MAVLINK_M_ACK_EXPIRED">    <description>Message was received after its validity window had passed: a start (SAFETY BOUNDARIES) whose time_usec is older than the maximum age the receiving system is configured with. A stop is never rejected for its time.</description></entry>
-      <entry value="6" name="MAVLINK_M_ACK_NOT_APPLICABLE"><description>Message was addressed to this system, and nothing on this system is what it applies to, for example a stop for an engagement this system does not hold. A final result. Never sent in answer to a message sent to every system: a system where such a message selects nothing does not answer it.</description></entry>
-      <entry value="7" name="MAVLINK_M_ACK_HELD"><description>A start (SAFETY BOUNDARIES) was not applied because it may have been issued before a stop the receiving system recorded and that covers it, or before the system restarted. It may be the start the stop was sent to prevent, so it is issued again, with a new time_usec, only as a new decision of its authority, never automatically. A final result.</description></entry>
-      <entry value="8" name="MAVLINK_M_ACK_NO_TIME"><description>The receiving system cannot keep its clock within half the maximum clock offset of UTC, so it rejects every start (SAFETY BOUNDARIES) and acts only on stops until it can. A final result.</description></entry>
+      <entry value="0"   name="MAVLINK_M_ACK_UNKNOWN">    <description>Result unknown or not reported. A zero-filled or unset field decodes as this value. A recipient never sends it; the originator handles it as an acknowledgment it did not receive.</description></entry>
+      <entry value="15"  name="MAVLINK_M_ACK_RECEIVED">   <description>Message was received and parsed. No acceptance implied.</description></entry>
+      <entry value="51"  name="MAVLINK_M_ACK_ACCEPTED">   <description>Message was received and accepted/actioned by the recipient.</description></entry>
+      <entry value="60"  name="MAVLINK_M_ACK_REJECTED">   <description>Message was received but rejected (e.g. operator declined the cue).</description></entry>
+      <entry value="85"  name="MAVLINK_M_ACK_UNSUPPORTED"><description>Message type or requested action is not supported by the recipient.</description></entry>
+      <entry value="90"  name="MAVLINK_M_ACK_FAILED">     <description>Message was received but processing failed (e.g. malformed or stale, a commanded field whose value its enum does not list, or a start (SAFETY BOUNDARIES) dated later than the receiving system's clock plus the maximum clock offset). For a commanded field whose value is not listed it is not final: a later copy of the message is checked again, and an answer to it other than MAVLINK_M_ACK_FAILED replaces this one; for such a refusal its time_usec is the time the receiver recorded the refusal; once a component has answered MAVLINK_M_ACK_ACCEPTED to a copy of the message, a FAILED from it for another copy does not mean that it did not apply the message, while what the refusal itself does (SAFETY BOUNDARIES, and a consent or clearance it ends) still stands.</description></entry>
+      <entry value="102" name="MAVLINK_M_ACK_EXPIRED">    <description>Message was received after its validity window had passed: a start (SAFETY BOUNDARIES) whose time_usec is older than the maximum age the receiving system is configured with. A stop is never rejected for its time.</description></entry>
+      <entry value="105" name="MAVLINK_M_ACK_NOT_APPLICABLE"><description>Message was addressed to this system, and nothing on this system is what it applies to, for example a stop for an engagement this system does not hold. A final result. Never sent in answer to a message sent to every system: a system where such a message selects nothing does not answer it.</description></entry>
+      <entry value="150" name="MAVLINK_M_ACK_HELD"><description>A start (SAFETY BOUNDARIES) was not applied because it may have been issued before a stop the receiving system recorded and that covers it, or before the system restarted. It may be the start the stop was sent to prevent, so it is issued again, with a new time_usec, only as a new decision of its authority, never automatically. A final result.</description></entry>
+      <entry value="153" name="MAVLINK_M_ACK_NO_TIME"><description>The receiving system cannot keep its clock within half the maximum clock offset of UTC, so it rejects every start (SAFETY BOUNDARIES) and acts only on stops until it can. A final result.</description></entry>
     </enum>
 
     <!-- ===== multi-store logistics drop ===== -->
@@ -886,22 +965,23 @@
     </enum>
 
     <enum name="MAVLINK_M_SENSOR_HEALTH">
-      <description>Health state of an individual store sensor.</description>
-      <entry value="0" name="MAVLINK_M_SENSOR_HEALTH_NOT_PRESENT"> <description>Sensor not installed / not detected.</description></entry>
-      <entry value="1" name="MAVLINK_M_SENSOR_HEALTH_OK">          <description>Sensor present and healthy.</description></entry>
-      <entry value="2" name="MAVLINK_M_SENSOR_HEALTH_DEGRADED">    <description>Sensor functional but degraded (e.g. noisy, low confidence).</description></entry>
-      <entry value="3" name="MAVLINK_M_SENSOR_HEALTH_FAULT">       <description>Sensor faulted / no valid data.</description></entry>
-      <entry value="4" name="MAVLINK_M_SENSOR_HEALTH_CALIBRATING"> <description>Sensor initializing or calibrating; not yet usable.</description></entry>
-      <entry value="5" name="MAVLINK_M_SENSOR_HEALTH_OUT_OF_RANGE"><description>Sensor reading outside valid operating range.</description></entry>
+      <description>Health state of an individual store sensor. Defined values have a minimum pairwise Hamming distance of four. An unrecognized value must be treated as unknown and must not be corrected into a defined state. A consumer that builds release readiness from these values counts MAVLINK_M_SENSOR_HEALTH_UNKNOWN and an unrecognized value as not healthy.</description>
+      <entry value="0"   name="MAVLINK_M_SENSOR_HEALTH_UNKNOWN">     <description>Health unknown or not reported. A zero-filled or unset field decodes as this value.</description></entry>
+      <entry value="15"  name="MAVLINK_M_SENSOR_HEALTH_OK">          <description>Sensor present and healthy.</description></entry>
+      <entry value="51"  name="MAVLINK_M_SENSOR_HEALTH_DEGRADED">    <description>Sensor functional but degraded (e.g. noisy, low confidence).</description></entry>
+      <entry value="60"  name="MAVLINK_M_SENSOR_HEALTH_FAULT">       <description>Sensor faulted / no valid data.</description></entry>
+      <entry value="85"  name="MAVLINK_M_SENSOR_HEALTH_NOT_PRESENT"> <description>Sensor not installed / not detected.</description></entry>
+      <entry value="90"  name="MAVLINK_M_SENSOR_HEALTH_CALIBRATING"> <description>Sensor initializing or calibrating; not yet usable.</description></entry>
+      <entry value="102" name="MAVLINK_M_SENSOR_HEALTH_OUT_OF_RANGE"><description>Sensor reading outside valid operating range.</description></entry>
     </enum>
 
     <enum name="MAVLINK_M_STORE_READINESS">
-      <description>Roll-up release-readiness state of a store.</description>
-      <entry value="0" name="MAVLINK_M_STORE_READINESS_UNKNOWN">  <description>Readiness not yet determined.</description></entry>
-      <entry value="1" name="MAVLINK_M_STORE_READINESS_NOT_READY"><description>Not ready to release (one or more blocking conditions).</description></entry>
-      <entry value="2" name="MAVLINK_M_STORE_READINESS_READY">    <description>All checks passed; cleared for release.</description></entry>
-      <entry value="3" name="MAVLINK_M_STORE_READINESS_FAULT">    <description>Store in fault state; must not be released.</description></entry>
-      <entry value="4" name="MAVLINK_M_STORE_READINESS_RELEASED"> <description>Store has been released from the carrier.</description></entry>
+      <description>Roll-up release-readiness state of a store. Defined values have a minimum pairwise Hamming distance of four. An unrecognized value must be treated as unknown and must not be corrected into a defined state.</description>
+      <entry value="0"   name="MAVLINK_M_STORE_READINESS_UNKNOWN">  <description>Readiness not yet determined.</description></entry>
+      <entry value="15"  name="MAVLINK_M_STORE_READINESS_NOT_READY"><description>Not ready to release (one or more blocking conditions).</description></entry>
+      <entry value="51"  name="MAVLINK_M_STORE_READINESS_READY">    <description>All checks passed; cleared for release.</description></entry>
+      <entry value="60"  name="MAVLINK_M_STORE_READINESS_FAULT">    <description>Store in fault state; must not be released.</description></entry>
+      <entry value="85"  name="MAVLINK_M_STORE_READINESS_RELEASED"> <description>Store has been released from the carrier.</description></entry>
     </enum>
 
     <!-- ===== kill-chain correlation and accountability ===== -->
@@ -954,11 +1034,12 @@
     </enum>
 
     <enum name="MAVLINK_M_ENGAGEMENT_DIRECTIVE">
-      <description>Engagement-control directive type. Provides abort / check-fire / re-target as first-class protocol actions alongside FIRES.</description>
-      <entry value="0" name="MAVLINK_M_ENGAGEMENT_DIRECTIVE_ABORT">      <description>Abort the referenced fire mission.</description></entry>
-      <entry value="1" name="MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE"> <description>Temporary check-fire; hold without cancelling.</description></entry>
-      <entry value="2" name="MAVLINK_M_ENGAGEMENT_DIRECTIVE_RESUME">     <description>Resume after a check-fire.</description></entry>
-      <entry value="3" name="MAVLINK_M_ENGAGEMENT_DIRECTIVE_RETARGET">   <description>Re-target the referenced fire mission to a new track/coordinate.</description></entry>
+      <description>Engagement-control directive type. Provides abort / check-fire / re-target as first-class protocol actions alongside FIRES. Defined values have a minimum pairwise Hamming distance of four. An unrecognized value must be rejected and must not be corrected into a defined directive.</description>
+      <entry value="0"   name="MAVLINK_M_ENGAGEMENT_DIRECTIVE_NONE">       <description>No directive. A zero-filled or unset field decodes as this value. A receiver acts on nothing in an ENGAGEMENT_DIRECTIVE that carries it: it refuses one addressed to it as it refuses a value that is not listed, and does not act on one sent to every system.</description></entry>
+      <entry value="15"  name="MAVLINK_M_ENGAGEMENT_DIRECTIVE_ABORT">      <description>Abort the referenced fire mission.</description></entry>
+      <entry value="51"  name="MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE"> <description>Temporary check-fire; hold without cancelling.</description></entry>
+      <entry value="60"  name="MAVLINK_M_ENGAGEMENT_DIRECTIVE_RESUME">     <description>Resume after a check-fire.</description></entry>
+      <entry value="85"  name="MAVLINK_M_ENGAGEMENT_DIRECTIVE_RETARGET">   <description>Re-target the referenced fire mission to a new track/coordinate.</description></entry>
     </enum>
 
     <!-- ===== fires effect request and damage state (coarse; no classified config) ===== -->
@@ -1120,7 +1201,8 @@
     <enum name="MAV_CMD">
       <description>MAVLink-M store-handling commands. Sent via COMMAND_LONG/COMMAND_INT; responses via COMMAND_ACK.</description>
       <entry value="53090" name="MAV_CMD_MAVLINK_M_STORE_ARM">
-        <description>Safe a store's ESAD. A command carries no time_usec, so no stop can be ordered against an arm sent this way (SAFETY BOUNDARIES): receivers answer an arm (Arm = 1) with MAV_RESULT_DENIED, and ESAD_ARMING arms.</description>
+        <deprecated since="2026-10" replaced_by="MAV_CMD_MAVLINK_M_STORE_SAFE">Its param 2 is not a codeword: a cleared value reads as a safe and one changed bit as an arm.</deprecated>
+        <description>Safe a store's ESAD. A command carries no time_usec, so no stop can be ordered against an arm sent this way (SAFETY BOUNDARIES): receivers answer an arm with MAV_RESULT_DENIED, and ESAD_ARMING arms.</description>
         <param index="1" label="Store ID">Target store instance (0 = every store on the receiving system).</param>
         <param index="2" label="Arm">0 = safe/disarm. 1 = arm, which receivers deny; arm with ESAD_ARMING.</param>
         <param index="3" label="Challenge Hash">Ignored: a safe applies whatever the ESAD challenge holds, as an ESAD_ARMING DISARM does.</param>
@@ -1158,6 +1240,16 @@
         <param index="5">Reserved (0).</param>
         <param index="6">Reserved (0).</param>
         <param index="7">Reserved (0).</param>
+      </entry>
+      <entry value="53094" name="MAV_CMD_MAVLINK_M_STORE_SAFE">
+        <description>Safe a store's ESAD. A command carries no time_usec, so no stop can be ordered against an arm sent this way (SAFETY BOUNDARIES): this command only safes, and ESAD_ARMING arms. A safe is a stop for the records of SAFETY BOUNDARIES, so an arm issued before it arrived is held. A receiver answers MAV_RESULT_DENIED to one whose param 2 is not MAVLINK_M_ESAD_REQUEST_DISARM, records the refusal as a stop and leaves the store's arming as it was, and answers MAV_RESULT_FAILED to one whose param 1 selects no store on the receiving system. A sender that sent MAVLINK_M_ESAD_REQUEST_DISARM and gets MAV_RESULT_DENIED sends the command again, up to the number of times set for the network and only while it has given no later command for that store, since a value changed on the way is the only reason this command is denied, and confirms the safe from STORE_STATUS or ESAD_STATE.</description>
+        <param index="1" label="Store ID">Target store instance, as in an ESAD_ARMING DISARM's store_id: 0 = every store on the receiving system.</param>
+        <param index="2" label="Request" enum="MAVLINK_M_ESAD_ARMING_REQUEST">MAVLINK_M_ESAD_REQUEST_DISARM, sent as that value in a float and compared as a float for exact equality before any rounding or conversion to an integer. Any other value, MAVLINK_M_ESAD_REQUEST_ARM, MAVLINK_M_ESAD_REQUEST_NONE, NaN and a value with a fractional part included, is refused and must not be corrected into a defined request.</param>
+        <param index="3" reserved="true" default="NaN" />
+        <param index="4" reserved="true" default="NaN" />
+        <param index="5" reserved="true">Reserved. INT32_MAX (COMMAND_INT or MISSION_ITEM_INT) or NaN (COMMAND_LONG).</param>
+        <param index="6" reserved="true">Reserved. INT32_MAX (COMMAND_INT or MISSION_ITEM_INT) or NaN (COMMAND_LONG).</param>
+        <param index="7" reserved="true" default="NaN" />
       </entry>
     </enum>
 
@@ -1214,15 +1306,22 @@
     </enum>
 
     <enum name="MAVLINK_M_FIRE_CONTROL_METHOD">
-      <description>Method of fire and control (ATP 3-09.30 Ch.4).</description>
-      <entry value="0" name="MAVLINK_M_FCM_UNSPECIFIED">          <description>Not specified (default for an unset field).</description></entry>
-      <entry value="1" name="MAVLINK_M_FCM_WHEN_READY">            <description>When ready.</description></entry>
-      <entry value="2" name="MAVLINK_M_FCM_AT_MY_COMMAND">         <description>At my command (AMC).</description></entry>
-      <entry value="3" name="MAVLINK_M_FCM_TIME_ON_TARGET">        <description>Time on target (TOT).</description></entry>
-      <entry value="4" name="MAVLINK_M_FCM_CANNOT_OBSERVE">        <description>Cannot observe.</description></entry>
-      <entry value="5" name="MAVLINK_M_FCM_CONTINUOUS_ILLUM">      <description>Continuous illumination.</description></entry>
-      <entry value="6" name="MAVLINK_M_FCM_COORDINATED_ILLUM">     <description>Coordinated illumination.</description></entry>
-      <entry value="7" name="MAVLINK_M_FCM_CONTINUOUS_FIRE">       <description>Continuous fire.</description></entry>
+      <description>Method of fire and control (ATP 3-09.30 Ch.4). Defined values have a minimum pairwise Hamming distance of four. An unrecognized value must be rejected and must not be corrected into a defined method.</description>
+      <entry value="0"   name="MAVLINK_M_FCM_UNSPECIFIED">          <description>Not specified (default for an unset field).</description></entry>
+      <entry value="15"  name="MAVLINK_M_FCM_WHEN_READY">            <description>When ready.</description></entry>
+      <entry value="51"  name="MAVLINK_M_FCM_AT_MY_COMMAND">         <description>At my command (AMC).</description></entry>
+      <entry value="60"  name="MAVLINK_M_FCM_TIME_ON_TARGET">        <description>Time on target (TOT).</description></entry>
+      <entry value="85"  name="MAVLINK_M_FCM_CANNOT_OBSERVE">        <description>Cannot observe.</description></entry>
+      <entry value="90"  name="MAVLINK_M_FCM_CONTINUOUS_ILLUM">      <description>Continuous illumination.</description></entry>
+      <entry value="102" name="MAVLINK_M_FCM_COORDINATED_ILLUM">     <description>Coordinated illumination.</description></entry>
+      <entry value="105" name="MAVLINK_M_FCM_CONTINUOUS_FIRE">       <description>Continuous fire.</description></entry>
+    </enum>
+
+    <enum name="DANGER_CLOSE">
+      <description>Whether a call for fire or a CAS brief is danger close: friendly forces within the danger-close distance of the target. An enum rather than a plain boolean, so that an unset or zero-filled value, or one with up to three changed bits, never asserts the less cautious reading. Defined values have a minimum pairwise Hamming distance of four. A receiver treats DANGER_CLOSE_UNKNOWN as DANGER_CLOSE_YES, and refuses a message whose value is not listed; an unrecognized value must not be corrected into a defined value.</description>
+      <entry value="0"   name="DANGER_CLOSE_UNKNOWN"><description>Not stated. A zero-filled or unset field decodes as this value; a receiver treats it as DANGER_CLOSE_YES.</description></entry>
+      <entry value="15"  name="DANGER_CLOSE_NO"><description>Not danger close.</description></entry>
+      <entry value="51"  name="DANGER_CLOSE_YES"><description>Danger close.</description></entry>
     </enum>
 
     <enum name="MAVLINK_M_TLE_CATEGORY">
@@ -1291,20 +1390,23 @@
         withdrawal. It MUST NOT be used to construct an automated release path;
         release authority remains with the crewed C2 system, and consent is a
         precondition recorded for accountability, not a trigger.
+        Defined values have a minimum pairwise Hamming distance of four. An
+        unrecognized value must be rejected and must not be corrected into a
+        defined state.
       </description>
-      <entry value="0" name="MAVLINK_M_LM_CONSENT_NONE">     <description>No consent state.</description></entry>
-      <entry value="1" name="MAVLINK_M_LM_CONSENT_REQUESTED"><description>Consent-to-strike requested from human authority.</description></entry>
-      <entry value="2" name="MAVLINK_M_LM_CONSENT_GRANTED">  <description>Consent granted by human authority (recorded).</description></entry>
-      <entry value="3" name="MAVLINK_M_LM_CONSENT_WITHHELD"> <description>Consent withheld.</description></entry>
-      <entry value="4" name="MAVLINK_M_LM_CONSENT_WITHDRAWN"><description>Previously-granted consent withdrawn.</description></entry>
+      <entry value="0"   name="MAVLINK_M_LM_CONSENT_NONE">     <description>No consent state.</description></entry>
+      <entry value="15"  name="MAVLINK_M_LM_CONSENT_REQUESTED"><description>Consent-to-strike requested from human authority.</description></entry>
+      <entry value="51"  name="MAVLINK_M_LM_CONSENT_GRANTED">  <description>Consent granted by human authority (recorded).</description></entry>
+      <entry value="60"  name="MAVLINK_M_LM_CONSENT_WITHHELD"> <description>Consent withheld.</description></entry>
+      <entry value="85"  name="MAVLINK_M_LM_CONSENT_WITHDRAWN"><description>Previously-granted consent withdrawn.</description></entry>
     </enum>
 
     <enum name="MAVLINK_M_LM_TERMINATE">
-      <description>Loitering-munition abort / terminate action.</description>
-      <entry value="0" name="MAVLINK_M_LM_TERMINATE_NONE">       <description>No action.</description></entry>
-      <entry value="1" name="MAVLINK_M_LM_TERMINATE_WAVE_OFF">   <description>Wave off / break engagement, remain flyable.</description></entry>
-      <entry value="2" name="MAVLINK_M_LM_TERMINATE_ABORT">      <description>Abort current attack, return to loiter.</description></entry>
-      <entry value="3" name="MAVLINK_M_LM_TERMINATE_SELF_DESTRUCT"><description>Self-destruct / render safe (per platform capability).</description></entry>
+      <description>Loitering-munition abort / terminate action. Defined values have a minimum pairwise Hamming distance of four. An unrecognized value must be rejected and must not be corrected into a defined action.</description>
+      <entry value="0"   name="MAVLINK_M_LM_TERMINATE_NONE">       <description>No action.</description></entry>
+      <entry value="15"  name="MAVLINK_M_LM_TERMINATE_WAVE_OFF">   <description>Wave off / break engagement, remain flyable.</description></entry>
+      <entry value="51"  name="MAVLINK_M_LM_TERMINATE_ABORT">      <description>Abort current attack, return to loiter.</description></entry>
+      <entry value="60"  name="MAVLINK_M_LM_TERMINATE_SELF_DESTRUCT"><description>Self-destruct / render safe (per platform capability).</description></entry>
     </enum>
 
     <enum name="MAVLINK_M_TST_STATUS">
@@ -1389,24 +1491,24 @@
     </enum>
 
     <enum name="MAVLINK_M_SENSOR_MODE">
-      <description>Commanded/reported sensor payload mode (UCI-style tasking).</description>
-      <entry value="0" name="MAVLINK_M_SENSOR_MODE_UNKNOWN">        <description>Unspecified.</description></entry>
-      <entry value="1" name="MAVLINK_M_SENSOR_MODE_WIDE_AREA_SEARCH"><description>Wide-area search.</description></entry>
-      <entry value="2" name="MAVLINK_M_SENSOR_MODE_POINT_TRACK">    <description>Point-target track.</description></entry>
-      <entry value="3" name="MAVLINK_M_SENSOR_MODE_LASER_DESIGNATE"><description>Laser designation (code carried as slot elsewhere, not a value).</description></entry>
-      <entry value="4" name="MAVLINK_M_SENSOR_MODE_LASER_RANGE">    <description>Laser ranging.</description></entry>
-      <entry value="5" name="MAVLINK_M_SENSOR_MODE_IR_MARK">        <description>IR pointer / mark.</description></entry>
-      <entry value="6" name="MAVLINK_M_SENSOR_MODE_STANDBY">        <description>Sensor standby / caged.</description></entry>
+      <description>Commanded/reported sensor payload mode (UCI-style tasking). Defined values have a minimum pairwise Hamming distance of four. An unrecognized value must not be corrected into a defined mode: a request carrying one is not acted on or answered, and in a status response it must be treated as unknown.</description>
+      <entry value="0"   name="MAVLINK_M_SENSOR_MODE_UNKNOWN">        <description>Unspecified.</description></entry>
+      <entry value="15"  name="MAVLINK_M_SENSOR_MODE_WIDE_AREA_SEARCH"><description>Wide-area search.</description></entry>
+      <entry value="51"  name="MAVLINK_M_SENSOR_MODE_POINT_TRACK">    <description>Point-target track.</description></entry>
+      <entry value="60"  name="MAVLINK_M_SENSOR_MODE_LASER_DESIGNATE"><description>Laser designation (code carried as slot elsewhere, not a value).</description></entry>
+      <entry value="85"  name="MAVLINK_M_SENSOR_MODE_LASER_RANGE">    <description>Laser ranging.</description></entry>
+      <entry value="90"  name="MAVLINK_M_SENSOR_MODE_IR_MARK">        <description>IR pointer / mark.</description></entry>
+      <entry value="102" name="MAVLINK_M_SENSOR_MODE_STANDBY">        <description>Sensor standby / caged.</description></entry>
     </enum>
 
     <enum name="MAVLINK_M_TASKING_STATUS">
-      <description>Response to an inbound tasking request (UCI publish/subscribe event).</description>
-      <entry value="0" name="MAVLINK_M_TASKING_UNSPECIFIED"><description>Marks a SENSOR_TASKING request; a status response never carries it. Not an acceptance.</description></entry>
-      <entry value="1" name="MAVLINK_M_TASKING_ACK">      <description>Tasking accepted.</description></entry>
-      <entry value="2" name="MAVLINK_M_TASKING_REJECTED"><description>Tasking rejected (unable/ineligible).</description></entry>
-      <entry value="3" name="MAVLINK_M_TASKING_COMPLETE"><description>Tasking complete.</description></entry>
-      <entry value="4" name="MAVLINK_M_TASKING_ACTIVE">   <description>Tasking in progress.</description></entry>
-      <entry value="5" name="MAVLINK_M_TASKING_INTERRUPTED"><description>Tasking ended before completion for a reason its requester did not cause: another request took the sensor, or the sensor lost the track it was following. Sent to the requester of the interrupted task.</description></entry>
+      <description>Response to an inbound tasking request (UCI publish/subscribe event). Defined values have a minimum pairwise Hamming distance of four. An unrecognized value must not be corrected into a defined status: a SENSOR_TASKING carrying one is neither a request nor a status response, and a receiver acts on nothing in it.</description>
+      <entry value="0"   name="MAVLINK_M_TASKING_UNSPECIFIED"><description>Marks a SENSOR_TASKING request; a status response never carries it. Not an acceptance.</description></entry>
+      <entry value="15"  name="MAVLINK_M_TASKING_ACK">      <description>Tasking accepted.</description></entry>
+      <entry value="51"  name="MAVLINK_M_TASKING_REJECTED"><description>Tasking rejected (unable/ineligible).</description></entry>
+      <entry value="60"  name="MAVLINK_M_TASKING_COMPLETE"><description>Tasking complete.</description></entry>
+      <entry value="85"  name="MAVLINK_M_TASKING_ACTIVE">   <description>Tasking in progress.</description></entry>
+      <entry value="90"  name="MAVLINK_M_TASKING_INTERRUPTED"><description>Tasking ended before completion for a reason its requester did not cause: another request took the sensor, or the sensor lost the track it was following. Sent to the requester of the interrupted task.</description></entry>
     </enum>
 
     <!-- ===== Generic payload enumerations ===== -->
@@ -1784,10 +1886,16 @@
         into deviation (relative to the observer-target line), range, and
         height-of-burst, from which a fire direction center computes corrections
         (e.g. bracketing, the graze "Up 40"). SURFACE and OBSCURATION are
-        supplementary sensor context.
+        supplementary sensor context. A receiver refuses a SPLASH_CORRECTION
+        whose command is not a listed value: it acts on none of its fields, its
+        spotting included, records the refusal as a stop (SAFETY BOUNDARIES),
+        shows the refusal to any operator who acts on the command, and answers
+        with result MAVLINK_M_ACK_FAILED and ack_instance set to sequence. One
+        sent to every system is refused the same way and answered only by a
+        system where sequence selects a fire mission it holds.
       </description>
       <field type="uint64_t" name="time_usec"     units="us"  >Timestamp of observation (UNIX epoch, microseconds UTC).</field>
-      <field type="uint8_t"  name="target_system"             >System ID of the intended recipient. 0 (every system) is valid only with command MAVLINK_M_FMC_CHECK_FIRING or MAVLINK_M_FMC_CEASE_LOADING, and a receiver acts only on that command in such a message, ignoring its spotting; receivers ignore any other SPLASH_CORRECTION sent with 0.</field>
+      <field type="uint8_t"  name="target_system"             >System ID of the intended recipient. 0 (every system) is valid only with command MAVLINK_M_FMC_CHECK_FIRING or MAVLINK_M_FMC_CEASE_LOADING, and a receiver acts only on that command in such a message, ignoring its spotting; receivers ignore any other SPLASH_CORRECTION sent with 0 whose command is a listed value, and refuse one whose command is not, as the description says.</field>
       <field type="uint8_t"  name="target_component"          >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
       <field type="int32_t"  name="lat"           units="degE7">Observed splash latitude, WGS84.</field>
       <field type="int32_t"  name="lon"           units="degE7">Observed splash longitude, WGS84.</field>
@@ -1896,9 +2004,9 @@
     <!-- 53031: ESAD_ARMING -->
     <!-- ============================================================ -->
     <message id="53031" name="ESAD_ARMING">
-      <description>ESAD arming command for one or more ESAD instances on the receiving system. An ARM must carry the challenge the selected ESAD advertises in ESAD_STATE; with esad_id = 0 it applies only if every local ESAD selected by store_id advertises arming_challenge_hash, and is otherwise rejected, so an ARM never applies in part. A DISARM applies to every selected local ESAD without checking arming_challenge_hash, so no ESAD's state can block it; as for any stop, MAVLink message signing on the link authenticates the sender. An addressed ARM whose esad_id and store_id select no local ESAD is rejected, and an addressed DISARM that selects none is answered MAVLINK_M_ACK_NOT_APPLICABLE; a DISARM sent to every system that selects no local ESAD is not acted on or answered. Each system judges only its own ESADs, so a command that reaches several systems can apply on some and not on others; the originator confirms the result for each system from its MAVLINK_M_ACK and ESAD_STATE.</description>
+      <description>ESAD arming command for one or more ESAD instances on the receiving system. An ARM must carry the challenge the selected ESAD advertises in ESAD_STATE; with esad_id = 0 it applies only if every local ESAD selected by store_id advertises arming_challenge_hash, and is otherwise rejected, so an ARM never applies in part. A DISARM applies to every selected local ESAD without checking arming_challenge_hash, so no ESAD's state can block it; as for any stop, MAVLink message signing on the link authenticates the sender. An addressed ARM whose esad_id and store_id select no local ESAD is rejected, and an addressed DISARM that selects none is answered MAVLINK_M_ACK_NOT_APPLICABLE; a DISARM sent to every system that selects no local ESAD is not acted on or answered. Each system judges only its own ESADs, so a command that reaches several systems can apply on some and not on others; the originator confirms the result for each system from its MAVLINK_M_ACK and ESAD_STATE. A receiving system refuses an ESAD_ARMING whose arming_request is not a listed value, or that is addressed to it and carries MAVLINK_M_ESAD_REQUEST_NONE: it acts on none of its fields, so it arms and disarms nothing, records the refusal as a stop (SAFETY BOUNDARIES), and answers it once with result MAVLINK_M_ACK_FAILED and ack_instance set to the esad_id the message carries. One sent to every system is refused the same way and answered only by a system where esad_id and store_id select a local ESAD; one sent to every system that carries MAVLINK_M_ESAD_REQUEST_NONE is not acted on, answered or kept as processed.</description>
       <field type="uint64_t" name="time_usec"            units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
-      <field type="uint8_t"  name="target_system"                  >System ID of the intended recipient. 0 (every system) is valid only for MAVLINK_M_ESAD_REQUEST_DISARM, which each receiving system applies to its own ESADs; receivers ignore an arm request sent with 0.</field>
+      <field type="uint8_t"  name="target_system"                  >System ID of the intended recipient. 0 (every system) is valid only for MAVLINK_M_ESAD_REQUEST_DISARM, which each receiving system applies to its own ESADs; receivers ignore an arm request sent with 0. A receiving system refuses one sent with 0 whose arming_request is not a listed value, as the description says.</field>
       <field type="uint8_t"  name="target_component"               >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
       <field type="uint8_t"  name="esad_id"                        >Vehicle-local ESAD instance identifier to arm or disarm. 0 = every local ESAD selected by store_id, 1-254 = specific ESAD instance, 255 = reserved.</field>
       <field type="uint32_t" name="arming_challenge_hash"          >Challenge hash the selected ESAD advertises in ESAD_STATE. Checked for an ARM, where with esad_id = 0 every selected local ESAD must advertise it; not checked for a DISARM.</field>
@@ -1926,7 +2034,11 @@
         Only coarse, device-defined SAFE/ARM modes may be set here; this message
         must never carry a free continuous distance, a fuze timing value, or any
         height-of-burst configuration. The resulting mode is reported back in
-        ESAD_STATE.trigger_distance_mode.
+        ESAD_STATE.trigger_distance_mode. A receiving system refuses an
+        ESAD_CONFIG whose trigger_distance_mode is
+        MAVLINK_M_ESAD_TRIG_DIST_UNKNOWN or not a listed value: it acts on none
+        of its fields and answers it once with result MAVLINK_M_ACK_FAILED and
+        ack_instance set to the esad_id the message carries.
       </description>
       <field type="uint64_t" name="time_usec"            units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
       <field type="uint8_t"  name="target_system"                  >System ID of the intended recipient. Never 0; receivers ignore an ESAD_CONFIG sent to every system.</field>
@@ -1989,7 +2101,7 @@
         optional point of interest or track to slew to.
 
         A request carries status MAVLINK_M_TASKING_UNSPECIFIED and is addressed
-        to the sensor or payload. A status response carries any other status and
+        to the sensor or payload. A status response carries another status and
         is addressed to the requester: the source system and component IDs in
         the request's frame header. A response echoes task_id and track_uid and reports the
         mode in effect in sensor_mode; receivers ignore its point-of-interest
@@ -1997,13 +2109,24 @@
         request, the sensor sends that requester a status response with
         MAVLINK_M_TASKING_INTERRUPTED, echoing the task's task_id and
         track_uid. Status responses go only to the requester.
+
+        A sensor acts on nothing in a request whose sensor_mode is not a listed
+        value, and a receiver acts on nothing in a SENSOR_TASKING whose status
+        is not a listed value, which is neither a request nor a response;
+        neither answers it or keeps it as processed, so a requester that gets
+        no status response sends its request again, unchanged, up to the number
+        of times set for the network and only while it has sent that sensor no
+        later request, and the sensor checks that copy again. A requester
+        handles a status response whose status or sensor_mode is not a listed
+        value as a response it did not receive and treats the state of that
+        task as unknown.
       </description>
       <field type="uint64_t" name="time_usec"    units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
       <field type="uint8_t"  name="target_system"           >System ID of the intended recipient: the sensor's system for a request, the requester's for a status response. Never 0, not even to cage every sensor: a STANDBY sent to every system would also cage a designator guiding a weapon already in flight. Receivers ignore a SENSOR_TASKING sent with 0.</field>
       <field type="uint8_t"  name="target_component"        >Component ID of the intended recipient within target_system: the sensor or payload for a request, the requester for a status response. 0 = every component of that system. Ignored when target_system is 0.</field>
       <field type="uint16_t" name="task_id"                 >Tasking correlation id, chosen by the requester and echoed unchanged in every status response for that task. A sensor tells tasks apart by the requester's system and component IDs together with task_id.</field>
       <field type="uint8_t"  name="sensor_mode"  enum="MAVLINK_M_SENSOR_MODE">Commanded sensor/payload mode in a request; the mode in effect in a status response.</field>
-      <field type="uint8_t"  name="status"        enum="MAVLINK_M_TASKING_STATUS">MAVLINK_M_TASKING_UNSPECIFIED in a request, any other value in a status response; this is how a receiver tells the two apart.</field>
+      <field type="uint8_t"  name="status"        enum="MAVLINK_M_TASKING_STATUS">MAVLINK_M_TASKING_UNSPECIFIED in a request, another listed value in a status response; this is how a receiver tells the two apart.</field>
       <field type="int32_t"  name="poi_lat"       units="degE7">Point-of-interest latitude to slew to, WGS84. INT32_MAX = not provided (0 is a valid coordinate).</field>
       <field type="int32_t"  name="poi_lon"       units="degE7">Point-of-interest longitude to slew to, WGS84. INT32_MAX = not provided (0 is a valid coordinate).</field>
       <field type="float"    name="poi_alt"       units="m"   >Point-of-interest altitude, MSL. NaN = not provided.</field>
@@ -2018,7 +2141,11 @@
       <description>
         Close air support 9-line brief (JP 3-09.3 / JFIRE). Descriptive tasking
         data classes for a CAS attack. Laser code is carried as a slot, never a
-        value. Danger close is a flag; RED tables are never embedded.
+        value. Danger close is a declaration (DANGER_CLOSE), never a distance;
+        RED tables are never embedded. A receiver refuses a CAS_9LINE whose
+        danger_close is not a listed value: it acts on none of its fields and
+        answers with result MAVLINK_M_ACK_FAILED and ack_instance set to
+        sequence.
       </description>
       <field type="uint64_t" name="time_usec"       units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
       <field type="uint8_t"  name="target_system"               >System ID of the intended recipient: the attacking aircraft. A flight gets the brief addressed to each of its aircraft. Never 0; receivers ignore a 9-line sent to every system.</field>
@@ -2038,7 +2165,7 @@
       <field type="int32_t"  name="friendlies_lon"  units="degE7">Line 8: friendlies longitude, WGS84.</field>
       <field type="uint16_t" name="egress_deg"      units="deg" >Line 9: egress heading.</field>
       <field type="uint16_t" name="final_attack_heading_deg" units="deg">Remarks: final attack heading (FAH). 0xFFFF if unspecified.</field>
-      <field type="uint8_t"  name="danger_close"                >Remarks: 1 = danger close / troops in contact; 0 = not.</field>
+      <field type="uint8_t"  name="danger_close"    enum="DANGER_CLOSE">Remarks: danger close / troops in contact. A receiver treats DANGER_CLOSE_UNKNOWN as DANGER_CLOSE_YES.</field>
       <field type="uint8_t"  name="delivery"        enum="MAVLINK_M_ORDNANCE_DELIVERY">Bomb-on-coordinate vs bomb-on-target.</field>
       <field type="uint8_t[16]" name="track_uid">Track UID (see TRACK_IDENTITY) of the target this brief describes. All-zero if not associated with a track.</field>
     </message>
@@ -2061,15 +2188,28 @@
         sent the brief. MAVLINK_M_CAS_ABORT and MAVLINK_M_CAS_CEASE_FIRE are
         safety actions: the aircraft acts on them on receipt from any sender,
         whatever tac_type and abort_authority_present say.
+
+        A receiver at either end refuses a TERMINAL_CONTROL whose clearance,
+        tac_type or abort_authority_present is not a listed value: it acts on
+        none of its fields, except that an aircraft still acts on
+        MAVLINK_M_CAS_ABORT or MAVLINK_M_CAS_CEASE_FIRE in clearance, shows the
+        refusal to its operator, and answers with result MAVLINK_M_ACK_FAILED
+        and ack_instance set to sequence. It records the refusal as a stop
+        (SAFETY BOUNDARIES), and an aircraft that refuses one also treats any
+        clearance it holds as withdrawn, so it acts again only on a clearance
+        issued after the refusal arrived. One sent to every system is refused
+        when its clearance is not a listed value, since a receiver acts only on
+        the clearance of such a message, and answered only by an aircraft where
+        sequence selects an attack it is making.
       </description>
       <field type="uint64_t" name="time_usec"    units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
-      <field type="uint8_t"  name="target_system"          >System ID of the intended recipient: the attacking aircraft for a clearance, the controller for an aircraft call. 0 (every system) is valid only with clearance MAVLINK_M_CAS_ABORT or MAVLINK_M_CAS_CEASE_FIRE, and a receiver acts only on that clearance in such a message; receivers ignore any other TERMINAL_CONTROL sent with 0.</field>
+      <field type="uint8_t"  name="target_system"          >System ID of the intended recipient: the attacking aircraft for a clearance, the controller for an aircraft call. 0 (every system) is valid only with clearance MAVLINK_M_CAS_ABORT or MAVLINK_M_CAS_CEASE_FIRE, and a receiver acts only on that clearance in such a message; receivers ignore any other TERMINAL_CONTROL sent with 0 whose clearance is a listed value, and refuse one whose clearance is not, as the description says.</field>
       <field type="uint8_t"  name="target_component"       >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
       <field type="uint16_t" name="sequence"               >Engagement sequence this handshake applies to: the CAS_9LINE.sequence of the brief it controls. With clearance MAVLINK_M_CAS_ABORT or MAVLINK_M_CAS_CEASE_FIRE, 0xFFFF means every attack the receiving aircraft is making.</field>
-      <field type="uint8_t"  name="tac_type"     enum="MAVLINK_M_TAC_TYPE">Type of terminal attack control (1/2/3).</field>
+      <field type="uint8_t"  name="tac_type"     enum="MAVLINK_M_TAC_TYPE">Type of terminal attack control (Type 1, 2 or 3).</field>
       <field type="uint8_t"  name="clearance"    enum="MAVLINK_M_CAS_CLEARANCE">Clearance / abort verb (human authority).</field>
       <field type="uint8_t"  name="aircraft_call" enum="MAVLINK_M_AIRCRAFT_CALL">Attacking-aircraft status call.</field>
-      <field type="uint8_t"  name="abort_authority_present"  >1 = a valid abort authority is established for this engagement; 0 = not. A precondition for MAVLINK_M_CAS_CLEARED_HOT; it never gates MAVLINK_M_CAS_ABORT or MAVLINK_M_CAS_CEASE_FIRE.</field>
+      <field type="uint8_t"  name="abort_authority_present" enum="ABORT_AUTHORITY">Whether a valid abort authority is established for this engagement. ABORT_AUTHORITY_ESTABLISHED is a precondition for MAVLINK_M_CAS_CLEARED_HOT; it never gates MAVLINK_M_CAS_ABORT or MAVLINK_M_CAS_CEASE_FIRE.</field>
     </message>
 
     <!-- ============================================================ -->
@@ -2132,6 +2272,8 @@
         except SENSOR_TASKING, which its status response answers. The
         recipient answers with one final result, and may send
         MAVLINK_M_ACK_RECEIVED first while a human decision is pending. A
+        MAVLINK_M_ACK_FAILED that refuses a commanded value its enum does not
+        list is the one answer that is not final (see that entry). A
         message sent with target_system 0 is answered only by the systems
         where it selects something, with the result of applying it there,
         each after a short random delay so that answers on a shared channel
@@ -2155,8 +2297,14 @@
         aside) as a duplicate: it does not act on it a second time, and
         answers it with its latest answer to that message, or with
         MAVLINK_M_ACK_NOT_APPLICABLE when it gave none and the repeat is
-        addressed to it. Receivers ignore an acknowledgment sent with
-        target_system 0.
+        addressed to it. A copy that differs from a message the receiver has
+        processed only in commanded fields whose values are not listed is not
+        refused: its sender gives each message with a commanded field its own
+        time_usec, so the difference can only be damage. The receiver acts on
+        nothing in it, records nothing for it and does not answer it, so its
+        answer to that message stands, and a copy its sender sends for want of
+        an answer is checked again. Receivers ignore an acknowledgment sent
+        with target_system 0.
       </description>
       <field type="uint64_t" name="time_usec"     units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
       <field type="uint64_t" name="ack_time_usec" units="us"  >time_usec of the acknowledged message, copied unchanged. Tells apart acknowledgments of different messages with the same ack_msgid and ack_instance, such as a MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE and the MAVLINK_M_ENGAGEMENT_DIRECTIVE_RESUME of the same mission.</field>
@@ -2296,9 +2444,20 @@
         system they select acts on them on receipt, once message signing
         accepts them (see SAFETY BOUNDARIES). They do not require the
         authorization trail that initiating fire does.
+
+        A receiver refuses an ENGAGEMENT_DIRECTIVE whose directive is not a
+        listed value, or that is addressed to it and carries
+        MAVLINK_M_ENGAGEMENT_DIRECTIVE_NONE: it acts on none of its fields,
+        records the refusal as a stop (SAFETY BOUNDARIES), shows the refusal
+        to any operator who acts on the directive, and answers with result
+        MAVLINK_M_ACK_FAILED and ack_instance set to sequence. One sent to
+        every system is refused the same way and answered only by a system
+        where its sequence or track_uid selects an engagement it holds; one
+        sent to every system that carries MAVLINK_M_ENGAGEMENT_DIRECTIVE_NONE
+        is not acted on, answered or kept as processed.
       </description>
       <field type="uint64_t"  name="time_usec"     units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
-      <field type="uint8_t"  name="target_system"               >System ID of the intended recipient. 0 (every system) is valid only for MAVLINK_M_ENGAGEMENT_DIRECTIVE_ABORT and MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE; receivers ignore any other directive sent with 0.</field>
+      <field type="uint8_t"  name="target_system"               >System ID of the intended recipient. 0 (every system) is valid only for MAVLINK_M_ENGAGEMENT_DIRECTIVE_ABORT and MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE; receivers ignore any other listed directive sent with 0, and refuse one whose directive is not a listed value, as the description says.</field>
       <field type="uint8_t"  name="target_component"            >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
       <field type="uint8_t[16]" name="track_uid"                >Track UID the directive applies to. All-zero if addressed by sequence only. A MAVLINK_M_ENGAGEMENT_DIRECTIVE_ABORT or MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE applies to every engagement that matches its sequence or its nonzero track_uid, whoever issued that engagement, and is never declined because one selector does not match. A MAVLINK_M_ENGAGEMENT_DIRECTIVE_RESUME or MAVLINK_M_ENGAGEMENT_DIRECTIVE_RETARGET applies only to an engagement that matches every selector it carries.</field>
       <field type="uint16_t"  name="sequence"                  >Fire mission sequence number the directive applies to. For MAVLINK_M_ENGAGEMENT_DIRECTIVE_ABORT and MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE, 0xFFFF means every fire mission the receiving system holds.</field>
@@ -2318,7 +2477,10 @@
         Complete call-for-fire method elements (ATP 3-09.30 Ch.4; maps to VMF
         K02.4). Complements FIRES (which carries target + munition/fuze) with the
         warning-order, method-of-engagement, and method-of-fire-and-control
-        elements a VMF/Link-16 packer requires. Descriptive intent only.
+        elements a VMF/Link-16 packer requires. Descriptive intent only. A
+        receiver refuses a CALL_FOR_FIRE whose control_method or danger_close
+        is not a listed value: it acts on none of its fields and answers with
+        result MAVLINK_M_ACK_FAILED and ack_instance set to sequence.
       </description>
       <field type="uint64_t" name="time_usec"       units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
       <field type="uint8_t"  name="target_system"              >System ID of the intended recipient: the fire direction center. Never 0; receivers ignore a call for fire sent to every system.</field>
@@ -2330,7 +2492,7 @@
       <field type="uint8_t"  name="trajectory"      enum="MAVLINK_M_TRAJECTORY">Low/high angle.</field>
       <field type="uint8_t"  name="sheaf"           enum="MAVLINK_M_SHEAF">Distribution / sheaf.</field>
       <field type="uint8_t"  name="control_method"  enum="MAVLINK_M_FIRE_CONTROL_METHOD">Method of fire and control.</field>
-      <field type="uint8_t"  name="danger_close"               >1 = danger close (target within doctrinal threshold of friendlies); 0 = not. Flag only, no RED table.</field>
+      <field type="uint8_t"  name="danger_close"    enum="DANGER_CLOSE">Danger close (target within doctrinal threshold of friendlies). A declaration only, no RED table. A receiver treats DANGER_CLOSE_UNKNOWN as DANGER_CLOSE_YES.</field>
       <field type="uint16_t" name="rounds"                     >Number of rounds for fire for effect. 0 = unspecified.</field>
       <field type="uint16_t" name="duration_s"      units="s"  >Duration of fire. 0 = unspecified.</field>
       <field type="uint8_t"  name="tle_category"    enum="MAVLINK_M_TLE_CATEGORY">Target-location-error category label.</field>
@@ -2421,22 +2583,42 @@
         Both ends send it. A munition sends consent_state
         MAVLINK_M_LM_CONSENT_REQUESTED addressed to the human authority for the
         engagement: the source of the FIRES or addressed
-        LOITER_MUNITION_CONTROL that tasked it against track_uid. It applies
-        MAVLINK_M_LM_CONSENT_GRANTED only from that system, and every stop from
-        any sender. consent_state and terminate carry changes, not a copy of
-        state: a sender sets them only to make that change and otherwise sends
-        MAVLINK_M_LM_CONSENT_NONE and MAVLINK_M_LM_TERMINATE_NONE, which leave
-        the munition's consent and action as they are.
+        LOITER_MUNITION_CONTROL that tasked it against track_uid. It sends one
+        only for an engagement for which it holds no consent, and records each
+        such request, at its time_usec, as a stop (SAFETY BOUNDARIES) that
+        covers only grants of consent for that engagement, so a grant issued
+        before the request is held, as the human authority shows it, and the
+        authority grants again. It applies MAVLINK_M_LM_CONSENT_GRANTED only
+        from that system, and every stop from any sender. consent_state and
+        terminate carry changes, not a copy of state: a sender sets them only
+        to make that change and otherwise sends MAVLINK_M_LM_CONSENT_NONE and
+        MAVLINK_M_LM_TERMINATE_NONE, which leave the munition's consent and
+        action as they are.
+
+        A munition refuses a LOITER_MUNITION_CONTROL whose consent_state or
+        terminate is not a listed value, also one sent with target_system 0. It
+        still applies a stop that the other of the two fields carries
+        (MAVLINK_M_LM_TERMINATE_WAVE_OFF or MAVLINK_M_LM_TERMINATE_ABORT in
+        terminate, MAVLINK_M_LM_CONSENT_WITHHELD or
+        MAVLINK_M_LM_CONSENT_WITHDRAWN in consent_state), acts on no other
+        field, ends any consent it holds, and records the refusal as a stop
+        (SAFETY BOUNDARIES), so a grant or tasking issued before the refusal
+        arrived is held; it asks the human authority for each engagement it
+        still has to decide again with MAVLINK_M_LM_CONSENT_REQUESTED. It
+        answers with result MAVLINK_M_ACK_FAILED and ack_instance 0, for one
+        sent to every system only if it holds an engagement. A human authority
+        that receives a LOITER_MUNITION_CONTROL with such a value from a
+        munition acts on none of its fields and answers it the same way.
       </description>
       <field type="uint64_t"  name="time_usec"     units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
-      <field type="uint8_t"  name="target_system"            >System ID of the intended recipient: the munition, or the human authority for a consent request. 0 (every system) is valid only to stop. From a message sent with 0, a munition applies terminate MAVLINK_M_LM_TERMINATE_WAVE_OFF or MAVLINK_M_LM_TERMINATE_ABORT and consent_state MAVLINK_M_LM_CONSENT_WITHHELD or MAVLINK_M_LM_CONSENT_WITHDRAWN, treats any other terminate or consent_state value as none, and ignores the loiter station and every other field, so after an ABORT it returns to the loiter station it already holds. It never drops the stop because the message carries something else. Receivers ignore a LOITER_MUNITION_CONTROL sent with 0 that carries no stop.</field>
+      <field type="uint8_t"  name="target_system"            >System ID of the intended recipient: the munition, or the human authority for a consent request. 0 (every system) is valid only to stop. From a message sent with 0, a munition applies terminate MAVLINK_M_LM_TERMINATE_WAVE_OFF or MAVLINK_M_LM_TERMINATE_ABORT and consent_state MAVLINK_M_LM_CONSENT_WITHHELD or MAVLINK_M_LM_CONSENT_WITHDRAWN, acts on no other terminate or consent_state value (it refuses one that is not listed, as the description says), and ignores the loiter station and every other field, so after an ABORT it returns to the loiter station it already holds. It never drops the stop because the message carries something else. Receivers ignore a LOITER_MUNITION_CONTROL sent with 0 whose consent_state and terminate are listed values and carry no stop; a munition refuses one with a value that is not listed, as the description says.</field>
       <field type="uint8_t"  name="target_component"         >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
       <field type="uint8_t[16]" name="track_uid"             >128-bit track UID of the engaged object (see TRACK_IDENTITY).</field>
       <field type="uint8_t"   name="consent_state" enum="MAVLINK_M_LM_CONSENT_STATE">Man-in-the-loop consent-to-strike state (recorded human decision, not a trigger).</field>
       <field type="uint8_t"   name="terminate"     enum="MAVLINK_M_LM_TERMINATE">Abort / wave-off / self-destruct action.</field>
       <field type="uint8_t"   name="tst_status"    enum="MAVLINK_M_TST_STATUS">Time-sensitive-target prosecution status.</field>
-      <field type="uint8_t"   name="pid_status"    enum="MAVLINK_M_PID_STATUS">Positive-identification status gate (from TRACK_IDENTITY set).</field>
-      <field type="uint8_t"   name="cde_level"     enum="MAVLINK_M_CDE_LEVEL">Collateral-damage-estimate level gate (number only).</field>
+      <field type="uint8_t"   name="pid_status"    enum="MAVLINK_M_PID_STATUS">Positive-identification status the human authority weighed for this engagement (from the TRACK_IDENTITY set). A record for display and audit, not a gate: a munition does not act on it. A change that must stop the engagement is sent as consent_state MAVLINK_M_LM_CONSENT_WITHDRAWN or as a terminate stop.</field>
+      <field type="uint8_t"   name="cde_level"     enum="MAVLINK_M_CDE_LEVEL">Collateral-damage-estimate level the human authority weighed for this engagement (number only). A record for display and audit, not a gate: a munition does not act on it. A change that must stop the engagement is sent as consent_state MAVLINK_M_LM_CONSENT_WITHDRAWN or as a terminate stop.</field>
       <field type="int32_t"   name="loiter_lat"    units="degE7">Loiter/orbit station latitude, WGS84. INT32_MAX = not provided (0 is a valid coordinate).</field>
       <field type="int32_t"   name="loiter_lon"    units="degE7">Loiter/orbit station longitude, WGS84. INT32_MAX = not provided (0 is a valid coordinate).</field>
       <field type="uint8_t"   name="dmpi_kind"     enum="MAVLINK_M_DMPI_REFERENCE_KIND">How the desired point of impact is referenced (no mensurated coordinate).</field>

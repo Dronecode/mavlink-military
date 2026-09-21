@@ -77,8 +77,9 @@ ID.
 | MAV_CMD_MAVLINK_M_STORE_RUN_BIT | 60101 | 53091 |
 | MAV_CMD_MAVLINK_M_STORE_REQUEST_STATUS | 60102 | 53092 |
 | MAV_CMD_MAVLINK_M_STORE_SET_DECEL_THRESHOLD | 60103 | 53093 |
+| MAV_CMD_MAVLINK_M_STORE_SAFE | none | 53094 |
 
-Commands are placed at `53090-53093` to keep them inside the same `53000-53099`
+Commands are placed at `53090-53094` to keep them inside the same `53000-53099`
 window as the messages.
 
 ## Reserved blocks
@@ -86,7 +87,7 @@ window as the messages.
 | Range | Use |
 | --- | --- |
 | 53062-53089 | Future shared MAVLink-M messages accepted into this dialect. |
-| 53094-53099 | Future shared MAVLink-M command entries. |
+| 53095-53099 | Future shared MAVLink-M command entries. |
 | 53109-53899 | Future shared MAVLink-M allocations as the dialect grows. |
 | 53900-53999 | Private/downstream implementor-specific messages. These are not shared IDs and require a private ICD between participating systems. |
 

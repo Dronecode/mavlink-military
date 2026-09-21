@@ -15,6 +15,8 @@
 - [Guide](guide/index.md)
   - [Message ID Allocation](guide/id_allocation.md)
   - [Private Extensions](guide/private_extensions.md)
+  - [Safety-Critical Enum Encoding](guide/status_field_encoding.md)
+  - [Refusals and Resends](guide/refusals_and_resends.md)
 - [Services](services/index.md)
   - [Generic Payload Protocol](services/generic_payload.md)
   - [Payload Catalogue Metadata](services/payload_metadata.md)
