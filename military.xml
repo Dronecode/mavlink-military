@@ -716,37 +716,42 @@
     <enum name="MAVLINK_M_ESAD_ARM_DELAY_SETTING">
       <description>
         Selected arming-delay setting: how long after the in-flight-event signal
-        the ESAD will PERMIT arming. Reports the physical switch detent position.
+        the ESAD will PERMIT arming. Reports which of the device's defined
+        arming-delay settings is selected. The delay for each setting is defined
+        in the device ICD; this enum carries only which setting is selected.
+        Setting numbers identify settings and do not imply any ordering of the
+        delays.
         This is a safety timer setting, not a fuze timing value.
         Defined values have a minimum pairwise Hamming distance of four. An
         unrecognized value must be treated as unknown and must not be
         corrected into a defined state.
       </description>
       <entry value="0"   name="MAVLINK_M_ESAD_ARM_DELAY_UNKNOWN"><description>Setting not determined.</description></entry>
-      <entry value="15"  name="MAVLINK_M_ESAD_ARM_DELAY_90S">   <description>90 second arming delay.</description></entry>
-      <entry value="51"  name="MAVLINK_M_ESAD_ARM_DELAY_60S">   <description>60 second arming delay.</description></entry>
-      <entry value="60"  name="MAVLINK_M_ESAD_ARM_DELAY_30S">   <description>30 second arming delay.</description></entry>
+      <entry value="15"  name="MAVLINK_M_ESAD_ARM_DELAY_SETTING_1"><description>Device-defined arming-delay setting 1. The delay for this setting is defined in the device ICD.</description></entry>
+      <entry value="51"  name="MAVLINK_M_ESAD_ARM_DELAY_SETTING_2"><description>Device-defined arming-delay setting 2. The delay for this setting is defined in the device ICD.</description></entry>
+      <entry value="60"  name="MAVLINK_M_ESAD_ARM_DELAY_SETTING_3"><description>Device-defined arming-delay setting 3. The delay for this setting is defined in the device ICD.</description></entry>
     </enum>
 
     <enum name="MAVLINK_M_ESAD_TRIGGER_DISTANCE_MODE">
       <description>
         Selected trigger-distance MODE for a proximity (TOF or equivalent) safe/arm
-        device: the coarse standoff detent at which the device is permitted to
+        device: the coarse standoff setting at which the device is permitted to
         function. This is a SAFE/ARM standoff SELECTION among the device's defined
         modes, NOT a settable continuous distance and NOT a fuze height-of-burst
         configuration. It must remain a coarse enum; it must never be widened to a
         free continuous distance value on the wire, which would turn the bus into a
-        fuze-configuration channel. On devices with a physical switch this reports
-        the switch position; on devices that accept ESAD_CONFIG it reports the mode
-        currently in effect.
+        fuze-configuration channel. It reports the mode currently in effect,
+        however the device selects it. The standoff for each setting is defined in
+        the device ICD. Setting numbers identify settings and do not imply any
+        ordering of the standoffs.
         Defined values have a minimum pairwise Hamming distance of four. An
         unrecognized value must not be corrected into a defined state: in
         ESAD_STATE it must be treated as unknown, and an ESAD_CONFIG carrying
         one, or carrying MAVLINK_M_ESAD_TRIG_DIST_UNKNOWN, must be rejected.
       </description>
       <entry value="0"   name="MAVLINK_M_ESAD_TRIG_DIST_UNKNOWN"><description>Mode not determined. A zero-filled or unset field decodes as this value. In ESAD_STATE it reports a mode the device has not determined; a receiver refuses an ESAD_CONFIG carrying it as it refuses a value that is not listed.</description></entry>
-      <entry value="15"  name="MAVLINK_M_ESAD_TRIG_DIST_2M">     <description>2 metre standoff mode.</description></entry>
-      <entry value="51"  name="MAVLINK_M_ESAD_TRIG_DIST_4M">     <description>4 metre standoff mode.</description></entry>
+      <entry value="15"  name="MAVLINK_M_ESAD_TRIG_DIST_STANDOFF_1"><description>Device-defined standoff setting 1. The standoff for this setting is defined in the device ICD.</description></entry>
+      <entry value="51"  name="MAVLINK_M_ESAD_TRIG_DIST_STANDOFF_2"><description>Device-defined standoff setting 2. The standoff for this setting is defined in the device ICD.</description></entry>
       <entry value="60"  name="MAVLINK_M_ESAD_TRIG_DIST_MANUAL"> <description>Manual mode (standoff governed by the platform/operator, not an auto standoff).</description></entry>
     </enum>
 
@@ -1994,8 +1999,8 @@
       <field type="uint8_t"   name="munition_type"                 >Munition/store type identifier (implementation-defined).</field>
       <field type="uint8_t"   name="store_id"                      >Store instance identifier. Fixed physical bay assignment: a bay keeps its store_id permanently, and when a store is expended the bay may be reloaded under the same store_id. IDs never renumber. 0 = not applicable / single store. This is the canonical definition of store_id across the dialect.</field>
       <field type="uint8_t"   name="pin_state"        enum="MAVLINK_M_ESAD_PIN_STATE">Physical safety pull-pin state (read-only status).</field>
-      <field type="uint8_t"   name="arm_delay_setting" enum="MAVLINK_M_ESAD_ARM_DELAY_SETTING">Selected arming-delay switch position (90/60/30 s). The chosen setting.</field>
-      <field type="int16_t"   name="arm_delay_remaining_s" units="s">Live arming-delay countdown: seconds remaining after the in-flight-event signal until arming is permitted. -1 = not counting / not applicable. Distinct from arm_delay_setting (the switch position).</field>
+      <field type="uint8_t"   name="arm_delay_setting" enum="MAVLINK_M_ESAD_ARM_DELAY_SETTING">Selected arming-delay setting. The delay for each setting is defined in the device ICD.</field>
+      <field type="int16_t"   name="arm_delay_remaining_s" units="s">Live arming-delay countdown: seconds remaining after the in-flight-event signal until arming is permitted. -1 = not counting / not applicable. Distinct from arm_delay_setting (the selected setting).</field>
       <field type="uint8_t"   name="trigger_distance_mode" enum="MAVLINK_M_ESAD_TRIGGER_DISTANCE_MODE">Trigger-distance standoff mode currently in effect (coarse selection, not a distance value).</field>
       <field type="uint8_t[16]" name="track_uid">Track UID (UUID) of the engagement this store is armed for, when applicable. Ties the armed state to a specific authorized track so a monitoring station sees "armed against track X," not merely "an ESAD is hot." All-zero if not associated with a track, and cleared to all-zero when the store is disarmed.</field>
     </message>

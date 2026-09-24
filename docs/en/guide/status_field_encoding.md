@@ -218,3 +218,6 @@ Each enum kept its relative order, which was its old sequential numbering (the f
 [MAV_CMD_MAVLINK_M_STORE_ARM](../messages/military.md#MAV_CMD_MAVLINK_M_STORE_ARM) keeps its param 2 values, 0 to safe and 1 for an arm, which receivers deny, and is deprecated in its favour.
 
 The current values are always those in `military.xml`; this page does not repeat them per enum, so the two cannot drift apart.
+
+The entries other than `UNKNOWN` and `MANUAL` of `MAVLINK_M_ESAD_ARM_DELAY_SETTING` and `MAVLINK_M_ESAD_TRIGGER_DISTANCE_MODE` are renamed to device-defined numbered settings: `MAVLINK_M_ESAD_ARM_DELAY_SETTING_1` to `_3`, and `MAVLINK_M_ESAD_TRIG_DIST_STANDOFF_1` and `_2`, with `MAVLINK_M_ESAD_TRIG_DIST_MANUAL` unchanged.
+Order is preserved, so the old entry at order index n is now `SETTING_n` or `STANDOFF_n`, and each entry's description says its delay or standoff is defined in the device ICD.
