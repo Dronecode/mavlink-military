@@ -1,0 +1,130 @@
+{
+  "profileSchemaVersion": 1,
+  "profileId": "com.example.linear-actuator",
+  "profileVersion": 1,
+  "name": "Example Linear Actuator",
+  "description": "Made-up profile for a generic single-axis actuator that moves to a commanded position. It exists to exercise the capability model and does not describe a real device.",
+  "documentationUri": "https://example.org/linear-actuator/api/",
+  "properties": [
+    {
+      "propertyId": 1,
+      "propertyKey": "com.example.linear-actuator.position",
+      "name": "Position",
+      "description": "Current position of the actuator along its travel, measured from its retracted end.",
+      "documentationUri": "https://example.org/linear-actuator/api/settings#position",
+      "valueType": "number",
+      "units": "m",
+      "minimum": 0,
+      "maximum": 0.5,
+      "readable": true,
+      "writable": false,
+      "bindings": [
+        {
+          "bindingId": 1,
+          "bindingKey": "com.example.linear-actuator.position.read",
+          "service": "payload-operation",
+          "interfaceVersion": "1",
+          "role": "read",
+          "requestMessage": "PAYLOAD_OPERATION_REQUEST",
+          "responseMessage": "PAYLOAD_OPERATION_STATUS",
+          "correlation": "requester_system_id, requester_component_id, session_id, and request_id"
+        }
+      ]
+    },
+    {
+      "propertyId": 2,
+      "propertyKey": "com.example.linear-actuator.hold-force",
+      "name": "Holding force",
+      "description": "Force the actuator applies to hold its position while no move is in progress. It does not affect a move.",
+      "documentationUri": "https://example.org/linear-actuator/api/settings#hold-force",
+      "valueType": "number",
+      "units": "N",
+      "minimum": 0,
+      "maximum": 200,
+      "readable": true,
+      "writable": true,
+      "bindings": [
+        {
+          "bindingId": 3,
+          "bindingKey": "com.example.linear-actuator.hold-force.read",
+          "service": "payload-operation",
+          "interfaceVersion": "1",
+          "role": "read",
+          "requestMessage": "PAYLOAD_OPERATION_REQUEST",
+          "responseMessage": "PAYLOAD_OPERATION_STATUS",
+          "correlation": "requester_system_id, requester_component_id, session_id, and request_id"
+        },
+        {
+          "bindingId": 4,
+          "bindingKey": "com.example.linear-actuator.hold-force.write",
+          "service": "payload-operation",
+          "interfaceVersion": "1",
+          "role": "write",
+          "requestMessage": "PAYLOAD_OPERATION_REQUEST",
+          "responseMessage": "PAYLOAD_OPERATION_STATUS",
+          "correlation": "requester_system_id, requester_component_id, session_id, and request_id"
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "actionId": 1,
+      "actionKey": "com.example.linear-actuator.move-to-position",
+      "name": "Move to Position",
+      "description": "Moves the actuator to the destination position at the requested speed and reports the position reached.",
+      "documentationUri": "https://example.org/linear-actuator/api/calls#move-to-position",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "position": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 0.5
+          },
+          "speed": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 0.1
+          }
+        },
+        "required": [
+          "position",
+          "speed"
+        ],
+        "additionalProperties": false
+      },
+      "resultSchema": {
+        "type": "object",
+        "properties": {
+          "position": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 0.5
+          }
+        },
+        "required": [
+          "position"
+        ],
+        "additionalProperties": false
+      },
+      "reporting": "progress-and-ack",
+      "lifecycleEffect": "activate",
+      "idempotent": false,
+      "cancellable": true,
+      "cancelResponseMsec": 500,
+      "bindings": [
+        {
+          "bindingId": 2,
+          "bindingKey": "com.example.linear-actuator.move-to-position.request",
+          "service": "payload-operation",
+          "interfaceVersion": "1",
+          "role": "request",
+          "requestMessage": "PAYLOAD_OPERATION_REQUEST",
+          "responseMessage": "PAYLOAD_OPERATION_STATUS",
+          "correlation": "requester_system_id, requester_component_id, session_id, and request_id"
+        }
+      ]
+    }
+  ]
+}

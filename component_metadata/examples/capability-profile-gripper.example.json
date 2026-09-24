@@ -1,0 +1,101 @@
+{
+  "profileSchemaVersion": 1,
+  "profileId": "com.example.gripper.basic",
+  "profileVersion": 2,
+  "name": "Basic gripper",
+  "description": "Grip/release action pair with the grip force carried as typed action input.",
+  "properties": [
+    {
+      "propertyId": 1,
+      "propertyKey": "grip_force_n",
+      "name": "Grip force",
+      "description": "Force applied by the most recently completed grip. Read-only: it reports the last achieved_force_n, and does not accept a separate write ahead of a grip.",
+      "valueType": "number",
+      "units": "N",
+      "minimum": 5,
+      "maximum": 150,
+      "readable": true,
+      "writable": false,
+      "bindings": [
+        {
+          "bindingId": 1,
+          "bindingKey": "grip-force-read",
+          "service": "payload-operation",
+          "interfaceVersion": "1",
+          "role": "read",
+          "requestMessage": "PAYLOAD_OPERATION_REQUEST",
+          "responseMessage": "PAYLOAD_OPERATION_STATUS",
+          "correlation": "request_id/session_id/requester identity; property_id identifies grip_force_n, binding_id this read binding"
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "actionId": 1,
+      "actionKey": "grip",
+      "name": "Grip",
+      "description": "Closes the gripper at the requested grip_force_n and reports the achieved force. The intended force is validated and applied together with execution, so no concurrent write from another client can change it in between.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "grip_force_n": {
+            "type": "number",
+            "title": "Grip force",
+            "units": "N",
+            "minimum": 5,
+            "maximum": 150
+          }
+        },
+        "required": ["grip_force_n"],
+        "additionalProperties": false
+      },
+      "resultSchema": {
+        "type": "object",
+        "properties": {
+          "achieved_force_n": { "type": "number" },
+          "closed": { "type": "boolean" }
+        },
+        "required": ["achieved_force_n", "closed"],
+        "additionalProperties": false
+      },
+      "reporting": "progress-and-ack",
+      "lifecycleEffect": "activate",
+      "cancellable": true,
+      "cancelResponseMsec": 1000,
+      "bindings": [
+        {
+          "bindingId": 2,
+          "bindingKey": "grip-action",
+          "service": "payload-operation",
+          "interfaceVersion": "1",
+          "role": "request",
+          "requestMessage": "PAYLOAD_OPERATION_REQUEST",
+          "responseMessage": "PAYLOAD_OPERATION_STATUS",
+          "correlation": "request_id/session_id/requester identity; action_id identifies grip, binding_id this binding"
+        }
+      ]
+    },
+    {
+      "actionId": 2,
+      "actionKey": "release",
+      "name": "Release",
+      "description": "Opens the gripper.",
+      "reporting": "progress-and-ack",
+      "lifecycleEffect": "activate",
+      "cancellable": false,
+      "bindings": [
+        {
+          "bindingId": 3,
+          "bindingKey": "release-action",
+          "service": "payload-operation",
+          "interfaceVersion": "1",
+          "role": "request",
+          "requestMessage": "PAYLOAD_OPERATION_REQUEST",
+          "responseMessage": "PAYLOAD_OPERATION_STATUS",
+          "correlation": "request_id/session_id/requester identity"
+        }
+      ]
+    }
+  ]
+}
