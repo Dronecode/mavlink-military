@@ -6,17 +6,37 @@ on:
     paths:
       - "military.xml"
       - ".github/workflows/generate_c_lib.yml"
+      - ".github/scripts/**"
+  pull_request:
+    paths:
+      - "military.xml"
+      - ".github/workflows/generate_c_lib.yml"
+      - ".github/scripts/**"
   workflow_dispatch:
+
+env:
+  # Pinned generator inputs. Bump these deliberately, in their own PR, so a
+  # change in the generated headers always traces back to a commit here.
+  MAVLINK_REF: 87da370c02e40f6f9a2eacf1b162d7f07e640467
+  PYMAVLINK_REF: 19880422d451de4daba3fd96781076afb1cb889c
+  C_LIBRARY_REPO: Dronecode/mavlink-military-c_library_v2
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
 
 jobs:
   generate:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout this repository
         uses: actions/checkout@v4
+        with:
+          path: source
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -27,46 +47,31 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: mavlink/mavlink
+          ref: ${{ env.MAVLINK_REF }}
           path: mavlink
-          depth: 1
 
       - name: Checkout pymavlink repository (code generator)
         uses: actions/checkout@v4
         with:
           repository: ArduPilot/pymavlink
+          ref: ${{ env.PYMAVLINK_REF }}
           path: pymavlink
-          depth: 1
 
       - name: Install pymavlink dependencies
         run: |
           pip install future lxml
 
-      - name: Place dialect definition alongside other message definitions
-        run: |
-          cp military.xml mavlink/message_definitions/v1.0/
-
       - name: Generate C headers
-        run: |
-          # --no-validate: common.xml on mavlink master currently fails the
-          # pymavlink master schema (superseded tag placement), which makes
-          # mavgen exit before generating. The dialect files themselves are
-          # schema-checked before merge.
-          python pymavlink/tools/mavgen.py \
-            --lang=C \
-            --wire-protocol=2.0 \
-            --no-validate \
-            --output=generated/include/mavlink/v2.0 \
-            mavlink/message_definitions/v1.0/military.xml
+        run: source/.github/scripts/generate_c_headers.sh source mavlink pymavlink out
 
-      - name: Commit and push generated headers
-        run: |
-          git config user.name  "auterion-ci"
-          git config user.email "ci@auterion.com"
-          git add generated/
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-          else
-            git commit -m "chore: regenerate MAVLink C headers [skip ci]"
-            git pull --rebase
-            git push
-          fi
+      - name: Checkout C library repository
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.C_LIBRARY_REPO }}
+          ssh-key: ${{ secrets.C_LIBRARY_DEPLOY_KEY }}
+          path: c_library
+
+      - name: Commit and push to C library repository
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: source/.github/scripts/publish_c_library.sh source out c_library
