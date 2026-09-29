@@ -9,4 +9,7 @@
 - [Guide](guide/index.md)
   - [Message ID Allocation](guide/id_allocation.md)
   - [Private Extensions](guide/private_extensions.md)
+- [Services](services/index.md)
+  - [Generic Payload Protocol](services/generic_payload.md)
+  - [Payload Catalogue Metadata](services/payload_metadata.md)
 - [Contributing](contributing.md)

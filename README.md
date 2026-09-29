@@ -48,8 +48,8 @@ programming of any device off the wire.
 | [`IDMAPPING.md`](IDMAPPING.md) | Message-ID allocation for the `53000-53999` range. |
 
 Message IDs are allocated as `53000-53099` for the initial shared messages,
-`53100-53110` for provisional generic payload messages, `53111-53899` for future
-shared growth, and `53900-53999` for private/downstream messages. See
+`53100-53108` for the generic payload messages, `53109-53899` for future shared
+growth, and `53900-53999` for private/downstream messages. See
 [`IDMAPPING.md`](IDMAPPING.md) for the full map.
 
 ## Using it
