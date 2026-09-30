@@ -1,0 +1,11 @@
+/* The generated message pages color MAVLink 2 extension fields with an inline
+   "color: blue" rule, which is unreadable in dark mode. Override per theme. */
+.vp-doc span.ext {
+  color: var(--vp-c-brand-1) !important;
+}
+
+/* Message and enum tables are wide; let them scroll instead of squashing. */
+.vp-doc table {
+  display: block;
+  overflow-x: auto;
+}
