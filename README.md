@@ -1,5 +1,7 @@
 # MAVLink-M
 
+**Documentation and message reference: https://dronecode.github.io/mavlink-military/**
+
 MAVLink-M is an open dialect of [MAVLink 2](https://mavlink.io) for
 coordination and situational-awareness messaging between uncrewed platforms and
 the command systems that work with them.
