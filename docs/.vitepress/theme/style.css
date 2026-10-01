@@ -4,6 +4,40 @@
   color: var(--vp-c-brand-1) !important;
 }
 
+/* Mermaid diagrams sit on the page, not in a code-block box, and scroll when
+   wider than the column. A shadow shows at each edge with more diagram beyond
+   it: the page-coloured covers move with the diagram and hide a shadow once
+   that edge is reached. */
+.vp-doc pre.mermaid {
+  --mermaid-scroll-shadow: rgba(0, 0, 0, 0.2);
+  margin: 16px 0;
+  overflow-x: auto;
+  background:
+    linear-gradient(to right, var(--vp-c-bg) 30%, transparent) left / 40px 100% no-repeat local,
+    linear-gradient(to left, var(--vp-c-bg) 30%, transparent) right / 40px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, var(--mermaid-scroll-shadow), transparent) left / 14px
+      100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, var(--mermaid-scroll-shadow), transparent) right /
+      14px 100% no-repeat scroll;
+}
+
+.dark .vp-doc pre.mermaid {
+  --mermaid-scroll-shadow: rgba(255, 255, 255, 0.2);
+}
+
+/* The base styles make an SVG a block, so centre it with margins. A diagram
+   wider than the column still scrolls from its left edge. */
+.vp-doc pre.mermaid svg {
+  margin: 0 auto;
+}
+
+/* At 1280px and wider the outline column comes before the content, so Chrome
+   would anchor scrolling on it and push the reader down as diagrams above the
+   view are drawn. Keep it out of scroll anchoring. */
+.VPDoc .aside {
+  overflow-anchor: none;
+}
+
 /* Message and enum tables are wide; let them scroll instead of squashing. */
 .vp-doc table {
   display: block;

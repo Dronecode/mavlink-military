@@ -24,7 +24,12 @@ wire-breaking, and the rules for AI-assisted contributions are in
 The site is built with [VitePress](https://vitepress.dev) from the `docs/`
 directory. Hand-written pages live in `docs/en/`, and the sidebar is defined in
 `docs/en/SUMMARY.md`. The message reference pages are generated from
-`military.xml` and are not checked in.
+`military.xml` and are not checked in. Diagrams are written as `mermaid`
+code fences and drawn in the browser; mermaid is loaded only on pages that
+have one. Only plain `mermaid` fences are drawn, and the build doesn't check
+diagrams, so preview them with `npm run docs:dev`. Mermaid wraps the labels of
+`loop`, `alt` and similar boxes to fit the box and splits a name that is too
+long for it with a hyphen, so break long labels yourself with `<br/>`.
 
 ```sh
 cd docs

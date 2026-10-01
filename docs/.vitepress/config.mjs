@@ -21,6 +21,20 @@ export default defineConfig({
 
   head: [["link", { rel: "icon", href: `${base}favicon.svg`, type: "image/svg+xml" }]],
 
+  // Render ```mermaid fences as <pre class="mermaid"> for the theme to draw in
+  // the browser, instead of highlighting them as code. v-pre keeps Vue from
+  // reading braces in a diagram as template syntax.
+  markdown: {
+    config(md) {
+      const fence = md.renderer.rules.fence;
+      md.renderer.rules.fence = (tokens, idx, options, env, self) => {
+        const token = tokens[idx];
+        if (token.info.trim() !== "mermaid") return fence(tokens, idx, options, env, self);
+        return `<pre class="mermaid" tabindex="0" v-pre>${md.utils.escapeHtml(token.content)}</pre>\n`;
+      };
+    },
+  },
+
   themeConfig: {
     siteTitle: "MAVLink-M",
     sidebar: sidebar("en"),
