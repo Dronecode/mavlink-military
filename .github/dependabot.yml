@@ -1,0 +1,29 @@
+# Keeps the SHA-pinned actions current with one grouped pull request a
+# month, a week after a release at the earliest. The mavlink and
+# pymavlink pins are MAVLINK_REF and PYMAVLINK_REF in
+# .github/mavlink-pins.env; dependabot can't see them, so
+# they move by hand, together, in a pull request whose checks pass.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  # Composite actions are scanned per-directory, not via the workflows.
+  - package-ecosystem: "github-actions"
+    directory: "/.github/actions/setup-mavlink-tooling"
+    schedule:
+      interval: "monthly"
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns:
+          - "*"

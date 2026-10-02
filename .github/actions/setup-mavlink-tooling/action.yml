@@ -1,0 +1,55 @@
+name: Set up MAVLink generation tooling
+description: >-
+  Check out mavlink/mavlink (upstream message definitions) and pymavlink
+  (the generator) at the commits that .github/mavlink-pins.env pins as
+  MAVLINK_REF and PYMAVLINK_REF, install the generator's dependencies,
+  and place this repository's dialect files beside the upstream
+  definitions so includes resolve. Reading the pins from that one file
+  keeps everything generated from this repository on the same commits.
+
+inputs:
+  python-version:
+    description: Python version used for the generator
+    required: false
+    default: "3.x"
+
+runs:
+  using: composite
+  steps:
+    - name: Read the generator pins
+      id: pins
+      shell: bash
+      run: .github/scripts/generate_c_lib/read_pins.sh .github/mavlink-pins.env >> "$GITHUB_OUTPUT"
+
+    - name: Set up Python
+      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Check out mavlink/mavlink (upstream message definitions)
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        repository: mavlink/mavlink
+        ref: ${{ steps.pins.outputs.mavlink }}
+        path: mavlink
+        # scripts/ holds check_api_break.py, which the wire-compat job runs.
+        sparse-checkout: |
+          message_definitions/v1.0
+          scripts
+        persist-credentials: false
+
+    - name: Check out pymavlink (generator)
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        repository: ArduPilot/pymavlink
+        ref: ${{ steps.pins.outputs.pymavlink }}
+        path: pymavlink
+        persist-credentials: false
+
+    - name: Install generator dependencies
+      shell: bash
+      run: python3 -m pip install --quiet future lxml
+
+    - name: Place the dialect beside the upstream definitions
+      shell: bash
+      run: cp military.xml military_extensions.xml mavlink/message_definitions/v1.0/

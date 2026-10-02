@@ -3,7 +3,7 @@
 
 Uses the upstream MAVLink markdown generator (mavlink/doc/mavlink_xml_to_markdown.py),
 the same one that produces https://mavlink.io/en/messages/, pinned to the
-MAVLINK_REF used for the C headers in .github/workflows/generate_c_lib.yml.
+MAVLINK_REF pinned in .github/mavlink-pins.env, the commit the C headers use.
 
 Usage:
     generate_messages.py [--mavlink-dir DIR]
@@ -49,11 +49,11 @@ Entities included from [common.xml](common.md) are listed as headings only, with
 
 
 def pinned_ref():
-    wf = os.path.join(ROOT, ".github", "workflows", "generate_c_lib.yml")
-    with open(wf) as f:
-        m = re.search(r"^\s*MAVLINK_REF:\s*(\S+)", f.read(), re.M)
+    pins = os.path.join(ROOT, ".github", "mavlink-pins.env")
+    with open(pins) as f:
+        m = re.search(r"^MAVLINK_REF=([0-9a-f]{40})$", f.read(), re.M)
     if not m:
-        sys.exit(f"MAVLINK_REF not found in {wf}")
+        sys.exit(f"MAVLINK_REF not found in {pins}")
     return m.group(1)
 
 
