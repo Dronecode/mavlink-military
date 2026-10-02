@@ -1647,18 +1647,27 @@
     <message id="53061" name="TERMINAL_CONTROL">
       <description>
         Terminal-attack-control handshake (JP 3-09.3). Carries the control type,
-        the human clearance/abort verb, and attacking-aircraft status calls. This
-        is a human-authority instrument: clearance verbs record a human decision
-        and must not be wired as an automated release path.
+        the clearance or abort verb, and attacking-aircraft status calls. Both
+        ends send it. The controller sends clearance, addressed to the attacking
+        aircraft, with aircraft_call MAVLINK_M_ACFT_CALL_NONE. The aircraft
+        sends aircraft_call, addressed to the controller (the source of the
+        CAS_9LINE with this sequence), with clearance MAVLINK_M_CAS_NONE, so a
+        report is never read as a clearance or an abort.
+        MAVLINK_M_CAS_CONTINUE and MAVLINK_M_CAS_CLEARED_HOT are human-authority
+        instruments: they record a human decision, must not be wired as an
+        automated release path, and are acted on only from the controller that
+        sent the brief. MAVLINK_M_CAS_ABORT and MAVLINK_M_CAS_CEASE_FIRE are
+        safety actions: the aircraft acts on them on receipt from any sender,
+        whatever tac_type and abort_authority_present say.
       </description>
       <field type="uint64_t" name="time_usec"    units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
-      <field type="uint8_t"  name="target_system"          >System ID of the intended recipient. 0 (every system) is valid only with clearance MAVLINK_M_CAS_ABORT or MAVLINK_M_CAS_CEASE_FIRE, and a receiver acts only on that clearance in such a message; receivers ignore any other TERMINAL_CONTROL sent with 0.</field>
+      <field type="uint8_t"  name="target_system"          >System ID of the intended recipient: the attacking aircraft for a clearance, the controller for an aircraft call. 0 (every system) is valid only with clearance MAVLINK_M_CAS_ABORT or MAVLINK_M_CAS_CEASE_FIRE, and a receiver acts only on that clearance in such a message; receivers ignore any other TERMINAL_CONTROL sent with 0.</field>
       <field type="uint8_t"  name="target_component"       >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
       <field type="uint16_t" name="sequence"               >Engagement sequence this handshake applies to: the CAS_9LINE.sequence of the brief it controls. With clearance MAVLINK_M_CAS_ABORT or MAVLINK_M_CAS_CEASE_FIRE, 0xFFFF means every attack the receiving aircraft is making.</field>
       <field type="uint8_t"  name="tac_type"     enum="MAVLINK_M_TAC_TYPE">Type of terminal attack control (1/2/3).</field>
       <field type="uint8_t"  name="clearance"    enum="MAVLINK_M_CAS_CLEARANCE">Clearance / abort verb (human authority).</field>
       <field type="uint8_t"  name="aircraft_call" enum="MAVLINK_M_AIRCRAFT_CALL">Attacking-aircraft status call.</field>
-      <field type="uint8_t"  name="abort_authority_present"  >1 = a valid abort authority is established for this engagement; 0 = not.</field>
+      <field type="uint8_t"  name="abort_authority_present"  >1 = a valid abort authority is established for this engagement; 0 = not. A precondition for MAVLINK_M_CAS_CLEARED_HOT; it never gates MAVLINK_M_CAS_ABORT or MAVLINK_M_CAS_CEASE_FIRE.</field>
     </message>
 
     <!-- ============================================================ -->
@@ -1989,9 +1998,19 @@
         and MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE as
         MAVLINK_M_LM_TERMINATE_WAVE_OFF held until a
         MAVLINK_M_ENGAGEMENT_DIRECTIVE_RESUME.
+
+        Both ends send it. A munition sends consent_state
+        MAVLINK_M_LM_CONSENT_REQUESTED addressed to the human authority for the
+        engagement: the source of the FIRES or addressed
+        LOITER_MUNITION_CONTROL that tasked it against track_uid. It applies
+        MAVLINK_M_LM_CONSENT_GRANTED only from that system, and every stop from
+        any sender. consent_state and terminate carry changes, not a copy of
+        state: a sender sets them only to make that change and otherwise sends
+        MAVLINK_M_LM_CONSENT_NONE and MAVLINK_M_LM_TERMINATE_NONE, which leave
+        the munition's consent and action as they are.
       </description>
       <field type="uint64_t"  name="time_usec"     units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
-      <field type="uint8_t"  name="target_system"            >System ID of the intended recipient. 0 (every system) is valid only to stop. From a message sent with 0, a munition applies terminate MAVLINK_M_LM_TERMINATE_WAVE_OFF or MAVLINK_M_LM_TERMINATE_ABORT and consent_state MAVLINK_M_LM_CONSENT_WITHHELD or MAVLINK_M_LM_CONSENT_WITHDRAWN, treats any other terminate or consent_state value as none, and ignores the loiter station and every other field, so after an ABORT it returns to the loiter station it already holds. It never drops the stop because the message carries something else. Receivers ignore a LOITER_MUNITION_CONTROL sent with 0 that carries no stop.</field>
+      <field type="uint8_t"  name="target_system"            >System ID of the intended recipient: the munition, or the human authority for a consent request. 0 (every system) is valid only to stop. From a message sent with 0, a munition applies terminate MAVLINK_M_LM_TERMINATE_WAVE_OFF or MAVLINK_M_LM_TERMINATE_ABORT and consent_state MAVLINK_M_LM_CONSENT_WITHHELD or MAVLINK_M_LM_CONSENT_WITHDRAWN, treats any other terminate or consent_state value as none, and ignores the loiter station and every other field, so after an ABORT it returns to the loiter station it already holds. It never drops the stop because the message carries something else. Receivers ignore a LOITER_MUNITION_CONTROL sent with 0 that carries no stop.</field>
       <field type="uint8_t"  name="target_component"         >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
       <field type="uint8_t[16]" name="track_uid"             >128-bit track UID of the engaged object (see TRACK_IDENTITY).</field>
       <field type="uint8_t"   name="consent_state" enum="MAVLINK_M_LM_CONSENT_STATE">Man-in-the-loop consent-to-strike state (recorded human decision, not a trigger).</field>
