@@ -1787,7 +1787,7 @@
       <field type="int32_t"   name="retarget_lon" units="degE7">New target longitude for RETARGET, WGS84. INT32_MAX = not provided. Ignored unless directive is RETARGET.</field>
       <field type="float"     name="retarget_alt" units="m"    >New target altitude for RETARGET, MSL. NaN = not provided. Ignored unless directive is RETARGET.</field>
       <field type="uint8_t"   name="directive"    enum="MAVLINK_M_ENGAGEMENT_DIRECTIVE">Directive type.</field>
-      <field type="uint8_t"   name="origin_sysid"              >System ID issuing the directive.</field>
+      <field type="uint8_t"   name="origin_sysid"              >System ID of the system that first issued the directive. A system that passes the directive on as a message of its own keeps this value, so it can differ from the source system ID in the frame header; routers never change either. Not authenticated: for display and audit, never a reason to act or not to act on the directive.</field>
     </message>
 
     <!-- ============================================================ -->
