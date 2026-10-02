@@ -66,8 +66,43 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Set up MAVLink generation tooling
+        # check_wire_compat.py, and so its tests, import pymavlink's parser.
+        uses: ./.github/actions/setup-mavlink-tooling
+
       - name: Run the unit tests of the check scripts
+        env:
+          PYTHONPATH: ${{ github.workspace }}
         run: python3 -m unittest discover --start-directory .github/scripts/validate_dialect/tests --verbose
+
+  wire-compat:
+    name: Wire-compatibility report
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # The report only informs: the dialect is still changing, and whether
+      # a message may break is for the reviewers to decide. Set this to "1"
+      # to make it fail once message IDs are frozen.
+      WIRE_COMPAT_ENFORCE: "0"
+    steps:
+      - name: Check out this repository (full history for the base)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up MAVLink generation tooling
+        uses: ./.github/actions/setup-mavlink-tooling
+
+      - name: Compare wire identity against the PR base
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git show "${BASE_SHA}:military.xml" > "${RUNNER_TEMP}/base_military.xml"
+          python3 .github/scripts/validate_dialect/check_wire_compat.py \
+            "${RUNNER_TEMP}/base_military.xml" military.xml
 
   generate-c:
     name: Generate and compile C
