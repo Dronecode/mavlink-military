@@ -17,6 +17,15 @@ license. Add it with `-s`:
 git commit -s
 ```
 
+Sign off with your real name and a real email address where you can be
+reached. Pseudonyms, handles, anonymous and noreply addresses are not
+accepted. `git commit -s` writes whatever `git config user.name` and
+`user.email` are set to, so check those first:
+
+```
+Signed-off-by: Jane Doe <jane.doe@example.com>
+```
+
 The sign-off name and email must match the commit author. The DCO check on
 pull requests blocks merging until every commit is signed off. To fix a branch
 after the fact:
