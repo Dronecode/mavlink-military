@@ -109,6 +109,15 @@ class PublishCLibraryTest(unittest.TestCase):
         self.assertEqual(self.published(FIRES), NEW_CRC)
         self.assertEqual(self.published("military/version.h"), NEW_DATE)
 
+    def test_a_new_build_date_alone_publishes_nothing(self) -> None:
+        write(self.out / FIRES, OLD_CRC)
+        write(self.out / "military/old.h", "/* a header the generator no longer writes */\n")
+        before = git(self.bare, "rev-parse", "main")
+        result = self.publish()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("No changes to commit.", result.stdout)
+        self.assertEqual(git(self.bare, "rev-parse", "main"), before)
+
     def test_headers_the_library_holds_publish_nothing(self) -> None:
         write(self.out / "military/version.h", OLD_DATE)
         write(self.out / FIRES, OLD_CRC)

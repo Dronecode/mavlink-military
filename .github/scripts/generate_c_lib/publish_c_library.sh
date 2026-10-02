@@ -55,7 +55,10 @@ cd "$c_library_dir"
 git config user.name "github-actions[bot]"
 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 git add --all
-if git diff --cached --quiet; then
+# mavgen stamps the generation date into every version.h, so headers
+# regenerated on another day differ in that line alone; that is no reason
+# to publish.
+if git diff --cached --quiet -I '^#define MAVLINK_BUILD_DATE '; then
 	echo "No changes to commit."
 	exit 0
 fi
