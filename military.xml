@@ -718,6 +718,7 @@
       <entry value="3" name="MAVLINK_M_ACK_UNSUPPORTED"><description>Message type or requested action is not supported by the recipient.</description></entry>
       <entry value="4" name="MAVLINK_M_ACK_FAILED">     <description>Message was received but processing failed (e.g. malformed or stale).</description></entry>
       <entry value="5" name="MAVLINK_M_ACK_EXPIRED">    <description>Message was received after its validity window had passed.</description></entry>
+      <entry value="6" name="MAVLINK_M_ACK_NOT_APPLICABLE"><description>Message was received, and nothing on this system is what it applies to, for example a stop sent to every system for an engagement this system does not hold. A final result.</description></entry>
     </enum>
 
     <!-- ===== multi-store logistics drop ===== -->
@@ -1694,14 +1695,29 @@
         Generic acknowledgment for MAVLink-M messages. A recipient emits this in
         response to an acknowledged MAVLink-M message to close the loop on
         delivery and acceptance, addressed to the system and component that
-        sent that message. Keyed by the acknowledged message ID plus an
-        instance identifier (e.g. cue_id, target_set_id, or sequence) so the
-        originator can match the ACK to the specific item. The acknowledging
-        system identifies itself in the MAVLink frame header.
+        sent that message. Keyed by the acknowledged message ID, an instance
+        identifier (e.g. cue_id, target_set_id, or sequence) and that
+        message's time_usec, so the originator can match the ACK to the one
+        message it answers. The acknowledging system identifies itself in the
+        MAVLink frame header.
+
+        Every MAVLink-M message that carries target_system is acknowledged,
+        except SENSOR_TASKING, which its status response answers. The
+        recipient answers with one final result, and may send
+        MAVLINK_M_ACK_RECEIVED first while a human decision is pending. A
+        message sent with target_system 0 is answered by every system that
+        receives it, with MAVLINK_M_ACK_NOT_APPLICABLE where nothing on that
+        system is what it applies to. A sender that gets no acknowledgment may
+        send the message again unchanged, time_usec included. A receiver
+        treats a repeat of a message it has processed (same source system and
+        component, message ID and time_usec) as a duplicate: it answers it
+        again and does not act on it a second time. Receivers ignore an
+        acknowledgment sent with target_system 0.
       </description>
       <field type="uint64_t" name="time_usec"     units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint64_t" name="ack_time_usec" units="us"  >time_usec of the acknowledged message, copied unchanged. Tells apart acknowledgments of different messages with the same ack_msgid and ack_instance, such as a MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE and the MAVLINK_M_ENGAGEMENT_DIRECTIVE_RESUME of the same mission.</field>
       <field type="uint8_t"  name="target_system"              >System ID of the recipient: the source system ID in the frame header of the acknowledged message, not that message's own target_system. Never 0.</field>
-      <field type="uint8_t"  name="target_component"           >Component ID of the recipient: the source component ID in the frame header of the acknowledged message. Never 0.</field>
+      <field type="uint8_t"  name="target_component"           >Component ID of the recipient: the source component ID in the frame header of the acknowledged message, not that message's own target_component. Never 0.</field>
       <field type="uint32_t" name="ack_msgid"                  >MAVLink message ID being acknowledged (e.g. 53001 for TARGET_CUE).</field>
       <field type="uint32_t" name="ack_instance"               >Instance identifier of the acknowledged item (e.g. cue_id / target_set_id / sequence). 0 if not applicable.</field>
       <field type="uint8_t"  name="result"        enum="MAVLINK_M_ACK_RESULT">Result of receiving/processing the acknowledged message.</field>
