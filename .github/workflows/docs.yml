@@ -11,6 +11,7 @@ on:
       - "IDMAPPING.md"
       - ".github/workflows/docs.yml"
       - ".github/mavlink-pins.env"
+      - ".github/scripts/docs/**"
   pull_request:
     paths:
       - "docs/**"
@@ -18,6 +19,7 @@ on:
       - "IDMAPPING.md"
       - ".github/workflows/docs.yml"
       - ".github/mavlink-pins.env"
+      - ".github/scripts/docs/**"
   workflow_dispatch:
 
 concurrency:
@@ -63,12 +65,22 @@ jobs:
           pip install beautifulsoup4 lxml
           npm ci
 
+      - name: Test the site checks
+        run: |
+          python3 -m unittest discover --start-directory scripts/tests --verbose
+          python3 -m unittest discover --start-directory ../.github/scripts/docs/tests --verbose
+
       # Generated at the MAVLINK_REF pinned in .github/mavlink-pins.env.
       - name: Generate message reference
         run: npm run docs:messages
 
       - name: Build
         run: npm run docs:build
+
+      # Every sitemap URL under the site address, and no dead link or anchor
+      # on a hand-written page; dead anchors in the generated reference warn.
+      - name: Check the built site
+        run: npm run docs:check
 
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
@@ -81,6 +93,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
+      contents: read # checks out the site check script
       pages: write # deploy-pages publishes the built site to GitHub Pages
       id-token: write # and proves the deployment's origin with an OIDC token
     environment:
@@ -89,3 +102,16 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+
+      - name: Check out the site check
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts/docs
+
+      - name: Check the deployed site
+        # The site is live once deploy-pages returns, but the CDN can lag,
+        # so each request retries.
+        env:
+          SITE: ${{ steps.deployment.outputs.page_url }}
+        run: .github/scripts/docs/check_deployed_site.sh "$SITE"
