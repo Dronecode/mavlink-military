@@ -1271,6 +1271,7 @@
       <entry value="2" name="MAVLINK_M_TASKING_REJECTED"><description>Tasking rejected (unable/ineligible).</description></entry>
       <entry value="3" name="MAVLINK_M_TASKING_COMPLETE"><description>Tasking complete.</description></entry>
       <entry value="4" name="MAVLINK_M_TASKING_ACTIVE">   <description>Tasking in progress.</description></entry>
+      <entry value="5" name="MAVLINK_M_TASKING_INTERRUPTED"><description>Tasking ended before completion for a reason its requester did not cause: another request took the sensor, or the sensor lost the track it was following. Sent to the requester of the interrupted task.</description></entry>
     </enum>
 
   </enums>
@@ -1594,12 +1595,15 @@
         is addressed to the requester: the source system and component IDs in
         the request's frame header. A response echoes task_id and track_uid and reports the
         mode in effect in sensor_mode; receivers ignore its point-of-interest
-        fields.
+        fields. When a task ends for any reason other than its requester's own
+        request, the sensor sends that requester a status response with
+        MAVLINK_M_TASKING_INTERRUPTED, echoing the task's task_id and
+        track_uid. Status responses go only to the requester.
       </description>
       <field type="uint64_t" name="time_usec"    units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
       <field type="uint8_t"  name="target_system"           >System ID of the intended recipient: the sensor's system for a request, the requester's for a status response. Never 0, not even to cage every sensor: a STANDBY sent to every system would also cage a designator guiding a weapon already in flight. Receivers ignore a SENSOR_TASKING sent with 0.</field>
       <field type="uint8_t"  name="target_component"        >Component ID of the intended recipient within target_system: the sensor or payload for a request, the requester for a status response. 0 = every component of that system. Ignored when target_system is 0.</field>
-      <field type="uint16_t" name="task_id"                 >Tasking correlation id (echoed in the status response).</field>
+      <field type="uint16_t" name="task_id"                 >Tasking correlation id, chosen by the requester and echoed unchanged in every status response for that task. A sensor tells tasks apart by the requester's system and component IDs together with task_id.</field>
       <field type="uint8_t"  name="sensor_mode"  enum="MAVLINK_M_SENSOR_MODE">Commanded sensor/payload mode in a request; the mode in effect in a status response.</field>
       <field type="uint8_t"  name="status"        enum="MAVLINK_M_TASKING_STATUS">MAVLINK_M_TASKING_UNSPECIFIED in a request, any other value in a status response; this is how a receiver tells the two apart.</field>
       <field type="int32_t"  name="poi_lat"       units="degE7">Point-of-interest latitude to slew to, WGS84. INT32_MAX = not provided (0 is a valid coordinate).</field>
