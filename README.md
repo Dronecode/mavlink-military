@@ -75,6 +75,8 @@ messages to a peripheral — see
 The `53000-53099` allocation is active for this dialect. Message IDs are stable
 once assigned. To propose a new shared message or a change, open a pull request
 against `military.xml`; keep additions within the scope and boundaries above.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the commit format, the DCO sign-off,
+and review expectations.
 
 ## License
 

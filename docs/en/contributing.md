@@ -15,6 +15,10 @@ same PR).
 CI regenerates the C headers on every pull request that touches the XML, so a
 schema error shows up before review.
 
+Commit and PR title format, the DCO sign-off, what makes a change
+wire-breaking, and the rules for AI-assisted contributions are in
+[CONTRIBUTING.md](https://github.com/Dronecode/mavlink-military/blob/main/CONTRIBUTING.md).
+
 ## Improving these docs
 
 The site is built with [VitePress](https://vitepress.dev) from the `docs/`
