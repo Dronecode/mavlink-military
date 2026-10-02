@@ -132,6 +132,10 @@
     - Two-state fields use a plain uint8 boolean for permanently-binary facts and
       an enum where the field is a category that could gain a third value and
       benefits from an explicit UNSPECIFIED state.
+    - Two enums keep 0 as an action, MAVLINK_M_ENGAGEMENT_DIRECTIVE_ABORT and
+      MAVLINK_M_ESAD_REQUEST_DISARM, so a zero-filled ENGAGEMENT_DIRECTIVE or
+      ESAD_ARMING is a valid stop sent to every system. Both fail toward safe;
+      a sender never transmits an unset message.
 
   COORDINATE DATUM
     All altitudes are MSL (mean sea level). Joint networks often pass targeting
@@ -210,6 +214,18 @@
       cannot read to every link.
 
   SAFETY BOUNDARIES (normative for implementers)
+    - ENGAGEMENT_DIRECTIVE ABORT and CHECK_FIRE are the common stop. Every
+      system that can engage, release or guide a weapon acts on them for the
+      engagements they select, whatever message tasked it, as well as on the
+      stop values of that message. A sender or gateway that does not know
+      which message an engagement uses sends ENGAGEMENT_DIRECTIVE.
+    - Stops win over starts. For one engagement, a receiver ignores a
+      directive that starts, arms, grants, clears or resumes when its
+      time_usec is not later than that of the last stop it acted on for that
+      engagement, so a delayed RESUME cannot undo a later CHECK_FIRE. It may
+      reject such a directive when its time_usec is older than the maximum
+      age it is configured with, answering MAVLINK_M_ACK_EXPIRED, and never
+      rejects a stop for age.
     - TARGET_AUTHORIZATION is a descriptive record and MUST NOT be treated as a
       release interlock. Release authority resides in the crewed C2 system.
       Token anti-spoofing is a C2 / gateway / secure-enclave responsibility.
@@ -717,7 +733,7 @@
       <entry value="2" name="MAVLINK_M_ACK_REJECTED">   <description>Message was received but rejected (e.g. operator declined the cue).</description></entry>
       <entry value="3" name="MAVLINK_M_ACK_UNSUPPORTED"><description>Message type or requested action is not supported by the recipient.</description></entry>
       <entry value="4" name="MAVLINK_M_ACK_FAILED">     <description>Message was received but processing failed (e.g. malformed or stale).</description></entry>
-      <entry value="5" name="MAVLINK_M_ACK_EXPIRED">    <description>Message was received after its validity window had passed.</description></entry>
+      <entry value="5" name="MAVLINK_M_ACK_EXPIRED">    <description>Message was received after its validity window had passed: a directive that starts, arms, grants, clears or resumes whose time_usec is older than the maximum age the receiving system is configured with. A stop is never rejected for age.</description></entry>
       <entry value="6" name="MAVLINK_M_ACK_NOT_APPLICABLE"><description>Message was received, and nothing on this system is what it applies to, for example a stop sent to every system for an engagement this system does not hold. A final result.</description></entry>
     </enum>
 
@@ -1348,7 +1364,7 @@
       <field type="int32_t"  name="lon"               units="degE7">Target longitude, WGS84.</field>
       <field type="float"    name="alt"               units="m"   >Target altitude, MSL.</field>
       <field type="uint32_t" name="effector_id"                   >Identifier of the assigned effector.</field>
-      <field type="uint16_t" name="sequence"                      >Fire mission sequence number.</field>
+      <field type="uint16_t" name="sequence"                      >Fire mission sequence number, chosen by the issuer. 0xFFFF is reserved: in a stop it means every fire mission.</field>
       <field type="float"    name="cep_expected"       units="m"  >Expected circular error probable at impact.</field>
       <field type="uint16_t" name="prf_code"                      >Laser designator PRF code for SAL weapons (e.g. 1111-1788). 0 = no laser code assigned.</field>
       <field type="uint8_t"  name="store_id"                      >Target store/bay on a multi-store carrier. 0 = system default / vehicle itself (e.g. OWA).</field>
@@ -1379,7 +1395,7 @@
       <field type="int32_t"  name="lat"           units="degE7">Observed splash latitude, WGS84.</field>
       <field type="int32_t"  name="lon"           units="degE7">Observed splash longitude, WGS84.</field>
       <field type="float"    name="alt"           units="m"   >Observed splash altitude, MSL.</field>
-      <field type="uint16_t" name="sequence"                  >Fire mission sequence number this correction applies to.</field>
+      <field type="uint16_t" name="sequence"                  >Fire mission sequence number this correction applies to. With command MAVLINK_M_FMC_CHECK_FIRING or MAVLINK_M_FMC_CEASE_LOADING, 0xFFFF means every fire mission the receiving system holds.</field>
       <field type="uint8_t"  name="type_detected">Coarse splash detector cue (implementation-defined; e.g. 0=unknown, 1=smoke, 2=explosion). Doctrinal observed-fire adjustment is carried by deviation, range_spot, hob, impact_surface, and obscuration.</field>
       <field type="float"    name="cep_expected"  units="m"   >Estimated CEP of the observed splash.</field>
       <field type="uint8_t"  name="deviation"     enum="MAVLINK_M_SPLASH_DEVIATION">Deviation spotting relative to the observer-target line.</field>
@@ -1605,7 +1621,7 @@
       <field type="uint64_t" name="time_usec"       units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
       <field type="uint8_t"  name="target_system"               >System ID of the intended recipient: the attacking aircraft. A flight gets the brief addressed to each of its aircraft. Never 0; receivers ignore a 9-line sent to every system.</field>
       <field type="uint8_t"  name="target_component"            >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
-      <field type="uint16_t" name="sequence"                    >Engagement sequence of this brief. TERMINAL_CONTROL.sequence refers to it.</field>
+      <field type="uint16_t" name="sequence"                    >Engagement sequence of this brief, chosen by its sender. TERMINAL_CONTROL.sequence refers to it. 0xFFFF is reserved: in a stop it means every brief.</field>
       <field type="int32_t"  name="ip_lat"          units="degE7">Line 1: initial point / battle position latitude, WGS84.</field>
       <field type="int32_t"  name="ip_lon"          units="degE7">Line 1: initial point / battle position longitude, WGS84.</field>
       <field type="uint16_t" name="heading_deg"     units="deg" >Line 2: heading (IP to target).</field>
@@ -1638,7 +1654,7 @@
       <field type="uint64_t" name="time_usec"    units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
       <field type="uint8_t"  name="target_system"          >System ID of the intended recipient. 0 (every system) is valid only with clearance MAVLINK_M_CAS_ABORT or MAVLINK_M_CAS_CEASE_FIRE, and a receiver acts only on that clearance in such a message; receivers ignore any other TERMINAL_CONTROL sent with 0.</field>
       <field type="uint8_t"  name="target_component"       >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
-      <field type="uint16_t" name="sequence"               >Engagement sequence this handshake applies to: the CAS_9LINE.sequence of the brief it controls.</field>
+      <field type="uint16_t" name="sequence"               >Engagement sequence this handshake applies to: the CAS_9LINE.sequence of the brief it controls. With clearance MAVLINK_M_CAS_ABORT or MAVLINK_M_CAS_CEASE_FIRE, 0xFFFF means every attack the receiving aircraft is making.</field>
       <field type="uint8_t"  name="tac_type"     enum="MAVLINK_M_TAC_TYPE">Type of terminal attack control (1/2/3).</field>
       <field type="uint8_t"  name="clearance"    enum="MAVLINK_M_CAS_CLEARANCE">Clearance / abort verb (human authority).</field>
       <field type="uint8_t"  name="aircraft_call" enum="MAVLINK_M_AIRCRAFT_CALL">Attacking-aircraft status call.</field>
@@ -1847,14 +1863,17 @@
         MAVLINK_M_ACK so the originator gets positive confirmation the directive
         was received and actioned.
 
-        ABORT and CHECK_FIRE are safety actions and should be honored on receipt;
-        they do not require the authorization trail that initiating fire does.
+        MAVLINK_M_ENGAGEMENT_DIRECTIVE_ABORT and
+        MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE are safety actions: every
+        system they select acts on them on receipt, once the link's message
+        signing, where it is used, accepts them. They do not require the
+        authorization trail that initiating fire does.
       </description>
       <field type="uint64_t"  name="time_usec"     units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
       <field type="uint8_t"  name="target_system"               >System ID of the intended recipient. 0 (every system) is valid only for MAVLINK_M_ENGAGEMENT_DIRECTIVE_ABORT and MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE; receivers ignore any other directive sent with 0.</field>
       <field type="uint8_t"  name="target_component"            >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
-      <field type="uint8_t[16]" name="track_uid"                >Track UID the directive applies to. All-zero if addressed by sequence only.</field>
-      <field type="uint16_t"  name="sequence"                  >Fire mission sequence number the directive applies to.</field>
+      <field type="uint8_t[16]" name="track_uid"                >Track UID the directive applies to. All-zero if addressed by sequence only. A MAVLINK_M_ENGAGEMENT_DIRECTIVE_ABORT or MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE applies to every engagement that matches its sequence or its nonzero track_uid, whoever issued that engagement, and is never declined because one selector does not match. A MAVLINK_M_ENGAGEMENT_DIRECTIVE_RESUME or MAVLINK_M_ENGAGEMENT_DIRECTIVE_RETARGET applies only to an engagement that matches every selector it carries.</field>
+      <field type="uint16_t"  name="sequence"                  >Fire mission sequence number the directive applies to. For MAVLINK_M_ENGAGEMENT_DIRECTIVE_ABORT and MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE, 0xFFFF means every fire mission the receiving system holds.</field>
       <field type="uint32_t"  name="effector_id"               >Effector the directive is addressed to. 0 = all assigned.</field>
       <field type="int32_t"   name="retarget_lat" units="degE7">New target latitude for RETARGET, WGS84. INT32_MAX = not provided (0,0 is a valid coordinate). Ignored unless directive is RETARGET.</field>
       <field type="int32_t"   name="retarget_lon" units="degE7">New target longitude for RETARGET, WGS84. INT32_MAX = not provided. Ignored unless directive is RETARGET.</field>
@@ -1964,8 +1983,12 @@
         (JFIRE 2023). SAFETY-CRITICAL: consent_state records a MAN-IN-THE-LOOP
         human decision and MUST NOT be used to build an automated release path;
         release authority remains with the crewed C2 system. terminate provides
-        abort/wave-off/self-destruct. Pairs with TARGET_AUTHORIZATION (record)
-        and ENGAGEMENT_DIRECTIVE (abort/check-fire) already in the dialect.
+        abort/wave-off/self-destruct. Pairs with TARGET_AUTHORIZATION (record).
+        A loitering munition also acts on ENGAGEMENT_DIRECTIVE:
+        MAVLINK_M_ENGAGEMENT_DIRECTIVE_ABORT as MAVLINK_M_LM_TERMINATE_ABORT,
+        and MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE as
+        MAVLINK_M_LM_TERMINATE_WAVE_OFF held until a
+        MAVLINK_M_ENGAGEMENT_DIRECTIVE_RESUME.
       </description>
       <field type="uint64_t"  name="time_usec"     units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
       <field type="uint8_t"  name="target_system"            >System ID of the intended recipient. 0 (every system) is valid only to stop. From a message sent with 0, a munition applies terminate MAVLINK_M_LM_TERMINATE_WAVE_OFF or MAVLINK_M_LM_TERMINATE_ABORT and consent_state MAVLINK_M_LM_CONSENT_WITHHELD or MAVLINK_M_LM_CONSENT_WITHDRAWN, treats any other terminate or consent_state value as none, and ignores the loiter station and every other field, so after an ABORT it returns to the loiter station it already holds. It never drops the stop because the message carries something else. Receivers ignore a LOITER_MUNITION_CONTROL sent with 0 that carries no stop.</field>
