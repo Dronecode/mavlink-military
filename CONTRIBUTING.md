@@ -74,9 +74,12 @@ Every commit has exactly one scope.
 | Commit | Changes |
 | --- | --- |
 | `ci(generate_c_lib): bump pymavlink pin` | `generate_c_lib.yml` |
-| `ci(generate_c_lib): skip publish when headers are unchanged` | `.github/scripts/publish_c_library.sh` |
+| `ci(generate_c_lib): skip publish when headers are unchanged` | `.github/scripts/generate_c_lib/publish_c_library.sh` |
 | `ci(docs): cache npm dependencies` | `docs.yml` |
-| `ci(commit_checks): allow fixup commits on draft PRs` | `.github/scripts/check_commits.sh` |
+| `ci(commit_checks): allow fixup commits on draft PRs` | `.github/scripts/commit_checks/check_commits.sh` |
+
+Each workflow's scripts live in `.github/scripts/<workflow>/`, and their tests
+in its `tests/` folder, which that workflow runs.
 
 ### Breaking changes
 

@@ -62,7 +62,7 @@ jobs:
           pip install future lxml
 
       - name: Generate C headers
-        run: source/.github/scripts/generate_c_headers.sh source mavlink pymavlink out
+        run: source/.github/scripts/generate_c_lib/generate_c_headers.sh source mavlink pymavlink out
 
       - name: Checkout C library repository
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
@@ -74,4 +74,4 @@ jobs:
 
       - name: Commit and push to C library repository
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        run: source/.github/scripts/publish_c_library.sh source out c_library
+        run: source/.github/scripts/generate_c_lib/publish_c_library.sh source out c_library
