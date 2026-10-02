@@ -32,7 +32,10 @@ runs:
         repository: mavlink/mavlink
         ref: ${{ steps.pins.outputs.mavlink }}
         path: mavlink
-        sparse-checkout: message_definitions/v1.0
+        # scripts/ holds check_api_break.py, which the wire-compat job runs.
+        sparse-checkout: |
+          message_definitions/v1.0
+          scripts
         persist-credentials: false
 
     - name: Check out pymavlink (generator)

@@ -81,9 +81,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      # The report only informs: the dialect is still changing, and whether
+      # Both checks only report: the dialect is still changing, and whether
       # a message may break is for the reviewers to decide. Set this to "1"
-      # to make it fail once message IDs are frozen.
+      # to make them fail once message IDs are frozen.
       WIRE_COMPAT_ENFORCE: "0"
     steps:
       - name: Check out this repository (full history for the base)
@@ -103,6 +103,14 @@ jobs:
           git show "${BASE_SHA}:military.xml" > "${RUNNER_TEMP}/base_military.xml"
           python3 .github/scripts/validate_dialect/check_wire_compat.py \
             "${RUNNER_TEMP}/base_military.xml" military.xml
+
+      - name: Check for API breaks with mavlink's checker
+        # check_api_break.py at the pinned MAVLINK_REF, the check mavlink runs
+        # on its own definitions. It covers what CRC_EXTRA leaves out: changed
+        # enum values, removed enum entries, and extension fields that are
+        # removed, retyped or moved. It takes the base from the pull request
+        # event and reads every XML file the pull request changes.
+        run: .github/scripts/validate_dialect/run_api_break_check.sh mavlink/scripts/check_api_break.py "$WIRE_COMPAT_ENFORCE"
 
   generate-c:
     name: Generate and compile C
