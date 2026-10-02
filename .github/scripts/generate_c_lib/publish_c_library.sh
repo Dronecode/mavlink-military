@@ -8,7 +8,8 @@
 #   out        directory produced by generate_c_headers.sh
 #   c_library  checkout of the C library repository, with push access
 #
-# Environment: MAVLINK_REF, PYMAVLINK_REF, and the GitHub Actions defaults
+# The commit records the generator pins from <source>/.github/mavlink-pins.env.
+# Environment: the GitHub Actions defaults
 # GITHUB_EVENT_NAME, GITHUB_REPOSITORY, GITHUB_SERVER_URL.
 set -eu
 
@@ -20,6 +21,10 @@ fi
 source_dir=$1
 out_dir=$2
 c_library_dir=$3
+
+pins=$("$(dirname "$0")/read_pins.sh" "$source_dir/.github/mavlink-pins.env")
+mavlink_ref=$(printf '%s\n' "$pins" | sed -n 's/^mavlink=//p')
+pymavlink_ref=$(printf '%s\n' "$pins" | sed -n 's/^pymavlink=//p')
 
 sha=$(git -C "$source_dir" rev-parse HEAD)
 short=$(git -C "$source_dir" rev-parse --short HEAD)
@@ -57,8 +62,8 @@ $subject
 Generated from $GITHUB_REPOSITORY@$short
 $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$sha
 
-mavlink:   $MAVLINK_REF
-pymavlink: $PYMAVLINK_REF
+mavlink:   $mavlink_ref
+pymavlink: $pymavlink_ref
 MSG
 
 git push

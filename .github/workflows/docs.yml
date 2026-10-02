@@ -1,5 +1,7 @@
 name: Docs
 
+# The message reference is generated at the MAVLINK_REF that
+# .github/mavlink-pins.env pins, so a pin bump rebuilds the site too.
 on:
   push:
     branches: [main]
@@ -8,12 +10,14 @@ on:
       - "military.xml"
       - "IDMAPPING.md"
       - ".github/workflows/docs.yml"
+      - ".github/mavlink-pins.env"
   pull_request:
     paths:
       - "docs/**"
       - "military.xml"
       - "IDMAPPING.md"
       - ".github/workflows/docs.yml"
+      - ".github/mavlink-pins.env"
   workflow_dispatch:
 
 concurrency:
@@ -56,7 +60,7 @@ jobs:
           pip install beautifulsoup4 lxml
           npm ci
 
-      # Uses the same MAVLINK_REF pin as generate_c_lib.yml.
+      # Generated at the MAVLINK_REF pinned in .github/mavlink-pins.env.
       - name: Generate message reference
         run: npm run docs:messages
 

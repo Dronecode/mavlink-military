@@ -6,19 +6,19 @@ on:
     paths:
       - "military.xml"
       - ".github/workflows/generate_c_lib.yml"
+      - ".github/mavlink-pins.env"
+      - ".github/actions/setup-mavlink-tooling/**"
       - ".github/scripts/**"
   pull_request:
     paths:
       - "military.xml"
       - ".github/workflows/generate_c_lib.yml"
+      - ".github/mavlink-pins.env"
+      - ".github/actions/setup-mavlink-tooling/**"
       - ".github/scripts/**"
   workflow_dispatch:
 
 env:
-  # Pinned generator inputs. Bump these deliberately, in their own PR, so a
-  # change in the generated headers always traces back to a commit here.
-  MAVLINK_REF: 87da370c02e40f6f9a2eacf1b162d7f07e640467
-  PYMAVLINK_REF: 19880422d451de4daba3fd96781076afb1cb889c
   C_LIBRARY_REPO: Dronecode/mavlink-military-c_library_v2
 
 concurrency:
@@ -35,34 +35,12 @@ jobs:
     steps:
       - name: Checkout this repository
         uses: actions/checkout@v4
-        with:
-          path: source
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.x"
-
-      - name: Checkout mavlink repository (dialect definitions)
-        uses: actions/checkout@v4
-        with:
-          repository: mavlink/mavlink
-          ref: ${{ env.MAVLINK_REF }}
-          path: mavlink
-
-      - name: Checkout pymavlink repository (code generator)
-        uses: actions/checkout@v4
-        with:
-          repository: ArduPilot/pymavlink
-          ref: ${{ env.PYMAVLINK_REF }}
-          path: pymavlink
-
-      - name: Install pymavlink dependencies
-        run: |
-          pip install future lxml
+      - name: Set up MAVLink generation tooling
+        uses: ./.github/actions/setup-mavlink-tooling
 
       - name: Generate C headers
-        run: source/.github/scripts/generate_c_lib/generate_c_headers.sh source mavlink pymavlink out
+        run: .github/scripts/generate_c_lib/generate_c_headers.sh . mavlink pymavlink out
 
       - name: Checkout C library repository
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
@@ -74,4 +52,17 @@ jobs:
 
       - name: Commit and push to C library repository
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        run: source/.github/scripts/generate_c_lib/publish_c_library.sh source out c_library
+        run: .github/scripts/generate_c_lib/publish_c_library.sh . out c_library
+
+  test:
+    name: Test the scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run the unit tests of this workflow's scripts
+        run: python3 -m unittest discover --start-directory .github/scripts/generate_c_lib/tests --verbose
