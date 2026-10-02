@@ -1,0 +1,7 @@
+# zizmor configuration, read by the zizmor job in workflow_lint.yml.
+rules:
+  # Local actions are referenced as ./.github/actions/..., not with the
+  # newer $/ self-repository form, because actionlint 1.7.12 rejects $/
+  # and would stop checking those steps. Switch once actionlint accepts it.
+  self-repository:
+    disable: true
