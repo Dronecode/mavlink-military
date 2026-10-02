@@ -152,6 +152,63 @@
       MAVLink leg only; the FMU/bridge is the trust-translation point into the
       component-bus domain.
 
+  ADDRESSING AND GATEWAYS (normative for implementers)
+    - Delivery. A router forwards a message whose target_system is not 0
+      only on links where it has heard that system, and, when
+      target_component is not 0, that component; anywhere else it drops the
+      message without telling the sender. An addressed message therefore
+      reaches only a recipient that has transmitted, for example its
+      HEARTBEAT, on every link of the path, while a message with
+      target_system 0 is forwarded on every link. A stop for a recipient
+      that may not be heard on the path (emission control, a receive-only
+      link, a relay that has restarted) is sent with target_system 0 and
+      selects what it stops with the message's own fields. An affirmative
+      directive cannot reach such a recipient.
+    - Components. An affirmative directive to a system with more than one
+      component that could act on it names that component; target_component
+      0 is used for it only when the system has one. A stop addressed to a
+      system uses target_component 0, so it reaches whichever component
+      holds the engagement.
+    - System IDs. Every system ID a message carries, target_system and
+      origin_sysid included, is an ID on the MAVLink network the message is
+      sent on, and system IDs are unique across every network joined by
+      routers, bridges and gateways. Where joined networks would overlap, a
+      gateway remaps the IDs and re-originates every message under the
+      remapped ones, rewriting target_system and origin_sysid to match.
+    - Identifiers. task_id, every sequence, and the instance an
+      acknowledgment names are chosen by the system that originates the
+      request, mission or brief, are unique among its open ones, and are
+      matched together with that system's ID.
+    - Gateways. A gateway that carries this dialect to or from another
+      network or protocol (UCI, VMF, Link 16, another MAVLink network)
+      re-originates each message: it is the source of the frames it sends
+      and signs them with its own key. Routers, radios and tunnels that pass
+      frames unchanged are not gateways. A gateway presents each far-side
+      participant that sends or receives these messages as a proxy system
+      ID of its own, transmits a HEARTBEAT for each so routers learn the
+      route, and never sends several participants' messages under one ID. A
+      message for a far-side participant carries its proxy ID in
+      target_system, and one from a far-side participant is sent from its
+      proxy ID, so MAVLINK_M_ACK and SENSOR_TASKING responses come back to
+      that proxy ID and the gateway returns them. Where far-side originators
+      could choose the same identifier, the gateway assigns it on this side
+      and maps it back. A gateway applies this dialect's receiver rules
+      before it translates, so it never forwards what a receiver would
+      ignore, and it answers for a far-side participant only with what that
+      participant reported; on its own it sends at most
+      MAVLINK_M_ACK_RECEIVED.
+    - Every system. target_system 0 means every system on this MAVLink
+      network. A gateway carries a stop sent with 0 to the far-side
+      participants it represents as their own network's stop, with the same
+      selection, and brings a far-side network-wide stop into this network
+      the same way. It never carries anything but a stop as a message to
+      every system.
+    - Definitions. A router or gateway that reads these messages uses the
+      same definition as the systems around it. One built from another
+      definition drops every changed message as a CRC error, stops
+      included, and one built without the dialect forwards each message it
+      cannot read to every link.
+
   SAFETY BOUNDARIES (normative for implementers)
     - TARGET_AUTHORIZATION is a descriptive record and MUST NOT be treated as a
       release interlock. Release authority resides in the crewed C2 system.
