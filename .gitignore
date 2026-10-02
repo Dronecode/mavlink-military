@@ -1,1 +1,4 @@
 generated/
+c_lib_deploy*
+.claude/settings.local.json
+.claude/worktrees/
