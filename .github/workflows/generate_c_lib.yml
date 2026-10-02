@@ -66,6 +66,34 @@ jobs:
       - name: Run the unit tests of this workflow's scripts
         run: python3 -m unittest discover --start-directory .github/scripts/generate_c_lib/tests --verbose
 
+  rehearse-publish:
+    name: Rehearse the publish
+    # publish runs only on main. On a pull request this job runs the same
+    # script on the same headers, into an anonymous clone of the C library
+    # that pushes to a local bare repository, so a change to the script or
+    # to what it publishes shows in review. It holds no credentials.
+    if: github.event_name == 'pull_request'
+    needs: generate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download the generated headers
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: c-headers
+          path: out
+
+      - name: Rehearse the publish into a local copy of the C library
+        run: >-
+          .github/scripts/generate_c_lib/rehearse_publish.sh . out
+          "${GITHUB_SERVER_URL}/${C_LIBRARY_REPO}.git" "$RUNNER_TEMP"
+          >> "$GITHUB_STEP_SUMMARY"
+
   publish:
     name: Publish to the C library
     # Only main publishes, from the c-library environment, so the deploy key
