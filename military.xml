@@ -1433,6 +1433,7 @@
       <field type="uint32_t" name="arming_challenge_hash"          >Challenge hash matching the selected ESAD instance challenge. For esad_id = 0, the same hash must be active on every targeted ESAD.</field>
       <field type="uint8_t"  name="arming_request"  enum="MAVLINK_M_ESAD_ARMING_REQUEST">Requested arming state change.</field>
       <field type="uint8_t"  name="store_id"                       >Target store instance identifier. 0 = all stores / broadcast.</field>
+      <field type="uint8_t[16]" name="track_uid">Track UID (see TRACK_IDENTITY) of the engagement an ARM is for, reported back in ESAD_STATE.track_uid. All-zero if the arming is not tied to a track. Ignored for DISARM.</field>
     </message>
 
     <!-- ============================================================ -->
@@ -1520,6 +1521,7 @@
       <field type="int32_t"  name="poi_lat"       units="degE7">Point-of-interest latitude to slew to, WGS84. INT32_MAX = not provided (0 is a valid coordinate).</field>
       <field type="int32_t"  name="poi_lon"       units="degE7">Point-of-interest longitude to slew to, WGS84. INT32_MAX = not provided (0 is a valid coordinate).</field>
       <field type="float"    name="poi_alt"       units="m"   >Point-of-interest altitude, MSL. NaN = not provided.</field>
+      <field type="uint8_t[16]" name="track_uid">Track UID (see TRACK_IDENTITY) the sensor is to follow. When set, the sensor follows that track and the point of interest is only a starting cue; with sensor_mode MAVLINK_M_SENSOR_MODE_LASER_DESIGNATE or MAVLINK_M_SENSOR_MODE_IR_MARK the track only cues the sensor, which lases or marks what its own tracker holds. All-zero to point at the point of interest.</field>
     </message>
 
     <!-- ============================================================ -->
@@ -1535,6 +1537,7 @@
       <field type="uint64_t" name="time_usec"       units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
       <field type="uint8_t"  name="target_system"               >System ID of the intended recipient. 0 = every system.</field>
       <field type="uint8_t"  name="target_component"            >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
+      <field type="uint16_t" name="sequence"                    >Engagement sequence of this brief. TERMINAL_CONTROL.sequence refers to it.</field>
       <field type="int32_t"  name="ip_lat"          units="degE7">Line 1: initial point / battle position latitude, WGS84.</field>
       <field type="int32_t"  name="ip_lon"          units="degE7">Line 1: initial point / battle position longitude, WGS84.</field>
       <field type="uint16_t" name="heading_deg"     units="deg" >Line 2: heading (IP to target).</field>
@@ -1551,6 +1554,7 @@
       <field type="uint16_t" name="final_attack_heading_deg" units="deg">Remarks: final attack heading (FAH). 0xFFFF if unspecified.</field>
       <field type="uint8_t"  name="danger_close"                >Remarks: 1 = danger close / troops in contact; 0 = not.</field>
       <field type="uint8_t"  name="delivery"        enum="MAVLINK_M_ORDNANCE_DELIVERY">Bomb-on-coordinate vs bomb-on-target.</field>
+      <field type="uint8_t[16]" name="track_uid">Track UID (see TRACK_IDENTITY) of the target this brief describes. All-zero if not associated with a track.</field>
     </message>
 
     <!-- ============================================================ -->
@@ -1566,7 +1570,7 @@
       <field type="uint64_t" name="time_usec"    units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
       <field type="uint8_t"  name="target_system"          >System ID of the intended recipient. 0 = every system.</field>
       <field type="uint8_t"  name="target_component"       >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
-      <field type="uint16_t" name="sequence"               >Engagement sequence this handshake applies to.</field>
+      <field type="uint16_t" name="sequence"               >Engagement sequence this handshake applies to: the CAS_9LINE.sequence of the brief it controls.</field>
       <field type="uint8_t"  name="tac_type"     enum="MAVLINK_M_TAC_TYPE">Type of terminal attack control (1/2/3).</field>
       <field type="uint8_t"  name="clearance"    enum="MAVLINK_M_CAS_CLEARANCE">Clearance / abort verb (human authority).</field>
       <field type="uint8_t"  name="aircraft_call" enum="MAVLINK_M_AIRCRAFT_CALL">Attacking-aircraft status call.</field>
