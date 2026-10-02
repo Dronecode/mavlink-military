@@ -8,14 +8,14 @@ on:
       - ".github/workflows/generate_c_lib.yml"
       - ".github/mavlink-pins.env"
       - ".github/actions/setup-mavlink-tooling/**"
-      - ".github/scripts/**"
+      - ".github/scripts/generate_c_lib/**"
   pull_request:
     paths:
       - "military.xml"
       - ".github/workflows/generate_c_lib.yml"
       - ".github/mavlink-pins.env"
       - ".github/actions/setup-mavlink-tooling/**"
-      - ".github/scripts/**"
+      - ".github/scripts/generate_c_lib/**"
   workflow_dispatch:
 
 env:
