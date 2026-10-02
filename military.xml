@@ -1192,7 +1192,7 @@
 
     <enum name="MAVLINK_M_TASKING_STATUS">
       <description>Response to an inbound tasking request (UCI publish/subscribe event).</description>
-      <entry value="0" name="MAVLINK_M_TASKING_UNSPECIFIED"><description>Not specified (default for an unset field). Not an acceptance.</description></entry>
+      <entry value="0" name="MAVLINK_M_TASKING_UNSPECIFIED"><description>Marks a SENSOR_TASKING request; a status response never carries it. Not an acceptance.</description></entry>
       <entry value="1" name="MAVLINK_M_TASKING_ACK">      <description>Tasking accepted.</description></entry>
       <entry value="2" name="MAVLINK_M_TASKING_REJECTED"><description>Tasking rejected (unable/ineligible).</description></entry>
       <entry value="3" name="MAVLINK_M_TASKING_COMPLETE"><description>Tasking complete.</description></entry>
@@ -1510,14 +1510,21 @@
         tasking-status response. Provided for gateway mapping between UCI
         publish/subscribe events and native MAVLink payload control; it does not
         replace MAVLink platform control. Carries commanded sensor mode and an
-        optional point of interest to slew to.
+        optional point of interest or track to slew to.
+
+        A request carries status MAVLINK_M_TASKING_UNSPECIFIED and is addressed
+        to the sensor or payload. A status response carries any other status and
+        is addressed to the requester: the source system and component IDs in
+        the request's frame header. A response echoes task_id and track_uid and reports the
+        mode in effect in sensor_mode; receivers ignore its point-of-interest
+        fields.
       </description>
       <field type="uint64_t" name="time_usec"    units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
-      <field type="uint8_t"  name="target_system"           >System ID of the intended recipient. 0 = every system.</field>
-      <field type="uint8_t"  name="target_component"        >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
+      <field type="uint8_t"  name="target_system"           >System ID of the intended recipient: the sensor's system for a request, the requester's for a status response. 0 = every system.</field>
+      <field type="uint8_t"  name="target_component"        >Component ID of the intended recipient within target_system: the sensor or payload for a request, the requester for a status response. 0 = every component of that system. Ignored when target_system is 0.</field>
       <field type="uint16_t" name="task_id"                 >Tasking correlation id (echoed in the status response).</field>
-      <field type="uint8_t"  name="sensor_mode"  enum="MAVLINK_M_SENSOR_MODE">Commanded sensor/payload mode.</field>
-      <field type="uint8_t"  name="status"        enum="MAVLINK_M_TASKING_STATUS">Tasking-status response (ACK/REJECTED/COMPLETE/ACTIVE).</field>
+      <field type="uint8_t"  name="sensor_mode"  enum="MAVLINK_M_SENSOR_MODE">Commanded sensor/payload mode in a request; the mode in effect in a status response.</field>
+      <field type="uint8_t"  name="status"        enum="MAVLINK_M_TASKING_STATUS">MAVLINK_M_TASKING_UNSPECIFIED in a request, any other value in a status response; this is how a receiver tells the two apart.</field>
       <field type="int32_t"  name="poi_lat"       units="degE7">Point-of-interest latitude to slew to, WGS84. INT32_MAX = not provided (0 is a valid coordinate).</field>
       <field type="int32_t"  name="poi_lon"       units="degE7">Point-of-interest longitude to slew to, WGS84. INT32_MAX = not provided (0 is a valid coordinate).</field>
       <field type="float"    name="poi_alt"       units="m"   >Point-of-interest altitude, MSL. NaN = not provided.</field>
