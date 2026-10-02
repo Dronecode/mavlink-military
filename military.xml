@@ -132,6 +132,10 @@
     - Two-state fields use a plain uint8 boolean for permanently-binary facts and
       an enum where the field is a category that could gain a third value and
       benefits from an explicit UNSPECIFIED state.
+    - Two enums keep 0 as an action, MAVLINK_M_ENGAGEMENT_DIRECTIVE_ABORT and
+      MAVLINK_M_ESAD_REQUEST_DISARM, so a zero-filled ENGAGEMENT_DIRECTIVE or
+      ESAD_ARMING is a valid stop sent to every system. Both fail toward safe;
+      a sender never transmits an unset message.
 
   COORDINATE DATUM
     All altitudes are MSL (mean sea level). Joint networks often pass targeting
@@ -148,11 +152,81 @@
       messages. MAVLink-M is the stable abstraction; component-bus definitions
       map onto it. Enum semantics and value assignments must be kept aligned
       across the two definitions by the implementer.
-    - Authentication is per-bus. The arming_challenge_hash authenticates the
-      MAVLink leg only; the FMU/bridge is the trust-translation point into the
-      component-bus domain.
+    - Authentication is per-bus. On the MAVLink leg it comes from message
+      signing; the arming_challenge_hash only ties a command to the state the
+      ESAD advertised, and every listener sees it. The FMU/bridge is the
+      trust-translation point into the component-bus domain.
+
+  ADDRESSING AND GATEWAYS (normative for implementers)
+    - Delivery. A router forwards a message whose target_system is not 0
+      only on links where it has heard that system, and, when
+      target_component is not 0, that component; anywhere else it drops the
+      message without telling the sender. An addressed message therefore
+      reaches only a recipient that has transmitted, for example its
+      HEARTBEAT, on every link of the path, while a message with
+      target_system 0 is forwarded on every link. A stop for a recipient
+      that may not be heard on the path (emission control, a receive-only
+      link, a relay that has restarted) is sent with target_system 0 and
+      selects what it stops with the message's own fields. An affirmative
+      directive cannot reach such a recipient.
+    - Components. An affirmative directive to a system with more than one
+      component that could act on it names that component; target_component
+      0 is used for it only when the system has one. A stop addressed to a
+      system uses target_component 0, so it reaches whichever component
+      holds the engagement.
+    - System IDs. Every system ID a message carries, target_system and
+      origin_sysid included, is an ID on the MAVLink network the message is
+      sent on, and system IDs are unique across every network joined by
+      routers, bridges and gateways. Where joined networks would overlap, a
+      gateway remaps the IDs and re-originates every message under the
+      remapped ones, rewriting target_system and origin_sysid to match.
+    - Identifiers. task_id, every sequence, and the instance an
+      acknowledgment names are chosen by the system that originates the
+      request, mission or brief, are unique among its open ones, and are
+      matched together with that system's ID.
+    - Gateways. A gateway that carries this dialect to or from another
+      network or protocol (UCI, VMF, Link 16, another MAVLink network)
+      re-originates each message: it is the source of the frames it sends
+      and signs them with its own key. Routers, radios and tunnels that pass
+      frames unchanged are not gateways. A gateway presents each far-side
+      participant that sends or receives these messages as a proxy system
+      ID of its own, transmits a HEARTBEAT for each so routers learn the
+      route, and never sends several participants' messages under one ID. A
+      message for a far-side participant carries its proxy ID in
+      target_system, and one from a far-side participant is sent from its
+      proxy ID, so MAVLINK_M_ACK and SENSOR_TASKING responses come back to
+      that proxy ID and the gateway returns them. Where far-side originators
+      could choose the same identifier, the gateway assigns it on this side
+      and maps it back. A gateway applies this dialect's receiver rules
+      before it translates, so it never forwards what a receiver would
+      ignore, and it answers for a far-side participant only with what that
+      participant reported; on its own it sends at most
+      MAVLINK_M_ACK_RECEIVED.
+    - Every system. target_system 0 means every system on this MAVLink
+      network. A gateway carries a stop sent with 0 to the far-side
+      participants it represents as their own network's stop, with the same
+      selection, and brings a far-side network-wide stop into this network
+      the same way. It never carries anything but a stop as a message to
+      every system.
+    - Definitions. A router or gateway that reads these messages uses the
+      same definition as the systems around it. One built from another
+      definition drops every changed message as a CRC error, stops
+      included, and one built without the dialect forwards each message it
+      cannot read to every link.
 
   SAFETY BOUNDARIES (normative for implementers)
+    - ENGAGEMENT_DIRECTIVE ABORT and CHECK_FIRE are the common stop. Every
+      system that can engage, release or guide a weapon acts on them for the
+      engagements they select, whatever message tasked it, as well as on the
+      stop values of that message. A sender or gateway that does not know
+      which message an engagement uses sends ENGAGEMENT_DIRECTIVE.
+    - Stops win over starts. For one engagement, a receiver ignores a
+      directive that starts, arms, grants, clears or resumes when its
+      time_usec is not later than that of the last stop it acted on for that
+      engagement, so a delayed RESUME cannot undo a later CHECK_FIRE. It may
+      reject such a directive when its time_usec is older than the maximum
+      age it is configured with, answering MAVLINK_M_ACK_EXPIRED, and never
+      rejects a stop for age.
     - TARGET_AUTHORIZATION is a descriptive record and MUST NOT be treated as a
       release interlock. Release authority resides in the crewed C2 system.
       Token anti-spoofing is a C2 / gateway / secure-enclave responsibility.
@@ -660,7 +734,8 @@
       <entry value="2" name="MAVLINK_M_ACK_REJECTED">   <description>Message was received but rejected (e.g. operator declined the cue).</description></entry>
       <entry value="3" name="MAVLINK_M_ACK_UNSUPPORTED"><description>Message type or requested action is not supported by the recipient.</description></entry>
       <entry value="4" name="MAVLINK_M_ACK_FAILED">     <description>Message was received but processing failed (e.g. malformed or stale).</description></entry>
-      <entry value="5" name="MAVLINK_M_ACK_EXPIRED">    <description>Message was received after its validity window had passed.</description></entry>
+      <entry value="5" name="MAVLINK_M_ACK_EXPIRED">    <description>Message was received after its validity window had passed: a directive that starts, arms, grants, clears or resumes whose time_usec is older than the maximum age the receiving system is configured with. A stop is never rejected for age.</description></entry>
+      <entry value="6" name="MAVLINK_M_ACK_NOT_APPLICABLE"><description>Message was received, and nothing on this system is what it applies to, for example a stop sent to every system for an engagement this system does not hold. A final result.</description></entry>
     </enum>
 
     <!-- ===== multi-store logistics drop ===== -->
@@ -911,8 +986,8 @@
     <enum name="MAV_CMD">
       <description>MAVLink-M store-handling commands. Sent via COMMAND_LONG/COMMAND_INT; responses via COMMAND_ACK.</description>
       <entry value="53090" name="MAV_CMD_MAVLINK_M_STORE_ARM">
-        <description>Arm or safe a store's ESAD.</description>
-        <param index="1" label="Store ID">Target store instance (0 = all stores / broadcast).</param>
+        <description>Arm or safe a store's ESAD. An arm (Arm = 1) is never sent with target_system 0; receivers ignore one that is.</description>
+        <param index="1" label="Store ID">Target store instance (0 = every store on the receiving system).</param>
         <param index="2" label="Arm">0 = safe/disarm, 1 = arm.</param>
         <param index="3" label="Challenge Hash">Arming challenge hash; must match the store's last ESAD_STATE hash.</param>
         <param index="4">Reserved (0).</param>
@@ -921,8 +996,8 @@
         <param index="7">Reserved (0).</param>
       </entry>
       <entry value="53091" name="MAV_CMD_MAVLINK_M_STORE_RUN_BIT">
-        <description>Run a built-in self-test (BIT) on a store.</description>
-        <param index="1" label="Store ID">Target store instance (0 = all stores / broadcast).</param>
+        <description>Run a built-in self-test (BIT) on a store. Never sent with target_system 0; receivers ignore one that is.</description>
+        <param index="1" label="Store ID">Target store instance (0 = every store on the receiving system).</param>
         <param index="2" label="Scope">0 = full BIT, 1 = sensors only, 2 = ESAD only.</param>
         <param index="3">Reserved (0).</param>
         <param index="4">Reserved (0).</param>
@@ -932,7 +1007,7 @@
       </entry>
       <entry value="53092" name="MAV_CMD_MAVLINK_M_STORE_REQUEST_STATUS">
         <description>Request status push from a store.</description>
-        <param index="1" label="Store ID">Target store instance (0 = all stores / broadcast).</param>
+        <param index="1" label="Store ID">Target store instance (0 = every store on the receiving system).</param>
         <param index="2" label="What">0 = STORE_STATUS only, 1 = all STORE_SENSOR_STATUS, 2 = both.</param>
         <param index="3">Reserved (0).</param>
         <param index="4">Reserved (0).</param>
@@ -941,8 +1016,8 @@
         <param index="7">Reserved (0).</param>
       </entry>
       <entry value="53093" name="MAV_CMD_MAVLINK_M_STORE_SET_DECEL_THRESHOLD">
-        <description>Set the deceleration/landing-system trigger threshold for a store.</description>
-        <param index="1" label="Store ID">Target store instance (0 = all stores / broadcast).</param>
+        <description>Set the deceleration/landing-system trigger threshold for a store. Never sent with target_system 0; receivers ignore one that is.</description>
+        <param index="1" label="Store ID">Target store instance (0 = every store on the receiving system).</param>
         <param index="2" label="Sensor Type">Sensor (MAVLINK_M_STORE_SENSOR_TYPE) that gates deployment.</param>
         <param index="3" label="Threshold">Threshold value in the sensor's native units.</param>
         <param index="4" label="Direction">0 = trigger when reading falls below threshold, 1 = trigger when reading rises above threshold.</param>
@@ -1192,11 +1267,12 @@
 
     <enum name="MAVLINK_M_TASKING_STATUS">
       <description>Response to an inbound tasking request (UCI publish/subscribe event).</description>
-      <entry value="0" name="MAVLINK_M_TASKING_UNSPECIFIED"><description>Not specified (default for an unset field). Not an acceptance.</description></entry>
+      <entry value="0" name="MAVLINK_M_TASKING_UNSPECIFIED"><description>Marks a SENSOR_TASKING request; a status response never carries it. Not an acceptance.</description></entry>
       <entry value="1" name="MAVLINK_M_TASKING_ACK">      <description>Tasking accepted.</description></entry>
       <entry value="2" name="MAVLINK_M_TASKING_REJECTED"><description>Tasking rejected (unable/ineligible).</description></entry>
       <entry value="3" name="MAVLINK_M_TASKING_COMPLETE"><description>Tasking complete.</description></entry>
       <entry value="4" name="MAVLINK_M_TASKING_ACTIVE">   <description>Tasking in progress.</description></entry>
+      <entry value="5" name="MAVLINK_M_TASKING_INTERRUPTED"><description>Tasking ended before completion for a reason its requester did not cause: another request took the sensor, or the sensor lost the track it was following. Sent to the requester of the interrupted task.</description></entry>
     </enum>
 
   </enums>
@@ -1283,12 +1359,14 @@
     <message id="53020" name="FIRES">
       <description>Fire mission order. Commands an effector to engage a WGS84 coordinate with a specified expected impact time and CEP.</description>
       <field type="uint64_t" name="time_usec"         units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint8_t"  name="target_system"                 >System ID of the intended recipient: the effector's system. Never 0; receivers ignore a FIRES sent to every system.</field>
+      <field type="uint8_t"  name="target_component"              >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
       <field type="uint64_t" name="time_impact_usec"  units="us"  >Expected time of impact (UNIX epoch, microseconds UTC).</field>
       <field type="int32_t"  name="lat"               units="degE7">Target latitude, WGS84.</field>
       <field type="int32_t"  name="lon"               units="degE7">Target longitude, WGS84.</field>
       <field type="float"    name="alt"               units="m"   >Target altitude, MSL.</field>
       <field type="uint32_t" name="effector_id"                   >Identifier of the assigned effector.</field>
-      <field type="uint16_t" name="sequence"                      >Fire mission sequence number.</field>
+      <field type="uint16_t" name="sequence"                      >Fire mission sequence number, chosen by the issuer. 0xFFFF is reserved: in a stop it means every fire mission.</field>
       <field type="float"    name="cep_expected"       units="m"  >Expected circular error probable at impact.</field>
       <field type="uint16_t" name="prf_code"                      >Laser designator PRF code for SAL weapons (e.g. 1111-1788). 0 = no laser code assigned.</field>
       <field type="uint8_t"  name="store_id"                      >Target store/bay on a multi-store carrier. 0 = system default / vehicle itself (e.g. OWA).</field>
@@ -1314,10 +1392,12 @@
         supplementary sensor context.
       </description>
       <field type="uint64_t" name="time_usec"     units="us"  >Timestamp of observation (UNIX epoch, microseconds UTC).</field>
+      <field type="uint8_t"  name="target_system"             >System ID of the intended recipient. 0 (every system) is valid only with command MAVLINK_M_FMC_CHECK_FIRING or MAVLINK_M_FMC_CEASE_LOADING, and a receiver acts only on that command in such a message, ignoring its spotting; receivers ignore any other SPLASH_CORRECTION sent with 0.</field>
+      <field type="uint8_t"  name="target_component"          >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
       <field type="int32_t"  name="lat"           units="degE7">Observed splash latitude, WGS84.</field>
       <field type="int32_t"  name="lon"           units="degE7">Observed splash longitude, WGS84.</field>
       <field type="float"    name="alt"           units="m"   >Observed splash altitude, MSL.</field>
-      <field type="uint16_t" name="sequence"                  >Fire mission sequence number this correction applies to.</field>
+      <field type="uint16_t" name="sequence"                  >Fire mission sequence number this correction applies to. With command MAVLINK_M_FMC_CHECK_FIRING or MAVLINK_M_FMC_CEASE_LOADING, 0xFFFF means every fire mission the receiving system holds.</field>
       <field type="uint8_t"  name="type_detected">Coarse splash detector cue (implementation-defined; e.g. 0=unknown, 1=smoke, 2=explosion). Doctrinal observed-fire adjustment is carried by deviation, range_spot, hob, impact_surface, and obscuration.</field>
       <field type="float"    name="cep_expected"  units="m"   >Estimated CEP of the observed splash.</field>
       <field type="uint8_t"  name="deviation"     enum="MAVLINK_M_SPLASH_DEVIATION">Deviation spotting relative to the observer-target line.</field>
@@ -1335,6 +1415,8 @@
     <message id="53002" name="TARGET_HANDOVER">
       <description>Transfers tracking responsibility for a target to another system, including kinematic state, classification, identification media, and authorization.</description>
       <field type="uint64_t"  name="time_usec"         units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint8_t"  name="target_system"                  >System ID of the intended recipient: the system taking the target. Never 0; receivers ignore a handover sent to every system.</field>
+      <field type="uint8_t"  name="target_component"               >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
       <field type="uint64_t"  name="detected_first_usec" units="us">Time target was first detected (UNIX epoch, microseconds UTC).</field>
       <field type="uint64_t"  name="valid_until_usec"  units="us"  >Handover data validity expiry (UNIX epoch, microseconds UTC).</field>
       <field type="int32_t"   name="lat"               units="degE7">Target latitude, WGS84.</field>
@@ -1397,8 +1479,8 @@
     <message id="53030" name="ESAD_STATE">
       <description>Electronic Safe and Arm Device (ESAD) telemetry for one ESAD instance on a store. Reports arming, munition, and ignition states, fault flags, and software identity. esad_id identifies the device; store_id identifies the physical bay/store.</description>
       <field type="uint64_t"  name="time_usec"         units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
-      <field type="uint8_t"   name="esad_id"                       >Vehicle-local ESAD instance identifier. Must be 1-254. 0 is invalid for ESAD_STATE, 255 is reserved. Systems that support broadcast arming set the same arming_challenge_hash on each target ESAD before accepting ESAD_ARMING.esad_id = 0.</field>
-      <field type="uint32_t"  name="arming_challenge_hash"         >Challenge hash for arming authentication of this ESAD instance.</field>
+      <field type="uint8_t"   name="esad_id"                       >Vehicle-local ESAD instance identifier. Must be 1-254. 0 is invalid for ESAD_STATE, 255 is reserved. A system that accepts ESAD_ARMING or ESAD_CONFIG with esad_id = 0 sets the same arming_challenge_hash on every ESAD such a command can select.</field>
+      <field type="uint32_t"  name="arming_challenge_hash"         >Challenge for this ESAD instance, which an ARM or an ESAD_CONFIG must carry. It ties a command to this state and is not secret.</field>
       <field type="uint32_t"  name="fault_flags"       enum="MAVLINK_M_ESAD_FAULT_FLAGS">Active fault flag bitmask.</field>
       <field type="float"     name="input_1"                       >Analog/digital input 1 (implementation-defined). For the standard safety inputs use the typed fields below instead.</field>
       <field type="float"     name="input_2"                       >Analog/digital input 2 (implementation-defined). For the standard safety inputs use the typed fields below instead.</field>
@@ -1412,19 +1494,22 @@
       <field type="uint8_t"   name="arm_delay_setting" enum="MAVLINK_M_ESAD_ARM_DELAY_SETTING">Selected arming-delay switch position (90/60/30 s). The chosen setting.</field>
       <field type="int16_t"   name="arm_delay_remaining_s" units="s">Live arming-delay countdown: seconds remaining after the in-flight-event signal until arming is permitted. -1 = not counting / not applicable. Distinct from arm_delay_setting (the switch position).</field>
       <field type="uint8_t"   name="trigger_distance_mode" enum="MAVLINK_M_ESAD_TRIGGER_DISTANCE_MODE">Trigger-distance standoff mode currently in effect (coarse selection, not a distance value).</field>
-      <field type="uint8_t[16]" name="track_uid">Track UID (UUID) of the engagement this store is armed for, when applicable. Ties the armed state to a specific authorized track so a monitoring station sees "armed against track X," not merely "an ESAD is hot." All-zero if not associated with a track.</field>
+      <field type="uint8_t[16]" name="track_uid">Track UID (UUID) of the engagement this store is armed for, when applicable. Ties the armed state to a specific authorized track so a monitoring station sees "armed against track X," not merely "an ESAD is hot." All-zero if not associated with a track, and cleared to all-zero when the store is disarmed.</field>
     </message>
 
     <!-- ============================================================ -->
     <!-- 53031: ESAD_ARMING -->
     <!-- ============================================================ -->
     <message id="53031" name="ESAD_ARMING">
-      <description>ESAD arming command for one or more ESAD instances. arming_challenge_hash must match the active ESAD_STATE challenge for the selected instance. For esad_id = 0, each targeted ESAD must have advertised the same challenge hash; otherwise receivers reject the broadcast command.</description>
+      <description>ESAD arming command for one or more ESAD instances on the receiving system. An ARM must carry the challenge the selected ESAD advertises in ESAD_STATE; with esad_id = 0 it applies only if every local ESAD selected by store_id advertises arming_challenge_hash, and is otherwise rejected, so an ARM never applies in part. A DISARM applies to every selected local ESAD without checking arming_challenge_hash, so no ESAD's state can block it; as for any stop, MAVLink message signing on the link authenticates the sender. A command whose esad_id and store_id select no local ESAD is rejected. Each system judges only its own ESADs, so a command that reaches several systems can apply on some and not on others; the originator confirms the result for each system from its MAVLINK_M_ACK and ESAD_STATE.</description>
       <field type="uint64_t" name="time_usec"            units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
-      <field type="uint8_t"  name="esad_id"                        >Vehicle-local ESAD instance identifier to arm or disarm. 0 = all ESAD instances selected by store_id, 1-254 = specific ESAD instance, 255 = reserved.</field>
-      <field type="uint32_t" name="arming_challenge_hash"          >Challenge hash matching the selected ESAD instance challenge. For esad_id = 0, the same hash must be active on every targeted ESAD.</field>
+      <field type="uint8_t"  name="target_system"                  >System ID of the intended recipient. 0 (every system) is valid only for MAVLINK_M_ESAD_REQUEST_DISARM, which each receiving system applies to its own ESADs; receivers ignore an arm request sent with 0.</field>
+      <field type="uint8_t"  name="target_component"               >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
+      <field type="uint8_t"  name="esad_id"                        >Vehicle-local ESAD instance identifier to arm or disarm. 0 = every local ESAD selected by store_id, 1-254 = specific ESAD instance, 255 = reserved.</field>
+      <field type="uint32_t" name="arming_challenge_hash"          >Challenge hash the selected ESAD advertises in ESAD_STATE. Checked for an ARM, where with esad_id = 0 every selected local ESAD must advertise it; not checked for a DISARM.</field>
       <field type="uint8_t"  name="arming_request"  enum="MAVLINK_M_ESAD_ARMING_REQUEST">Requested arming state change.</field>
-      <field type="uint8_t"  name="store_id"                       >Target store instance identifier. 0 = all stores / broadcast.</field>
+      <field type="uint8_t"  name="store_id"                       >Target store instance identifier. 0 = every store on the receiving system.</field>
+      <field type="uint8_t[16]" name="track_uid">Track UID (see TRACK_IDENTITY) of the engagement an ARM is for, reported back in ESAD_STATE.track_uid. All-zero if the arming is not tied to a track. Ignored for DISARM.</field>
     </message>
 
     <!-- ============================================================ -->
@@ -1432,21 +1517,28 @@
     <!-- ============================================================ -->
     <message id="53032" name="ESAD_CONFIG">
       <description>
-        Authenticated configuration command for an ESAD that accepts live
-        configuration of a safe/arm parameter (e.g. a proximity device whose
-        trigger-distance mode is set from the FMU or edge compute rather than a
-        physical switch). Authenticated the same way as ESAD_ARMING:
-        arming_challenge_hash must match the value last broadcast in that store's
-        ESAD_STATE, so an unauthenticated sender cannot reconfigure the device.
+        Configuration command for an ESAD that accepts live configuration of a
+        safe/arm parameter (e.g. a proximity device whose trigger-distance mode
+        is set from the FMU or edge compute rather than a physical switch).
+        Checked the same way as an ESAD_ARMING arm: arming_challenge_hash must
+        match the value the selected ESAD last advertised in ESAD_STATE, so a
+        command made for an older ESAD state does not apply. The hash is public,
+        since ESAD_STATE goes to every system; MAVLink message signing on the
+        link authenticates the sender. With esad_id = 0, store_id = 0, or both,
+        a receiving system applies the configuration only if every local ESAD
+        selected advertises arming_challenge_hash, and otherwise rejects it. A
+        command that selects no local ESAD is rejected.
         Only coarse, device-defined SAFE/ARM modes may be set here; this message
         must never carry a free continuous distance, a fuze timing value, or any
         height-of-burst configuration. The resulting mode is reported back in
         ESAD_STATE.trigger_distance_mode.
       </description>
       <field type="uint64_t" name="time_usec"            units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
-      <field type="uint32_t" name="arming_challenge_hash"          >Challenge hash matching the active ESAD_STATE hash for the target store.</field>
-      <field type="uint8_t"  name="esad_id"                        >Vehicle-local ESAD instance identifier to configure. 0 = all ESAD instances selected by store_id, 1-254 = specific ESAD instance, 255 = reserved.</field>
-      <field type="uint8_t"  name="store_id"                       >Target store instance identifier. 0 = all stores / broadcast.</field>
+      <field type="uint8_t"  name="target_system"                  >System ID of the intended recipient. Never 0; receivers ignore an ESAD_CONFIG sent to every system.</field>
+      <field type="uint8_t"  name="target_component"               >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
+      <field type="uint32_t" name="arming_challenge_hash"          >Challenge hash the selected ESAD advertises in ESAD_STATE. With esad_id = 0 or store_id = 0, every selected local ESAD must advertise this hash.</field>
+      <field type="uint8_t"  name="esad_id"                        >Vehicle-local ESAD instance identifier to configure. 0 = every local ESAD selected by store_id, 1-254 = specific ESAD instance, 255 = reserved.</field>
+      <field type="uint8_t"  name="store_id"                       >Target store instance identifier. 0 = every store on the receiving system.</field>
       <field type="uint8_t"  name="trigger_distance_mode" enum="MAVLINK_M_ESAD_TRIGGER_DISTANCE_MODE">Requested coarse trigger-distance standoff mode. Coarse selection only.</field>
     </message>
 
@@ -1499,15 +1591,28 @@
         tasking-status response. Provided for gateway mapping between UCI
         publish/subscribe events and native MAVLink payload control; it does not
         replace MAVLink platform control. Carries commanded sensor mode and an
-        optional point of interest to slew to.
+        optional point of interest or track to slew to.
+
+        A request carries status MAVLINK_M_TASKING_UNSPECIFIED and is addressed
+        to the sensor or payload. A status response carries any other status and
+        is addressed to the requester: the source system and component IDs in
+        the request's frame header. A response echoes task_id and track_uid and reports the
+        mode in effect in sensor_mode; receivers ignore its point-of-interest
+        fields. When a task ends for any reason other than its requester's own
+        request, the sensor sends that requester a status response with
+        MAVLINK_M_TASKING_INTERRUPTED, echoing the task's task_id and
+        track_uid. Status responses go only to the requester.
       </description>
       <field type="uint64_t" name="time_usec"    units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
-      <field type="uint16_t" name="task_id"                 >Tasking correlation id (echoed in the status response).</field>
-      <field type="uint8_t"  name="sensor_mode"  enum="MAVLINK_M_SENSOR_MODE">Commanded sensor/payload mode.</field>
-      <field type="uint8_t"  name="status"        enum="MAVLINK_M_TASKING_STATUS">Tasking-status response (ACK/REJECTED/COMPLETE/ACTIVE).</field>
+      <field type="uint8_t"  name="target_system"           >System ID of the intended recipient: the sensor's system for a request, the requester's for a status response. Never 0, not even to cage every sensor: a STANDBY sent to every system would also cage a designator guiding a weapon already in flight. Receivers ignore a SENSOR_TASKING sent with 0.</field>
+      <field type="uint8_t"  name="target_component"        >Component ID of the intended recipient within target_system: the sensor or payload for a request, the requester for a status response. 0 = every component of that system. Ignored when target_system is 0.</field>
+      <field type="uint16_t" name="task_id"                 >Tasking correlation id, chosen by the requester and echoed unchanged in every status response for that task. A sensor tells tasks apart by the requester's system and component IDs together with task_id.</field>
+      <field type="uint8_t"  name="sensor_mode"  enum="MAVLINK_M_SENSOR_MODE">Commanded sensor/payload mode in a request; the mode in effect in a status response.</field>
+      <field type="uint8_t"  name="status"        enum="MAVLINK_M_TASKING_STATUS">MAVLINK_M_TASKING_UNSPECIFIED in a request, any other value in a status response; this is how a receiver tells the two apart.</field>
       <field type="int32_t"  name="poi_lat"       units="degE7">Point-of-interest latitude to slew to, WGS84. INT32_MAX = not provided (0 is a valid coordinate).</field>
       <field type="int32_t"  name="poi_lon"       units="degE7">Point-of-interest longitude to slew to, WGS84. INT32_MAX = not provided (0 is a valid coordinate).</field>
       <field type="float"    name="poi_alt"       units="m"   >Point-of-interest altitude, MSL. NaN = not provided.</field>
+      <field type="uint8_t[16]" name="track_uid">Track UID (see TRACK_IDENTITY) the sensor is to follow. When set, the sensor follows that track and the point of interest is only a starting cue; with sensor_mode MAVLINK_M_SENSOR_MODE_LASER_DESIGNATE or MAVLINK_M_SENSOR_MODE_IR_MARK the track only cues the sensor, which lases or marks what its own tracker holds. All-zero to point at the point of interest.</field>
     </message>
 
     <!-- ============================================================ -->
@@ -1521,6 +1626,9 @@
         value. Danger close is a flag; RED tables are never embedded.
       </description>
       <field type="uint64_t" name="time_usec"       units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint8_t"  name="target_system"               >System ID of the intended recipient: the attacking aircraft. A flight gets the brief addressed to each of its aircraft. Never 0; receivers ignore a 9-line sent to every system.</field>
+      <field type="uint8_t"  name="target_component"            >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
+      <field type="uint16_t" name="sequence"                    >Engagement sequence of this brief, chosen by its sender. TERMINAL_CONTROL.sequence refers to it. 0xFFFF is reserved: in a stop it means every brief.</field>
       <field type="int32_t"  name="ip_lat"          units="degE7">Line 1: initial point / battle position latitude, WGS84.</field>
       <field type="int32_t"  name="ip_lon"          units="degE7">Line 1: initial point / battle position longitude, WGS84.</field>
       <field type="uint16_t" name="heading_deg"     units="deg" >Line 2: heading (IP to target).</field>
@@ -1537,6 +1645,7 @@
       <field type="uint16_t" name="final_attack_heading_deg" units="deg">Remarks: final attack heading (FAH). 0xFFFF if unspecified.</field>
       <field type="uint8_t"  name="danger_close"                >Remarks: 1 = danger close / troops in contact; 0 = not.</field>
       <field type="uint8_t"  name="delivery"        enum="MAVLINK_M_ORDNANCE_DELIVERY">Bomb-on-coordinate vs bomb-on-target.</field>
+      <field type="uint8_t[16]" name="track_uid">Track UID (see TRACK_IDENTITY) of the target this brief describes. All-zero if not associated with a track.</field>
     </message>
 
     <!-- ============================================================ -->
@@ -1545,16 +1654,27 @@
     <message id="53061" name="TERMINAL_CONTROL">
       <description>
         Terminal-attack-control handshake (JP 3-09.3). Carries the control type,
-        the human clearance/abort verb, and attacking-aircraft status calls. This
-        is a human-authority instrument: clearance verbs record a human decision
-        and must not be wired as an automated release path.
+        the clearance or abort verb, and attacking-aircraft status calls. Both
+        ends send it. The controller sends clearance, addressed to the attacking
+        aircraft, with aircraft_call MAVLINK_M_ACFT_CALL_NONE. The aircraft
+        sends aircraft_call, addressed to the controller (the source of the
+        CAS_9LINE with this sequence), with clearance MAVLINK_M_CAS_NONE, so a
+        report is never read as a clearance or an abort.
+        MAVLINK_M_CAS_CONTINUE and MAVLINK_M_CAS_CLEARED_HOT are human-authority
+        instruments: they record a human decision, must not be wired as an
+        automated release path, and are acted on only from the controller that
+        sent the brief. MAVLINK_M_CAS_ABORT and MAVLINK_M_CAS_CEASE_FIRE are
+        safety actions: the aircraft acts on them on receipt from any sender,
+        whatever tac_type and abort_authority_present say.
       </description>
       <field type="uint64_t" name="time_usec"    units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
-      <field type="uint16_t" name="sequence"               >Engagement sequence this handshake applies to.</field>
+      <field type="uint8_t"  name="target_system"          >System ID of the intended recipient: the attacking aircraft for a clearance, the controller for an aircraft call. 0 (every system) is valid only with clearance MAVLINK_M_CAS_ABORT or MAVLINK_M_CAS_CEASE_FIRE, and a receiver acts only on that clearance in such a message; receivers ignore any other TERMINAL_CONTROL sent with 0.</field>
+      <field type="uint8_t"  name="target_component"       >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
+      <field type="uint16_t" name="sequence"               >Engagement sequence this handshake applies to: the CAS_9LINE.sequence of the brief it controls. With clearance MAVLINK_M_CAS_ABORT or MAVLINK_M_CAS_CEASE_FIRE, 0xFFFF means every attack the receiving aircraft is making.</field>
       <field type="uint8_t"  name="tac_type"     enum="MAVLINK_M_TAC_TYPE">Type of terminal attack control (1/2/3).</field>
       <field type="uint8_t"  name="clearance"    enum="MAVLINK_M_CAS_CLEARANCE">Clearance / abort verb (human authority).</field>
       <field type="uint8_t"  name="aircraft_call" enum="MAVLINK_M_AIRCRAFT_CALL">Attacking-aircraft status call.</field>
-      <field type="uint8_t"  name="abort_authority_present"  >1 = a valid abort authority is established for this engagement; 0 = not.</field>
+      <field type="uint8_t"  name="abort_authority_present"  >1 = a valid abort authority is established for this engagement; 0 = not. A precondition for MAVLINK_M_CAS_CLEARED_HOT; it never gates MAVLINK_M_CAS_ABORT or MAVLINK_M_CAS_CEASE_FIRE.</field>
     </message>
 
     <!-- ============================================================ -->
@@ -1606,15 +1726,32 @@
       <description>
         Generic acknowledgment for MAVLink-M messages. A recipient emits this in
         response to an acknowledged MAVLink-M message to close the loop on
-        delivery and acceptance. Keyed by the acknowledged message ID plus an
-        instance identifier (e.g. cue_id, target_set_id, or sequence) so the
-        originator can match the ACK to the specific item.
+        delivery and acceptance, addressed to the system and component that
+        sent that message. Keyed by the acknowledged message ID, an instance
+        identifier (e.g. cue_id, target_set_id, or sequence) and that
+        message's time_usec, so the originator can match the ACK to the one
+        message it answers. The acknowledging system identifies itself in the
+        MAVLink frame header.
+
+        Every MAVLink-M message that carries target_system is acknowledged,
+        except SENSOR_TASKING, which its status response answers. The
+        recipient answers with one final result, and may send
+        MAVLINK_M_ACK_RECEIVED first while a human decision is pending. A
+        message sent with target_system 0 is answered by every system that
+        receives it, with MAVLINK_M_ACK_NOT_APPLICABLE where nothing on that
+        system is what it applies to. A sender that gets no acknowledgment may
+        send the message again unchanged, time_usec included. A receiver
+        treats a repeat of a message it has processed (same source system and
+        component, message ID and time_usec) as a duplicate: it answers it
+        again and does not act on it a second time. Receivers ignore an
+        acknowledgment sent with target_system 0.
       </description>
       <field type="uint64_t" name="time_usec"     units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint64_t" name="ack_time_usec" units="us"  >time_usec of the acknowledged message, copied unchanged. Tells apart acknowledgments of different messages with the same ack_msgid and ack_instance, such as a MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE and the MAVLINK_M_ENGAGEMENT_DIRECTIVE_RESUME of the same mission.</field>
+      <field type="uint8_t"  name="target_system"              >System ID of the recipient: the source system ID in the frame header of the acknowledged message, not that message's own target_system. Never 0.</field>
+      <field type="uint8_t"  name="target_component"           >Component ID of the recipient: the source component ID in the frame header of the acknowledged message, not that message's own target_component. Never 0.</field>
       <field type="uint32_t" name="ack_msgid"                  >MAVLink message ID being acknowledged (e.g. 53001 for TARGET_CUE).</field>
       <field type="uint32_t" name="ack_instance"               >Instance identifier of the acknowledged item (e.g. cue_id / target_set_id / sequence). 0 if not applicable.</field>
-      <field type="uint8_t"  name="origin_sysid"               >System ID of the originator of the acknowledged message.</field>
-      <field type="uint8_t"  name="ack_sysid"                  >System ID of the system issuing this acknowledgment.</field>
       <field type="uint8_t"  name="result"        enum="MAVLINK_M_ACK_RESULT">Result of receiving/processing the acknowledged message.</field>
       <field type="char[50]" name="reason"                     >Optional human-readable reason, primarily for REJECTED/FAILED (null-terminated).</field>
     </message>
@@ -1742,18 +1879,23 @@
         MAVLINK_M_ACK so the originator gets positive confirmation the directive
         was received and actioned.
 
-        ABORT and CHECK_FIRE are safety actions and should be honored on receipt;
-        they do not require the authorization trail that initiating fire does.
+        MAVLINK_M_ENGAGEMENT_DIRECTIVE_ABORT and
+        MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE are safety actions: every
+        system they select acts on them on receipt, once the link's message
+        signing, where it is used, accepts them. They do not require the
+        authorization trail that initiating fire does.
       </description>
       <field type="uint64_t"  name="time_usec"     units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
-      <field type="uint8_t[16]" name="track_uid"                >Track UID the directive applies to. All-zero if addressed by sequence only.</field>
-      <field type="uint16_t"  name="sequence"                  >Fire mission sequence number the directive applies to.</field>
+      <field type="uint8_t"  name="target_system"               >System ID of the intended recipient. 0 (every system) is valid only for MAVLINK_M_ENGAGEMENT_DIRECTIVE_ABORT and MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE; receivers ignore any other directive sent with 0.</field>
+      <field type="uint8_t"  name="target_component"            >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
+      <field type="uint8_t[16]" name="track_uid"                >Track UID the directive applies to. All-zero if addressed by sequence only. A MAVLINK_M_ENGAGEMENT_DIRECTIVE_ABORT or MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE applies to every engagement that matches its sequence or its nonzero track_uid, whoever issued that engagement, and is never declined because one selector does not match. A MAVLINK_M_ENGAGEMENT_DIRECTIVE_RESUME or MAVLINK_M_ENGAGEMENT_DIRECTIVE_RETARGET applies only to an engagement that matches every selector it carries.</field>
+      <field type="uint16_t"  name="sequence"                  >Fire mission sequence number the directive applies to. For MAVLINK_M_ENGAGEMENT_DIRECTIVE_ABORT and MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE, 0xFFFF means every fire mission the receiving system holds.</field>
       <field type="uint32_t"  name="effector_id"               >Effector the directive is addressed to. 0 = all assigned.</field>
       <field type="int32_t"   name="retarget_lat" units="degE7">New target latitude for RETARGET, WGS84. INT32_MAX = not provided (0,0 is a valid coordinate). Ignored unless directive is RETARGET.</field>
       <field type="int32_t"   name="retarget_lon" units="degE7">New target longitude for RETARGET, WGS84. INT32_MAX = not provided. Ignored unless directive is RETARGET.</field>
       <field type="float"     name="retarget_alt" units="m"    >New target altitude for RETARGET, MSL. NaN = not provided. Ignored unless directive is RETARGET.</field>
       <field type="uint8_t"   name="directive"    enum="MAVLINK_M_ENGAGEMENT_DIRECTIVE">Directive type.</field>
-      <field type="uint8_t"   name="origin_sysid"              >System ID issuing the directive.</field>
+      <field type="uint8_t"   name="origin_sysid"              >System ID of the system that first issued the directive. A system that passes the directive on as a message of its own keeps this value, so it can differ from the source system ID in the frame header; routers never change either. Not authenticated: for display and audit, never a reason to act or not to act on the directive.</field>
     </message>
 
     <!-- ============================================================ -->
@@ -1767,6 +1909,8 @@
         elements a VMF/Link-16 packer requires. Descriptive intent only.
       </description>
       <field type="uint64_t" name="time_usec"       units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint8_t"  name="target_system"              >System ID of the intended recipient: the fire direction center. Never 0; receivers ignore a call for fire sent to every system.</field>
+      <field type="uint8_t"  name="target_component"           >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
       <field type="uint16_t" name="sequence"                   >Fire-mission sequence number this CFF applies to.</field>
       <field type="uint8_t"  name="mission_type"    enum="MAVLINK_M_MISSION_TYPE">Warning-order mission type.</field>
       <field type="uint8_t"  name="location_method" enum="MAVLINK_M_TARGET_LOCATION_METHOD">Method of target location.</field>
@@ -1855,10 +1999,26 @@
         (JFIRE 2023). SAFETY-CRITICAL: consent_state records a MAN-IN-THE-LOOP
         human decision and MUST NOT be used to build an automated release path;
         release authority remains with the crewed C2 system. terminate provides
-        abort/wave-off/self-destruct. Pairs with TARGET_AUTHORIZATION (record)
-        and ENGAGEMENT_DIRECTIVE (abort/check-fire) already in the dialect.
+        abort/wave-off/self-destruct. Pairs with TARGET_AUTHORIZATION (record).
+        A loitering munition also acts on ENGAGEMENT_DIRECTIVE:
+        MAVLINK_M_ENGAGEMENT_DIRECTIVE_ABORT as MAVLINK_M_LM_TERMINATE_ABORT,
+        and MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE as
+        MAVLINK_M_LM_TERMINATE_WAVE_OFF held until a
+        MAVLINK_M_ENGAGEMENT_DIRECTIVE_RESUME.
+
+        Both ends send it. A munition sends consent_state
+        MAVLINK_M_LM_CONSENT_REQUESTED addressed to the human authority for the
+        engagement: the source of the FIRES or addressed
+        LOITER_MUNITION_CONTROL that tasked it against track_uid. It applies
+        MAVLINK_M_LM_CONSENT_GRANTED only from that system, and every stop from
+        any sender. consent_state and terminate carry changes, not a copy of
+        state: a sender sets them only to make that change and otherwise sends
+        MAVLINK_M_LM_CONSENT_NONE and MAVLINK_M_LM_TERMINATE_NONE, which leave
+        the munition's consent and action as they are.
       </description>
       <field type="uint64_t"  name="time_usec"     units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
+      <field type="uint8_t"  name="target_system"            >System ID of the intended recipient: the munition, or the human authority for a consent request. 0 (every system) is valid only to stop. From a message sent with 0, a munition applies terminate MAVLINK_M_LM_TERMINATE_WAVE_OFF or MAVLINK_M_LM_TERMINATE_ABORT and consent_state MAVLINK_M_LM_CONSENT_WITHHELD or MAVLINK_M_LM_CONSENT_WITHDRAWN, treats any other terminate or consent_state value as none, and ignores the loiter station and every other field, so after an ABORT it returns to the loiter station it already holds. It never drops the stop because the message carries something else. Receivers ignore a LOITER_MUNITION_CONTROL sent with 0 that carries no stop.</field>
+      <field type="uint8_t"  name="target_component"         >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
       <field type="uint8_t[16]" name="track_uid"             >128-bit track UID of the engaged object (see TRACK_IDENTITY).</field>
       <field type="uint8_t"   name="consent_state" enum="MAVLINK_M_LM_CONSENT_STATE">Man-in-the-loop consent-to-strike state (recorded human decision, not a trigger).</field>
       <field type="uint8_t"   name="terminate"     enum="MAVLINK_M_LM_TERMINATE">Abort / wave-off / self-destruct action.</field>
