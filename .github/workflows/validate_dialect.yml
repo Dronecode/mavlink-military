@@ -1,0 +1,117 @@
+name: Validate Dialect
+
+# Checks that the dialect definitions are valid and still generate.
+# Nothing here writes to the repository or publishes anything; generated
+# code stays on the runner.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  schema:
+    name: Schema validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up MAVLink generation tooling
+        uses: ./.github/actions/setup-mavlink-tooling
+
+      - name: Install xmllint
+        run: |
+          command -v xmllint >/dev/null || sudo sh -c 'apt-get update -qq && apt-get install -y -qq libxml2-utils'
+          xmllint --version 2>&1 | head -n 1
+
+      - name: Validate the dialect files against the MAVLink schema
+        # military_extensions.xml is a template and is never generated, so
+        # this is the only check that keeps it valid.
+        run: |
+          xmllint --noout --schema pymavlink/generator/mavschema.xsd \
+            military.xml military_extensions.xml
+
+  script-tests:
+    name: Check script tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run the unit tests of the check scripts
+        run: python3 -m unittest discover --start-directory .github/scripts/validate_dialect/tests --verbose
+
+  generate-c:
+    name: Generate and compile C
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up MAVLink generation tooling
+        uses: ./.github/actions/setup-mavlink-tooling
+
+      - name: Generate C bindings (validated, strict units)
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python3 -m pymavlink.tools.mavgen \
+            --lang=C --wire-protocol=2.0 --strict-units \
+            --output=build/c \
+            mavlink/message_definitions/v1.0/military.xml
+
+      - name: Type-check the generated headers at -Wall -Wextra -Werror
+        # The repository has no code that uses the headers, so this checks
+        # only that they compile: it includes the dialect header, which
+        # type-checks every inline helper. -Wno-address-of-packed-member
+        # silences a warning that mavgen's own helpers raise in the
+        # common.xml headers, whatever the dialect contains.
+        run: |
+          echo '#include <military/mavlink.h>' | \
+            gcc -std=c11 -Wall -Wextra -Werror -Wno-address-of-packed-member \
+              -fsyntax-only -I build/c -x c -
+
+  generate-python:
+    name: Generate and import Python
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up MAVLink generation tooling
+        uses: ./.github/actions/setup-mavlink-tooling
+
+      - name: Generate Python bindings (validated, strict units)
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python3 -m pymavlink.tools.mavgen \
+            --lang=Python --wire-protocol=2.0 --strict-units \
+            --output="${RUNNER_TEMP}/military.py" \
+            mavlink/message_definitions/v1.0/military.xml
+
+      - name: Import the generated module
+        # Checks that the module loads and that every message military.xml
+        # defines is in its message map.
+        run: python3 .github/scripts/validate_dialect/check_python_bindings.py "${RUNNER_TEMP}/military.py" military.xml
