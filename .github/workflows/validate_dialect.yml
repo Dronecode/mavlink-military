@@ -1,8 +1,8 @@
 name: Validate Dialect
 
-# Checks that the dialect definitions are valid and still generate.
-# Nothing here writes to the repository or publishes anything; generated
-# code stays on the runner.
+# Checks that the dialect definitions are valid, follow the documented ID
+# allocation and still generate. Nothing here writes to the repository or
+# publishes anything; generated code stays on the runner.
 
 on:
   pull_request:
@@ -42,6 +42,19 @@ jobs:
         run: |
           xmllint --noout --schema pymavlink/generator/mavschema.xsd \
             military.xml military_extensions.xml
+
+  policy:
+    name: ID allocation and naming policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check the 53xxx allocation, IDMAPPING.md and MAVLink naming conventions
+        run: python3 .github/scripts/validate_dialect/check_dialect_policy.py
 
   script-tests:
     name: Check script tests
