@@ -43,7 +43,11 @@ if [ "${GITHUB_EVENT_NAME:-}" = "workflow_dispatch" ]; then
 	subject="Regenerate: $subject"
 fi
 
-rsync -a --delete \
+# --checksum: rsync's default check skips a file whose size and mtime, in
+# whole seconds, match, and a regenerated version.h keeps its size (only the
+# build date changes). Headers written in the same second as the checkout
+# would then never be published.
+rsync -a --checksum --delete \
 	--exclude .git --exclude README.md --exclude LICENSE \
 	"$out_dir/" "$c_library_dir/"
 

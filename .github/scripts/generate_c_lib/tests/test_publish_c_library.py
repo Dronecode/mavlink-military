@@ -99,6 +99,16 @@ class PublishCLibraryTest(unittest.TestCase):
         # %B ends with the message's newline, and git log adds one more.
         return git(self.bare, "log", "-1", "--format=%B", "main").removesuffix("\n")
 
+    def test_a_same_size_change_written_in_the_same_second_is_published(self) -> None:
+        # rsync's default check would skip this file: same size, same mtime.
+        stamp = 1_790_000_000
+        os.utime(self.out / FIRES, (stamp, stamp))
+        os.utime(self.library / FIRES, (stamp, stamp))
+        result = self.publish()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.published(FIRES), NEW_CRC)
+        self.assertEqual(self.published("military/version.h"), NEW_DATE)
+
     def test_headers_the_library_holds_publish_nothing(self) -> None:
         write(self.out / "military/version.h", OLD_DATE)
         write(self.out / FIRES, OLD_CRC)
