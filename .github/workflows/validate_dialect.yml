@@ -171,3 +171,18 @@ jobs:
         # Checks that the module loads and that every message military.xml
         # defines is in its message map.
         run: python3 .github/scripts/validate_dialect/check_python_bindings.py "${RUNNER_TEMP}/military.py" military.xml
+
+  example-digests:
+    name: Metadata example digests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check every digest the metadata examples declare
+        # Upstream MAVLink files are fetched at the commit their manifest URI
+        # pins; everything else is read from this checkout.
+        run: python3 .github/scripts/validate_dialect/check_example_digests.py
