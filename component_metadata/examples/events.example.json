@@ -1,0 +1,42 @@
+{
+  "version": 2,
+  "components": {
+    "191": {
+      "namespace": "example_payload_manager",
+      "event_groups": {
+        "default": {
+          "events": {
+            "1": {
+              "name": "recording_stopped",
+              "message": "Recording stopped early, file {4}",
+              "description": "Sent for the recorder's recording_stopped event. The first three arguments identify the function, and the rest carry the data declared by com.example.survey.recorder.",
+              "arguments": [
+                {
+                  "type": "uint16_t",
+                  "name": "payload_id"
+                },
+                {
+                  "type": "uint16_t",
+                  "name": "function_id"
+                },
+                {
+                  "type": "uint64_t",
+                  "name": "instance_epoch"
+                },
+                {
+                  "type": "uint32_t",
+                  "name": "file_id"
+                },
+                {
+                  "type": "uint8_t",
+                  "name": "reason",
+                  "description": "1: storage full, 2: sensor stopped sending samples"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

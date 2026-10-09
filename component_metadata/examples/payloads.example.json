@@ -1,0 +1,331 @@
+{
+  "schemaVersion": 1,
+  "definitionManifest": {
+    "uri": "https://example.org/mavlink-m/definitions/0.1.0-draft/manifest.json",
+    "sha256": "96d2a86a6be9cc70ec1b236e467239197479fbf7ad1c8cb194014d8cae8300aa"
+  },
+  "managerEpoch": "42001",
+  "catalogueRevision": 7,
+  "payloads": [
+    {
+      "payloadId": 10,
+      "instanceEpoch": "1001",
+      "label": "EO/IR Gimbal",
+      "description": "Stabilized visible-light and infrared imaging payload.",
+      "vendorName": "Example Vendor A",
+      "modelName": "Example EO/IR Gimbal",
+      "functions": [
+        {
+          "functionId": 1,
+          "descriptorRevision": 1,
+          "label": "Visible Camera",
+          "description": "Captures visible-light images and video.",
+          "serviceBindings": [
+            {
+              "service": "camera",
+              "targetComponentId": 1,
+              "reportComponentId": 1,
+              "selectors": {
+                "cameraDeviceId": 1
+              }
+            },
+            {
+              "service": "payload-measurement",
+              "description": "Reports payload-internal readings that are not represented by a more specific MAVLink message."
+            }
+          ],
+          "measurements": [
+            {
+              "measurementId": 1,
+              "measurementKind": 1,
+              "label": "Optics Bench Temperature",
+              "description": "Temperature of the visible camera optical bench near the lens mount."
+            },
+            {
+              "measurementId": 2,
+              "measurementKind": 1,
+              "label": "Image Processor Temperature",
+              "description": "Temperature of the visible camera image-processor heat sink."
+            },
+            {
+              "measurementId": 3,
+              "measurementKind": 2,
+              "label": "Sensor Board Rail Voltage",
+              "description": "Voltage of the visible camera sensor board's internal 3.3 V rail; this is not a battery or vehicle power-rail report."
+            }
+          ]
+        },
+        {
+          "functionId": 2,
+          "descriptorRevision": 1,
+          "label": "MWIR Camera",
+          "description": "Captures mid-wave infrared images and video.",
+          "serviceBindings": [
+            {
+              "service": "camera",
+              "targetComponentId": 1,
+              "reportComponentId": 1,
+              "selectors": {
+                "cameraDeviceId": 2
+              }
+            }
+          ]
+        },
+        {
+          "functionId": 3,
+          "descriptorRevision": 1,
+          "label": "Gimbal",
+          "description": "Points and stabilizes the imaging payload.",
+          "serviceBindings": [
+            {
+              "service": "gimbal-v2",
+              "targetComponentId": 1,
+              "reportComponentId": 1,
+              "selectors": {
+                "gimbalDeviceId": 154
+              }
+            }
+          ]
+        },
+        {
+          "functionId": 4,
+          "descriptorRevision": 1,
+          "label": "Laser Rangefinder",
+          "description": "Measures distance to the object under the gimbal crosshair.",
+          "serviceBindings": [
+            {
+              "service": "distance-sensor",
+              "reportComponentId": 1,
+              "selectors": {
+                "sensorId": 0
+              },
+              "description": "DISTANCE_SENSOR reports the laser rangefinder reading and device identity."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "payloadId": 11,
+      "instanceEpoch": "1002",
+      "label": "Parachute Recovery",
+      "description": "Parachute recovery system for the airframe, released through the autopilot's standard parachute command.",
+      "vendorName": "Example Recovery Co.",
+      "modelName": "Example Parachute System",
+      "functions": [
+        {
+          "functionId": 1,
+          "descriptorRevision": 1,
+          "label": "Parachute",
+          "description": "Parachute recovery system for the airframe.",
+          "serviceBindings": [
+            {
+              "service": "parachute",
+              "targetComponentId": 1,
+              "description": "MAV_CMD_DO_PARACHUTE is handled by the autopilot, which controls this one parachute."
+            },
+            {
+              "service": "payload-state"
+            },
+            {
+              "service": "payload-inhibit"
+            }
+          ],
+          "inhibitions": [
+            {
+              "inhibitId": 9,
+              "label": "Below minimum release altitude",
+              "description": "Active while the vehicle is below the lowest altitude at which the parachute can open fully. The autopilot refuses a release while this is active.",
+              "prevents": ["activate"]
+            }
+          ],
+          "capabilityProfiles": [
+            {
+              "profileId": "com.example.parachute.status",
+              "profileVersion": 1,
+              "definitionUri": "mftp:///payloads/profiles/com.example.parachute.status.v1.json",
+              "sha256": "2ddf829faa924143db14266bbe89e54909fddf923e0546fee1fefd139183a2d9",
+              "instanceKey": "parachute-1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "payloadId": 12,
+      "instanceEpoch": "1003",
+      "label": "Environmental Survey Payload",
+      "description": "Air-sampling survey sensor and onboard data recorder that share one storage pool.",
+      "vendorName": "Example Sensors Co.",
+      "modelName": "Example Survey Payload",
+      "functions": [
+        {
+          "functionId": 1,
+          "descriptorRevision": 1,
+          "label": "Survey sensor",
+          "description": "Samples ambient air for particulate concentration.",
+          "privateTypeKey": "com.example.environmental-survey",
+          "serviceBindings": [
+            {
+              "service": "payload-measurement"
+            },
+            {
+              "service": "storage-information",
+              "reportComponentId": 60,
+              "selectors": {
+                "storageId": 1
+              }
+            }
+          ],
+          "measurements": [
+            {
+              "measurementId": 1,
+              "measurementKind": 32768,
+              "privateTypeKey": "com.example.survey.pm2-5",
+              "label": "PM2.5 concentration",
+              "description": "Mass concentration of particulate matter up to 2.5 µm in diameter in the air drawn through the sensor inlet, in µg/m³ as defined by com.example.survey.pm2-5. This scalar is the whole of what the samples output carries. A client that does not recognize com.example.survey.pm2-5 treats the kind as unknown and does not use the value."
+            }
+          ],
+          "capabilityProfiles": [
+            {
+              "profileId": "com.example.survey.sensor",
+              "profileVersion": 1,
+              "definitionUri": "mftp:///payloads/profiles/com.example.survey.sensor.v1.json",
+              "sha256": "1a235859b86811033eb514ea87068460e4838d24681e3a510c4fc205737f183d",
+              "instanceKey": "survey-sensor-1",
+              "resourceScope": {
+                "storage": {
+                  "scope": "shared",
+                  "sharedPoolId": "survey-1-storage-pool"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "functionId": 2,
+          "descriptorRevision": 1,
+          "label": "Data recorder",
+          "description": "Records the survey sensor's raw sample stream to onboard storage.",
+          "serviceBindings": [
+            {
+              "service": "payload-operation"
+            },
+            {
+              "service": "mavlink-ftp"
+            },
+            {
+              "service": "events",
+              "description": "Recorder events are sent by the payload manager, whose events metadata defines them in namespace component 191."
+            },
+            {
+              "service": "storage-information",
+              "reportComponentId": 60,
+              "selectors": {
+                "storageId": 1
+              }
+            }
+          ],
+          "capabilityProfiles": [
+            {
+              "profileId": "com.example.survey.recorder",
+              "profileVersion": 1,
+              "definitionUri": "mftp:///payloads/profiles/com.example.survey.recorder.v1.json",
+              "sha256": "1fdb3f2ccd0fa49a79ce648215241ec733c34669d39ac1d92333abf5b917c478",
+              "instanceKey": "survey-recorder-1",
+              "resourceScope": {
+                "storage": {
+                  "scope": "shared",
+                  "sharedPoolId": "survey-1-storage-pool"
+                }
+              },
+              "eventScope": {
+                "recording_stopped": {
+                  "id": 3204448257
+                }
+              }
+            }
+          ],
+          "genericOperations": {
+            "deactivate": {
+              "cancellable": false
+            },
+            "self-test": {
+              "cancellable": true,
+              "cancelResponseMsec": 500
+            }
+          }
+        }
+      ]
+    },
+    {
+      "payloadId": 13,
+      "instanceEpoch": "1004",
+      "label": "Dual Actuator Unit",
+      "description": "Made-up payload with two linear actuators that bind the same capability profile and must not move at the same time.",
+      "vendorName": "Example Vendor",
+      "modelName": "Example Dual Actuator",
+      "functions": [
+        {
+          "functionId": 1,
+          "descriptorRevision": 1,
+          "label": "Actuator A",
+          "description": "First linear actuator of the unit.",
+          "serviceBindings": [
+            {
+              "service": "payload-operation",
+              "description": "Operation exchange served by the payload manager, for this function's profile operations. targetComponentId is omitted, so requests go to the publishing manager's component."
+            }
+          ],
+          "capabilityProfiles": [
+            {
+              "profileId": "com.example.linear-actuator",
+              "profileVersion": 1,
+              "definitionUri": "https://example.org/mavlink-m/profiles/com.example.linear-actuator/1/profile.json",
+              "sha256": "dba2f47be49723b0ede00e80a21dff16efe64def55bdb276a87948ca783d7dc3",
+              "instanceKey": "dual-actuator-a"
+            }
+          ]
+        },
+        {
+          "functionId": 2,
+          "descriptorRevision": 1,
+          "label": "Actuator B",
+          "description": "Second linear actuator of the unit.",
+          "serviceBindings": [
+            {
+              "service": "payload-operation",
+              "description": "Operation exchange served by the payload manager, for this function's profile operations. targetComponentId is omitted, so requests go to the publishing manager's component."
+            }
+          ],
+          "capabilityProfiles": [
+            {
+              "profileId": "com.example.linear-actuator",
+              "profileVersion": 1,
+              "definitionUri": "https://example.org/mavlink-m/profiles/com.example.linear-actuator/1/profile.json",
+              "sha256": "dba2f47be49723b0ede00e80a21dff16efe64def55bdb276a87948ca783d7dc3",
+              "instanceKey": "dual-actuator-b"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "constraints": [
+    {
+      "constraintKey": "dual-actuator-exclusive-motion",
+      "description": "The two actuators of the dual actuator unit share one drive and must not move at the same time.",
+      "kind": "mutually-exclusive-actions",
+      "members": [
+        {
+          "instanceKey": "dual-actuator-a",
+          "actionKey": "com.example.linear-actuator.move-to-position"
+        },
+        {
+          "instanceKey": "dual-actuator-b",
+          "actionKey": "com.example.linear-actuator.move-to-position"
+        }
+      ]
+    }
+  ]
+}
