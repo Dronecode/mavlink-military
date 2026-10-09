@@ -17,7 +17,15 @@ fi
 archive=$(mktemp)
 trap 'rm -f "$archive"' EXIT
 curl --fail --silent --show-error --location --output "$archive" "$1"
-if ! echo "$2  $archive" | sha256sum --check --status; then
+# sha256sum on Linux, shasum on macOS, whose sha256sum takes other options.
+# Comparing the digest itself needs no --check, which they spell differently.
+if command -v sha256sum >/dev/null && sha256sum --version >/dev/null 2>&1; then
+	actual=$(sha256sum "$archive")
+else
+	actual=$(shasum -a 256 "$archive")
+fi
+actual=${actual%% *}
+if [ "$actual" != "$2" ]; then
 	echo "error: $1 does not have SHA-256 $2" >&2
 	exit 1
 fi
