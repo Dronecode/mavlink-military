@@ -70,6 +70,10 @@ jobs:
         # check_wire_compat.py, and so its tests, import pymavlink's parser.
         uses: ./.github/actions/setup-mavlink-tooling
 
+      - name: Install the checkers' Python packages
+        # check_example_schemas.py, and so its tests, import jsonschema.
+        run: python3 -m pip install --quiet -r .github/scripts/validate_dialect/requirements.txt
+
       - name: Run the unit tests of the check scripts
         env:
           PYTHONPATH: ${{ github.workspace }}
@@ -186,3 +190,26 @@ jobs:
         # Upstream MAVLink files are fetched at the commit their manifest URI
         # pins; everything else is read from this checkout.
         run: python3 .github/scripts/validate_dialect/check_example_digests.py
+
+  example-schemas:
+    name: Metadata example schemas
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.x"
+
+      - name: Install the checkers' Python packages
+        run: python3 -m pip install --quiet -r .github/scripts/validate_dialect/requirements.txt
+
+      - name: Validate the metadata examples against their schemas
+        # Also checks the uniqueness and reference rules the schemas state
+        # but their structure cannot enforce.
+        run: python3 .github/scripts/validate_dialect/check_example_schemas.py

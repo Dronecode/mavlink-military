@@ -1,0 +1,4 @@
+# Python packages the validate_dialect checkers need beyond the standard
+# library and pymavlink. Installed by the example-schemas and script-tests
+# jobs of validate_dialect.yml; bump by hand.
+jsonschema==4.26.0
