@@ -24,7 +24,7 @@ Omit `:MODEL` rather than guess it.
 3. If `military.xml` changed, check it is well formed:
    `xmllint --noout military.xml`.
 4. Commit without `-s`, then run
-   `.github/scripts/check_commits.sh origin/main..HEAD` and fix anything it
+   `.github/scripts/commit_checks/check_commits.sh origin/main..HEAD` and fix anything it
    rejects.
 5. Tell the user to review and sign off. Apply the sign-off for them only if
    they explicitly ask. Do not push unless asked.

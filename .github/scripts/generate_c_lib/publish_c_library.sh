@@ -8,7 +8,8 @@
 #   out        directory produced by generate_c_headers.sh
 #   c_library  checkout of the C library repository, with push access
 #
-# Environment: MAVLINK_REF, PYMAVLINK_REF, and the GitHub Actions defaults
+# The commit records the generator pins from <source>/.github/mavlink-pins.env.
+# Environment: the GitHub Actions defaults
 # GITHUB_EVENT_NAME, GITHUB_REPOSITORY, GITHUB_SERVER_URL.
 set -eu
 
@@ -20,6 +21,10 @@ fi
 source_dir=$1
 out_dir=$2
 c_library_dir=$3
+
+pins=$("$(dirname "$0")/read_pins.sh" "$source_dir/.github/mavlink-pins.env")
+mavlink_ref=$(printf '%s\n' "$pins" | sed -n 's/^mavlink=//p')
+pymavlink_ref=$(printf '%s\n' "$pins" | sed -n 's/^pymavlink=//p')
 
 sha=$(git -C "$source_dir" rev-parse HEAD)
 short=$(git -C "$source_dir" rev-parse --short HEAD)
@@ -38,7 +43,11 @@ if [ "${GITHUB_EVENT_NAME:-}" = "workflow_dispatch" ]; then
 	subject="Regenerate: $subject"
 fi
 
-rsync -a --delete \
+# --checksum: rsync's default check skips a file whose size and mtime, in
+# whole seconds, match, and a regenerated version.h keeps its size (only the
+# build date changes). Headers written in the same second as the checkout
+# would then never be published.
+rsync -a --checksum --delete \
 	--exclude .git --exclude README.md --exclude LICENSE \
 	"$out_dir/" "$c_library_dir/"
 
@@ -46,7 +55,10 @@ cd "$c_library_dir"
 git config user.name "github-actions[bot]"
 git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 git add --all
-if git diff --cached --quiet; then
+# mavgen stamps the generation date into every version.h, so headers
+# regenerated on another day differ in that line alone; that is no reason
+# to publish.
+if git diff --cached --quiet -I '^#define MAVLINK_BUILD_DATE '; then
 	echo "No changes to commit."
 	exit 0
 fi
@@ -57,8 +69,8 @@ $subject
 Generated from $GITHUB_REPOSITORY@$short
 $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$sha
 
-mavlink:   $MAVLINK_REF
-pymavlink: $PYMAVLINK_REF
+mavlink:   $mavlink_ref
+pymavlink: $pymavlink_ref
 MSG
 
 git push

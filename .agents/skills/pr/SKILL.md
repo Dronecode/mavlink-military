@@ -22,7 +22,7 @@ matching the commit trailer.
    `git log --format='%h %(trailers:key=Signed-off-by)' origin/main..HEAD`.
    If any isn't, stop and ask the user to review and sign off, or to tell you
    to apply their sign-off.
-4. Check the title with `.github/scripts/check_commits.sh --title "<title>"`.
+4. Check the title with `.github/scripts/commit_checks/check_commits.sh --title "<title>"`.
 5. Ask the user what testing or validation they did; never describe testing
    that didn't happen.
 6. Push with `-u` once the user confirms, then `gh pr create` against `main`
