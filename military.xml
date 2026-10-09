@@ -201,7 +201,8 @@
       before it translates, so it never forwards what a receiver would
       ignore, and it answers for a far-side participant only with what that
       participant reported; on its own it sends at most
-      MAVLINK_M_ACK_RECEIVED.
+      MAVLINK_M_ACK_RECEIVED, and nothing for a message sent to every
+      system. It carries every repeat of a stop.
     - Every system. target_system 0 means every system on this MAVLink
       network. A gateway carries a stop sent with 0 to the far-side
       participants it represents as their own network's stop, with the same
@@ -735,7 +736,7 @@
       <entry value="3" name="MAVLINK_M_ACK_UNSUPPORTED"><description>Message type or requested action is not supported by the recipient.</description></entry>
       <entry value="4" name="MAVLINK_M_ACK_FAILED">     <description>Message was received but processing failed (e.g. malformed or stale).</description></entry>
       <entry value="5" name="MAVLINK_M_ACK_EXPIRED">    <description>Message was received after its validity window had passed: a directive that starts, arms, grants, clears or resumes whose time_usec is older than the maximum age the receiving system is configured with. A stop is never rejected for age.</description></entry>
-      <entry value="6" name="MAVLINK_M_ACK_NOT_APPLICABLE"><description>Message was received, and nothing on this system is what it applies to, for example a stop sent to every system for an engagement this system does not hold. A final result.</description></entry>
+      <entry value="6" name="MAVLINK_M_ACK_NOT_APPLICABLE"><description>Message was addressed to this system, and nothing on this system is what it applies to, for example a stop for an engagement this system does not hold. A final result. Never sent in answer to a message sent to every system: a system where such a message selects nothing does not answer it.</description></entry>
     </enum>
 
     <!-- ===== multi-store logistics drop ===== -->
@@ -1501,7 +1502,7 @@
     <!-- 53031: ESAD_ARMING -->
     <!-- ============================================================ -->
     <message id="53031" name="ESAD_ARMING">
-      <description>ESAD arming command for one or more ESAD instances on the receiving system. An ARM must carry the challenge the selected ESAD advertises in ESAD_STATE; with esad_id = 0 it applies only if every local ESAD selected by store_id advertises arming_challenge_hash, and is otherwise rejected, so an ARM never applies in part. A DISARM applies to every selected local ESAD without checking arming_challenge_hash, so no ESAD's state can block it; as for any stop, MAVLink message signing on the link authenticates the sender. A command whose esad_id and store_id select no local ESAD is rejected. Each system judges only its own ESADs, so a command that reaches several systems can apply on some and not on others; the originator confirms the result for each system from its MAVLINK_M_ACK and ESAD_STATE.</description>
+      <description>ESAD arming command for one or more ESAD instances on the receiving system. An ARM must carry the challenge the selected ESAD advertises in ESAD_STATE; with esad_id = 0 it applies only if every local ESAD selected by store_id advertises arming_challenge_hash, and is otherwise rejected, so an ARM never applies in part. A DISARM applies to every selected local ESAD without checking arming_challenge_hash, so no ESAD's state can block it; as for any stop, MAVLink message signing on the link authenticates the sender. An addressed ARM whose esad_id and store_id select no local ESAD is rejected, and an addressed DISARM that selects none is answered MAVLINK_M_ACK_NOT_APPLICABLE; a DISARM sent to every system that selects no local ESAD is not acted on or answered. Each system judges only its own ESADs, so a command that reaches several systems can apply on some and not on others; the originator confirms the result for each system from its MAVLINK_M_ACK and ESAD_STATE.</description>
       <field type="uint64_t" name="time_usec"            units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
       <field type="uint8_t"  name="target_system"                  >System ID of the intended recipient. 0 (every system) is valid only for MAVLINK_M_ESAD_REQUEST_DISARM, which each receiving system applies to its own ESADs; receivers ignore an arm request sent with 0.</field>
       <field type="uint8_t"  name="target_component"               >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
@@ -1737,14 +1738,31 @@
         except SENSOR_TASKING, which its status response answers. The
         recipient answers with one final result, and may send
         MAVLINK_M_ACK_RECEIVED first while a human decision is pending. A
-        message sent with target_system 0 is answered by every system that
-        receives it, with MAVLINK_M_ACK_NOT_APPLICABLE where nothing on that
-        system is what it applies to. A sender that gets no acknowledgment may
-        send the message again unchanged, time_usec included. A receiver
-        treats a repeat of a message it has processed (same source system and
-        component, message ID and time_usec) as a duplicate: it answers it
-        again and does not act on it a second time. Receivers ignore an
-        acknowledgment sent with target_system 0.
+        message sent with target_system 0 is answered only by the systems
+        where it selects something, with the result of applying it there,
+        each after a short random delay so that answers on a shared channel
+        do not collide. A system where it selects nothing, or that does not
+        support it, does not answer, so a stop sent to every system draws
+        one acknowledgment from each system it stops rather than one from
+        every system on the network, and its sender expects answers only
+        from the systems it knows hold what the stop selects. A sender with
+        a start of its own still unacknowledged by a system also addresses
+        the stop to that system, so that system answers it whether or not
+        the start has arrived. Silence cannot show that a stop reached a
+        holder its sender did not know of, so a sender that cannot rule one
+        out repeats the stop unchanged a number of times set for the
+        network, an answer timeout apart, and stops repeating once it issues
+        a start the stop covers. A sender that gets no acknowledgment from a
+        system it expects to answer sends the stop again addressed to that
+        system, up to that number of times, and may send any other message
+        again, unchanged, time_usec included. A receiver treats a repeat of
+        a message it has processed (same source system and component,
+        message ID and field values, target_system and target_component
+        aside) as a duplicate: it does not act on it a second time, and
+        answers it with its latest answer to that message, or with
+        MAVLINK_M_ACK_NOT_APPLICABLE when it gave none and the repeat is
+        addressed to it. Receivers ignore an acknowledgment sent with
+        target_system 0.
       </description>
       <field type="uint64_t" name="time_usec"     units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
       <field type="uint64_t" name="ack_time_usec" units="us"  >time_usec of the acknowledged message, copied unchanged. Tells apart acknowledgments of different messages with the same ack_msgid and ack_instance, such as a MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE and the MAVLINK_M_ENGAGEMENT_DIRECTIVE_RESUME of the same mission.</field>
