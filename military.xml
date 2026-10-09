@@ -184,7 +184,8 @@
     - Identifiers. task_id, every sequence, and the instance an
       acknowledgment names are chosen by the system that originates the
       request, mission or brief, are unique among its open ones, and are
-      matched together with that system's ID.
+      matched together with that system's ID, except by a stop, which
+      matches them whoever chose them.
     - Gateways. A gateway that carries this dialect to or from another
       network or protocol (UCI, VMF, Link 16, another MAVLink network)
       re-originates each message: it is the source of the frames it sends
@@ -198,12 +199,20 @@
       far-side participant is sent from its proxy ID, so MAVLINK_M_ACK and
       SENSOR_TASKING responses come back to that proxy ID and the gateway
       returns them. Where far-side originators could choose the same
-      identifier, the gateway assigns it on this side and maps it back. A
-      gateway applies this dialect's receiver rules before it translates,
-      so it never forwards what a receiver would ignore, and it answers for
-      a far-side participant only with what that participant reported; on
-      its own it sends at most MAVLINK_M_ACK_RECEIVED, and nothing for a
-      message sent to every system. It carries every repeat of a stop.
+      identifier, the gateway assigns it on this side and maps it back. It
+      keeps time_usec when it re-originates a message, and when it
+      translates one from another protocol it sets time_usec to the
+      far-side issue time, rounded down where the far side carries it
+      coarsely, the same for every copy; where the far side carries no
+      issue time, its own receipt time stands in, and stops hold against
+      starts only from the gateway on. A gateway applies this dialect's
+      receiver rules before it translates, the stop records of SAFETY
+      BOUNDARIES included, for the participants it represents, so it never
+      forwards what a receiver would ignore or reject, and it answers for a
+      far-side participant only with what that participant reported; on
+      its own it sends at most MAVLINK_M_ACK_RECEIVED or the rejection a
+      receiver rule requires, and nothing for a message sent to every
+      system. It carries every repeat of a stop.
     - Every system. target_system 0 means every system on this MAVLink
       network. A gateway carries a stop sent with 0 to the far-side
       participants it represents as their own network's stop, with the same
@@ -264,13 +273,54 @@
       engagements they select, whatever message tasked it, as well as on the
       stop values of that message. A sender or gateway that does not know
       which message an engagement uses sends ENGAGEMENT_DIRECTIVE.
-    - Stops win over starts. For one engagement, a receiver ignores a
-      directive that starts, arms, grants, clears or resumes when its
-      time_usec is not later than that of the last stop it acted on for that
-      engagement, so a delayed RESUME cannot undo a later CHECK_FIRE. It may
-      reject such a directive when its time_usec is older than the maximum
-      age it is configured with, answering MAVLINK_M_ACK_EXPIRED, and never
-      rejects a stop for age.
+    - Time. Every system is configured with the maximum clock offset, the
+      most the clocks of any two systems may differ across every network
+      joined by routers, bridges and gateways, and keeps time_usec within
+      half of it of UTC: from GNSS, from signed SYSTEM_TIME, or from signed
+      TIMESYNC with a system that has UTC. One-way SYSTEM_TIME does this
+      only where its path delay is within that half. A system that cannot
+      keep its clock there, having lost both GNSS time and synchronization,
+      sends no start and rejects every start with MAVLINK_M_ACK_NO_TIME
+      until it can, and still acts on every stop.
+    - Stops win over starts. The starts are FIRES;
+      MAVLINK_M_ENGAGEMENT_DIRECTIVE_RESUME and
+      MAVLINK_M_ENGAGEMENT_DIRECTIVE_RETARGET; a SPLASH_CORRECTION with
+      MAVLINK_M_FMC_FIRE_FOR_EFFECT, MAVLINK_M_FMC_REPEAT or
+      MAVLINK_M_FMC_CANCEL_CHECK_FIRING; MAVLINK_M_CAS_CONTINUE and
+      MAVLINK_M_CAS_CLEARED_HOT; a LOITER_MUNITION_CONTROL that tasks a
+      munition or carries MAVLINK_M_LM_CONSENT_GRANTED; and
+      MAVLINK_M_ESAD_REQUEST_ARM. A receiver records the time on its own
+      clock at which each stop arrives, against every engagement or ESAD
+      the stop selects or names, whoever issued it, including one it does
+      not hold yet, whose start may still be on its way; a stop that
+      selects every engagement (sequence 0xFFFF, or a
+      LOITER_MUNITION_CONTROL sent with target_system 0) is recorded as
+      covering every engagement. A record for something it does not hold
+      does not make it answer a stop sent to every system. A record covers
+      every start that refers to what it names, by sequence or track_uid,
+      directly or through the brief or tasking it refers to, whatever
+      effector_id says. The receiver rejects a start that a record covers
+      when the start's time_usec is not later than the recorded time plus
+      the maximum clock offset, answering MAVLINK_M_ACK_HELD. A start
+      issued before the stop arrived is therefore held however late it
+      comes, and whatever the clock of the stop's sender reads; one issued
+      within twice the offset after that may be held too. A held start may
+      be the one the stop was sent to prevent, so it is issued again only
+      as a new decision of its authority, never automatically. A repeat of
+      a stop does not move its record. A stop that arrives while the
+      receiver's clock is outside its bound, and a restart, are recorded at
+      the first moment the clock is back within it; a restart is recorded
+      as a stop covering everything, and acts as a
+      MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE for every engagement kept
+      through it. A receiver that cannot keep every record replaces them
+      with one covering everything at the latest of their times. It
+      rejects a start whose time_usec is later than its own clock plus the
+      maximum clock offset, answering MAVLINK_M_ACK_FAILED, and may reject
+      one older than the maximum age it is configured with, answering
+      MAVLINK_M_ACK_EXPIRED. One that does keeps each record until more
+      than that age plus the offset has passed since the record was made,
+      and one that does not keeps it while it runs. It never rejects a
+      stop for its time.
     - TARGET_AUTHORIZATION is a descriptive record and MUST NOT be treated as a
       release interlock. Release authority resides in the crewed C2 system.
       Token anti-spoofing is a C2 / gateway / secure-enclave responsibility.
@@ -777,9 +827,11 @@
       <entry value="1" name="MAVLINK_M_ACK_ACCEPTED">   <description>Message was received and accepted/actioned by the recipient.</description></entry>
       <entry value="2" name="MAVLINK_M_ACK_REJECTED">   <description>Message was received but rejected (e.g. operator declined the cue).</description></entry>
       <entry value="3" name="MAVLINK_M_ACK_UNSUPPORTED"><description>Message type or requested action is not supported by the recipient.</description></entry>
-      <entry value="4" name="MAVLINK_M_ACK_FAILED">     <description>Message was received but processing failed (e.g. malformed or stale).</description></entry>
-      <entry value="5" name="MAVLINK_M_ACK_EXPIRED">    <description>Message was received after its validity window had passed: a directive that starts, arms, grants, clears or resumes whose time_usec is older than the maximum age the receiving system is configured with. A stop is never rejected for age.</description></entry>
+      <entry value="4" name="MAVLINK_M_ACK_FAILED">     <description>Message was received but processing failed (e.g. malformed or stale, or a start (SAFETY BOUNDARIES) dated later than the receiving system's clock plus the maximum clock offset).</description></entry>
+      <entry value="5" name="MAVLINK_M_ACK_EXPIRED">    <description>Message was received after its validity window had passed: a start (SAFETY BOUNDARIES) whose time_usec is older than the maximum age the receiving system is configured with. A stop is never rejected for its time.</description></entry>
       <entry value="6" name="MAVLINK_M_ACK_NOT_APPLICABLE"><description>Message was addressed to this system, and nothing on this system is what it applies to, for example a stop for an engagement this system does not hold. A final result. Never sent in answer to a message sent to every system: a system where such a message selects nothing does not answer it.</description></entry>
+      <entry value="7" name="MAVLINK_M_ACK_HELD"><description>A start (SAFETY BOUNDARIES) was not applied because it may have been issued before a stop the receiving system recorded and that covers it, or before the system restarted. It may be the start the stop was sent to prevent, so it is issued again, with a new time_usec, only as a new decision of its authority, never automatically. A final result.</description></entry>
+      <entry value="8" name="MAVLINK_M_ACK_NO_TIME"><description>The receiving system cannot keep its clock within half the maximum clock offset of UTC, so it rejects every start (SAFETY BOUNDARIES) and acts only on stops until it can. A final result.</description></entry>
     </enum>
 
     <!-- ===== multi-store logistics drop ===== -->
@@ -1030,10 +1082,10 @@
     <enum name="MAV_CMD">
       <description>MAVLink-M store-handling commands. Sent via COMMAND_LONG/COMMAND_INT; responses via COMMAND_ACK.</description>
       <entry value="53090" name="MAV_CMD_MAVLINK_M_STORE_ARM">
-        <description>Arm or safe a store's ESAD. An arm (Arm = 1) is never sent with target_system 0; receivers ignore one that is.</description>
+        <description>Safe a store's ESAD. A command carries no time_usec, so no stop can be ordered against an arm sent this way (SAFETY BOUNDARIES): receivers answer an arm (Arm = 1) with MAV_RESULT_DENIED, and ESAD_ARMING arms.</description>
         <param index="1" label="Store ID">Target store instance (0 = every store on the receiving system).</param>
-        <param index="2" label="Arm">0 = safe/disarm, 1 = arm.</param>
-        <param index="3" label="Challenge Hash">Arming challenge hash; must match the store's last ESAD_STATE hash.</param>
+        <param index="2" label="Arm">0 = safe/disarm. 1 = arm, which receivers deny; arm with ESAD_ARMING.</param>
+        <param index="3" label="Challenge Hash">Ignored: a safe applies whatever the ESAD challenge holds, as an ESAD_ARMING DISARM does.</param>
         <param index="4">Reserved (0).</param>
         <param index="5">Reserved (0).</param>
         <param index="6">Reserved (0).</param>
