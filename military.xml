@@ -153,9 +153,10 @@
       map onto it. Enum semantics and value assignments must be kept aligned
       across the two definitions by the implementer.
     - Authentication is per-bus. On the MAVLink leg it comes from message
-      signing; the arming_challenge_hash only ties a command to the state the
-      ESAD advertised, and every listener sees it. The FMU/bridge is the
-      trust-translation point into the component-bus domain.
+      signing, which SAFETY BOUNDARIES requires; the arming_challenge_hash
+      only ties a command to the state the ESAD advertised, and every
+      listener sees it. The FMU/bridge is the trust-translation point into
+      the component-bus domain.
 
   ADDRESSING AND GATEWAYS (normative for implementers)
     - Delivery. A router forwards a message whose target_system is not 0
@@ -187,22 +188,22 @@
     - Gateways. A gateway that carries this dialect to or from another
       network or protocol (UCI, VMF, Link 16, another MAVLink network)
       re-originates each message: it is the source of the frames it sends
-      and signs them with its own key. Routers, radios and tunnels that pass
-      frames unchanged are not gateways. A gateway presents each far-side
-      participant that sends or receives these messages as a proxy system
-      ID of its own, transmits a HEARTBEAT for each so routers learn the
-      route, and never sends several participants' messages under one ID. A
-      message for a far-side participant carries its proxy ID in
-      target_system, and one from a far-side participant is sent from its
-      proxy ID, so MAVLINK_M_ACK and SENSOR_TASKING responses come back to
-      that proxy ID and the gateway returns them. Where far-side originators
-      could choose the same identifier, the gateway assigns it on this side
-      and maps it back. A gateway applies this dialect's receiver rules
-      before it translates, so it never forwards what a receiver would
-      ignore, and it answers for a far-side participant only with what that
-      participant reported; on its own it sends at most
-      MAVLINK_M_ACK_RECEIVED, and nothing for a message sent to every
-      system. It carries every repeat of a stop.
+      and signs them with the key of the network it sends them on. Routers,
+      radios and tunnels that pass frames unchanged are not gateways. A
+      gateway presents each far-side participant that sends or receives
+      these messages as a proxy system ID of its own, transmits a HEARTBEAT
+      for each so routers learn the route, and never sends several
+      participants' messages under one ID. A message for a far-side
+      participant carries its proxy ID in target_system, and one from a
+      far-side participant is sent from its proxy ID, so MAVLINK_M_ACK and
+      SENSOR_TASKING responses come back to that proxy ID and the gateway
+      returns them. Where far-side originators could choose the same
+      identifier, the gateway assigns it on this side and maps it back. A
+      gateway applies this dialect's receiver rules before it translates,
+      so it never forwards what a receiver would ignore, and it answers for
+      a far-side participant only with what that participant reported; on
+      its own it sends at most MAVLINK_M_ACK_RECEIVED, and nothing for a
+      message sent to every system. It carries every repeat of a stop.
     - Every system. target_system 0 means every system on this MAVLink
       network. A gateway carries a stop sent with 0 to the far-side
       participants it represents as their own network's stop, with the same
@@ -216,6 +217,48 @@
       cannot read to every link.
 
   SAFETY BOUNDARIES (normative for implementers)
+    - Message signing. Every system that sends or uses this dialect uses
+      MAVLink 2 message signing. A receiver uses a message of this dialect,
+      a MAV_CMD_MAVLINK_M_STORE_* command or the COMMAND_ACK answering one
+      only from a frame signed with a key it accepts, and drops any other
+      without answering. That covers reports as well as directives, since a
+      forged TRACK_IDENTITY or PARTICIPANT_POSITION can turn a friend into a
+      target, and it covers stops: an unsigned stop is dropped, since a
+      forged ABORT or DISARM sent to every system would stand down every
+      engagement on the network. Routers pass signed frames on unchanged
+      and need no key to do so, but a router learns routes only from frames
+      whose signature it has checked, or accepts each source only on the
+      links configured for it: one that learns from any frame, as
+      mavlink-router does by default, can be made by one forged frame to
+      drop every later message from a station on that link, stops sent to
+      every system included, until it restarts. A gateway checks what it
+      receives and signs what it re-originates. Signing is the only
+      authentication on the MAVLink leg; arming_challenge_hash, origin_sysid
+      and authorization_token are public or unauthenticated.
+    - Signing keys. The key is a secret shared by every system that checks
+      it, so any holder can sign as any system ID: the rules that accept a
+      clearance or a consent grant from one system alone are only as strong
+      as the least protected holder, an aircraft or munition that can be
+      lost included. Networks joined by routers or bridges share one key,
+      since a router passes frames on as they were signed. Keys are issued
+      per deployment and replaced when a holder is lost; a system that
+      cannot be given the new key, a munition in flight for one, would then
+      drop every stop signed with it, so until each such system is
+      recovered, stops for it are also signed with the old key. A setup
+      without signing, such as a bench or simulation, has no
+      authentication: any system that reaches the network can arm, clear,
+      grant consent or stop.
+    - Replay protection. A receiver keeps a replay stream for every system,
+      component and link ID it hears, sized for every sender on the network,
+      gateway proxies included; the MAVLink C library keeps 16 by default,
+      never frees one, and drops signed frames from any further stream,
+      stops included. A frame that fails the signature check changes no
+      replay state, so a forgery cannot lock a sender out. Replay
+      protection drops a frame that is not newer than the last one from its
+      stream, so a frame overtaken by later traffic from its sender on
+      another path is lost: a system that transmits on several links signs
+      each with its own link ID, and acknowledgments and repeated stops
+      recover what is lost.
     - ENGAGEMENT_DIRECTIVE ABORT and CHECK_FIRE are the common stop. Every
       system that can engage, release or guide a weapon acts on them for the
       engagements they select, whatever message tasked it, as well as on the
@@ -1899,8 +1942,8 @@
 
         MAVLINK_M_ENGAGEMENT_DIRECTIVE_ABORT and
         MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE are safety actions: every
-        system they select acts on them on receipt, once the link's message
-        signing, where it is used, accepts them. They do not require the
+        system they select acts on them on receipt, once message signing
+        accepts them (see SAFETY BOUNDARIES). They do not require the
         authorization trail that initiating fire does.
       </description>
       <field type="uint64_t"  name="time_usec"     units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
