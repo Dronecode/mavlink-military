@@ -5,25 +5,26 @@
 # they move by hand, together, in a pull request whose checks pass.
 version: 2
 updates:
+  # One entry for the workflows and the composite action, so their pins
+  # move together. Composite actions are scanned per-directory, not via
+  # the workflows, hence the second directory.
   - package-ecosystem: "github-actions"
-    directory: "/"
+    directories:
+      - "/"
+      - "/.github/actions/setup-mavlink-tooling"
     schedule:
       interval: "monthly"
     cooldown:
       default-days: 7
+    # Subjects and pull request titles in the type(scope) form that
+    # check_commits.sh enforces. A bump spans several workflows, so it
+    # takes the repo scope, not one workflow's ci scope. The short group
+    # name keeps a grouped subject, "chore(repo): bump the ci group across
+    # 2 directories with 5 updates", within 72 characters even with the
+    # " (#NN)" a squash merge appends.
+    commit-message:
+      prefix: "chore(repo)"
     groups:
-      github-actions:
-        patterns:
-          - "*"
-
-  # Composite actions are scanned per-directory, not via the workflows.
-  - package-ecosystem: "github-actions"
-    directory: "/.github/actions/setup-mavlink-tooling"
-    schedule:
-      interval: "monthly"
-    cooldown:
-      default-days: 7
-    groups:
-      github-actions:
+      ci:
         patterns:
           - "*"
