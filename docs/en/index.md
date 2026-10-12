@@ -19,11 +19,14 @@ works internally. See [Scope and Boundaries](about/scope.md) for what the
 dialect deliberately does and does not carry.
 
 The spec is a public draft. Message IDs are stable once assigned, but message
-layouts can still change until the standard freezes in November 2026.
+layouts can still change until the standard freezes in November 2026. See
+[Status and Roadmap](about/status.md).
 
 ## Where to go next
 
 - [Why MAVLink-M](about/why.md): the problem it solves, and why it is an open dialect.
+- [Message Map](about/messages.md): every message and command, grouped by what it is for.
+- [Status and Roadmap](about/status.md): what the draft means for implementers, and the road to the freeze.
 - [Message Reference](messages/military.md): every message, enum, and command in `military.xml`.
 - [Getting Started](getting_started/index.md): generate bindings for your language.
 - [Message ID Allocation](guide/id_allocation.md): how the `53000-53999` range is used.

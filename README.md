@@ -74,7 +74,9 @@ messages to a peripheral — see
 ## Status and contributing
 
 MAVLink-M is a public draft: message layouts can still change until the
-standard freezes in November 2026. The `53000-53099` allocation is active for
+standard freezes in November 2026. See the
+[status and roadmap](https://mavlink-m.dronecode.org/en/about/status.html) for
+what that means for implementers. The `53000-53099` allocation is active for
 this dialect, and message IDs are stable once assigned. The working group
 discusses proposals on the
 [MAVLink-M mailing list](https://lists.dronecode.org/g/mavlink-m). To propose a

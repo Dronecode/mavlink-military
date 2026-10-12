@@ -1,5 +1,7 @@
 - [Introduction](index.md)
   - [Why MAVLink-M](about/why.md)
+  - [Message Map](about/messages.md)
+  - [Status and Roadmap](about/status.md)
   - [Scope and Boundaries](about/scope.md)
 - [Getting Started](getting_started/index.md)
 - [Message Reference](messages/military.md)

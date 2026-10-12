@@ -2,10 +2,10 @@
 
 MAVLink-M is one open interface for military payloads and platforms. It is a
 dialect of [MAVLink 2](https://mavlink.io), the protocol PX4 and QGroundControl
-already speak, and it adds a public message set for safety and arming,
-targeting and engagement, remote weapon systems, and shared tracks. It is MIT
-licensed and hosted by the [Dronecode Foundation](https://dronecode.org), so
-any vendor or nation can adopt it without negotiating terms.
+already speak, and it adds a public [message set](messages.md) for safety and
+arming, targeting and engagement, remote weapon systems, and shared tracks. It
+is MIT licensed and hosted by the [Dronecode Foundation](https://dronecode.org),
+so any vendor or nation can adopt it without negotiating terms.
 
 ## The problem
 
@@ -91,8 +91,8 @@ home to PX4, MAVLink and QGroundControl.
 ## Get involved
 
 MAVLink-M is a public draft, and feedback closes when the standard freezes in
-November 2026. Join the working group on the
-[MAVLink-M mailing list](https://lists.dronecode.org/g/mavlink-m), or open an
-issue or a pull request on
+November 2026 (see [Status and Roadmap](status.md)). Join the working group on
+the [MAVLink-M mailing list](https://lists.dronecode.org/g/mavlink-m), or open
+an issue or a pull request on
 [GitHub](https://github.com/Dronecode/mavlink-military). See
 [Contributing](../contributing.md) for how changes are proposed and reviewed.
