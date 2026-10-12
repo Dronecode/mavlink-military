@@ -1,27 +1,39 @@
 # MAVLink-M
 
-MAVLink-M is an open dialect of [MAVLink 2](https://mavlink.io) for
-coordination and situational-awareness messaging between uncrewed platforms and
-the command systems that work with them.
+MAVLink-M is one open interface for military payloads and platforms: a dialect
+of [MAVLink 2](https://mavlink.io) that adds a public message set for safety
+and arming, targeting and engagement, remote weapon systems, and shared tracks.
+Platforms and payloads that implement it work together without a custom
+integration for every pair. [Why MAVLink-M](about/why.md) explains the problem
+it solves and why it is an open dialect rather than a fork.
 
-Where the common MAVLink message set covers flying the aircraft, MAVLink-M adds
-a shared vocabulary for what a platform observes and coordinates with others:
-tracks, positions, taskings, status, and structured reports. The messages are
-shaped so that a platform speaking this dialect can be understood by the wider
-force, translating cleanly, through a gateway, into the command-and-control
-message standards those systems already run on.
+Where the common MAVLink message set covers flying the aircraft, MAVLink-M
+covers what the platform carries and how it coordinates with others. The
+messages are shaped so that a platform speaking this dialect can be understood
+by the wider force, translating cleanly, through a gateway, into the
+command-and-control message standards those systems already run on.
 
 MAVLink-M is a message-schema dialect. It defines field layouts on top of open
 MAVLink; it is not an implementation, and it does not describe how any device
 works internally. See [Scope and Boundaries](about/scope.md) for what the
 dialect deliberately does and does not carry.
 
+The spec is a public draft. Message IDs are stable once assigned, but message
+layouts can still change until the standard freezes in November 2026.
+
 ## Where to go next
 
+- [Why MAVLink-M](about/why.md): the problem it solves, and why it is an open dialect.
 - [Message Reference](messages/military.md): every message, enum, and command in `military.xml`.
 - [Getting Started](getting_started/index.md): generate bindings for your language.
 - [Message ID Allocation](guide/id_allocation.md): how the `53000-53999` range is used.
 - [Private Extensions](guide/private_extensions.md): adding program-specific messages without touching the shared dialect.
+
+## Get involved
+
+- [MAVLink-M mailing list](https://lists.dronecode.org/g/mavlink-m): join the working group, its discussions and announcements.
+- [GitHub](https://github.com/Dronecode/mavlink-military): issues and pull requests against the dialect.
+- [Contributing](contributing.md): how to propose a message or a change.
 
 ## Related projects
 

@@ -1,7 +1,8 @@
 # Contributing
 
 The `53000-53099` allocation is active for this dialect, and message IDs are
-stable once assigned.
+stable once assigned. The working group discusses proposals on the
+[MAVLink-M mailing list](https://lists.dronecode.org/g/mavlink-m).
 
 ## Proposing a message or change
 

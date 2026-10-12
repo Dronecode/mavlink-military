@@ -11,7 +11,7 @@ const repo = "https://github.com/Dronecode/mavlink-military";
 
 export default defineConfig({
   title: "MAVLink-M",
-  description: "MAVLink-M: an open MAVLink 2 dialect for coordination and situational awareness",
+  description: "MAVLink-M: an open MAVLink 2 dialect for military payloads and platforms",
   base,
   lastUpdated: true,
   cleanUrls: false,
