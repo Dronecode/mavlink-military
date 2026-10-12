@@ -1,13 +1,12 @@
 import { defineConfig } from "vitepress";
 import { sidebar } from "./get_sidebar.js";
 
-// Served from https://dronecode.github.io/mavlink-military/ until the project
-// domain is live. CI sets DOCS_BASE and DOCS_HOSTNAME; once the custom domain
-// is configured, drop DOCS_BASE (defaults to "/") and point DOCS_HOSTNAME at it.
+// Served at the root of https://mavlink-m.dronecode.org/. CI sets DOCS_BASE and
+// DOCS_HOSTNAME (docs.yml); the defaults build for the same place.
 const base = process.env.DOCS_BASE || "/";
 // The sitemap resolves each page against the hostname, which drops the last
 // path segment unless the hostname ends in a slash.
-const hostname = (process.env.DOCS_HOSTNAME || "https://dronecode.github.io/mavlink-military").replace(/\/?$/, "/");
+const hostname = (process.env.DOCS_HOSTNAME || "https://mavlink-m.dronecode.org").replace(/\/?$/, "/");
 const repo = "https://github.com/Dronecode/mavlink-military";
 
 export default defineConfig({

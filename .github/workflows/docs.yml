@@ -30,11 +30,12 @@ permissions:
   contents: read
 
 env:
-  # Project Pages URL until the custom domain is live. When it is: add
-  # docs/public/CNAME, set the domain in Settings > Pages, remove DOCS_BASE,
-  # and point DOCS_HOSTNAME at the new domain.
-  DOCS_BASE: /mavlink-military/
-  DOCS_HOSTNAME: https://dronecode.github.io/mavlink-military
+  # Served at the root of the custom domain set in Settings > Pages; an
+  # Actions deploy ignores a CNAME file. A fork served from
+  # https://<owner>.github.io/<repo>/ sets DOCS_BASE to /<repo>/ and
+  # DOCS_HOSTNAME to that address.
+  DOCS_BASE: /
+  DOCS_HOSTNAME: https://mavlink-m.dronecode.org
 
 jobs:
   build:

@@ -3,7 +3,7 @@
 # and the sitemap's first URL lies under the site and loads too.
 #
 # Usage: check_deployed_site.sh <site>
-#   site  the site's address, e.g. https://dronecode.github.io/mavlink-military/
+#   site  the site's address, e.g. https://mavlink-m.dronecode.org/
 #
 # Environment: CHECK_RETRIES (default 5) and CHECK_RETRY_DELAY in seconds
 # (default 10) set how often curl retries each request, since the CDN can lag

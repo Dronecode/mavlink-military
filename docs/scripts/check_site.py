@@ -73,7 +73,7 @@ def main(argv: list[str]) -> int:
     dist = Path(argv[1]) if len(argv) > 1 else DIST
     base = slash("/" + os.environ.get("DOCS_BASE", "/").strip("/"))
     hostname = slash(
-        os.environ.get("DOCS_HOSTNAME", "https://dronecode.github.io/mavlink-military")
+        os.environ.get("DOCS_HOSTNAME", "https://mavlink-m.dronecode.org")
     )
     if not (dist / "index.html").is_file():
         print(f"ERROR: no built site in {dist}; run npm run docs:build first", file=sys.stderr)

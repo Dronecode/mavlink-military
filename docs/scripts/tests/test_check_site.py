@@ -185,9 +185,9 @@ class CheckSiteTest(unittest.TestCase):
         self.assertEqual(status, 0, out)
 
     def test_defaults_match_the_vitepress_config(self) -> None:
-        # Without the variables, config.mjs builds for "/" on the Pages hostname.
+        # Without the variables, config.mjs builds for "/" on the project domain.
         self.write("index.html", page('<a href="/en/">Docs</a>'))
-        self.sitemap("en/", host="https://dronecode.github.io/mavlink-military")
+        self.sitemap("en/", host="https://mavlink-m.dronecode.org")
         status, out, _ = self.check({"DOCS_BASE": None, "DOCS_HOSTNAME": None})
         self.assertEqual(status, 0, out)
 
