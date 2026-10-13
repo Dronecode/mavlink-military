@@ -4,7 +4,7 @@ layout: home
 hero:
   name: MAVLink-M
   text: One open interface for military payloads and platforms
-  tagline: A MAVLink 2 dialect for safety and arming, targeting and engagement, and remote weapon systems. A public draft, open for feedback until it freezes in November 2026.
+  tagline: A MAVLink 2 dialect for safety and arming, targeting and engagement, and remote weapon systems.
   actions:
     - theme: brand
       text: Why MAVLink-M
