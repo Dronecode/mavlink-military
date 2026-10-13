@@ -43,3 +43,13 @@
   display: block;
   overflow-x: auto;
 }
+
+/* The default theme holds the home hero's heading to 576px, which wraps it to
+   three lines. On wide screens let it run wider, in two balanced lines. The
+   VPHomeHero class outranks the default theme's scoped rule. */
+@media (min-width: 960px) {
+  .VPHero.VPHomeHero .text {
+    max-width: 880px;
+    text-wrap: balance;
+  }
+}
