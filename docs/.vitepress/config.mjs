@@ -35,7 +35,10 @@ export default defineConfig({
   },
 
   themeConfig: {
-    siteTitle: "MAVLink-M",
+    // The MAVLink logo stands in for the site title, as on mavlink.io. It is
+    // the home link's only content, so its alt text names the site.
+    logo: { light: "/site/mavlink_logo_light.svg", dark: "/site/mavlink_logo_dark.svg", alt: "MAVLink-M" },
+    siteTitle: false,
     sidebar: sidebar("en"),
     externalLinkIcon: true,
     search: { provider: "local" },
