@@ -1,0 +1,42 @@
+{
+  "profileSchemaVersion": 1,
+  "profileId": "com.example.survey.sensor",
+  "profileVersion": 1,
+  "name": "Survey sensor",
+  "description": "Particulate sample output and shared storage accounting.",
+  "outputs": [
+    {
+      "outputId": "samples",
+      "name": "Particulate samples",
+      "description": "One PAYLOAD_MEASUREMENT report per sample, carrying its PM2.5 concentration as the private measurement kind named by com.example.survey.pm2-5, with measurementId as listed in this function's catalogue entry. The report carries only this value. Any other per-sample detail has no defined wire representation in this dialect, and a client that needs it relies on a vendor extension or a future dedicated message instead of guessing a structure for PAYLOAD_MEASUREMENT's single value field.",
+      "binding": {
+        "bindingId": 1,
+        "bindingKey": "samples-report",
+        "service": "payload-measurement",
+        "interfaceVersion": "1",
+        "role": "report",
+        "responseMessage": "PAYLOAD_MEASUREMENT",
+        "correlation": "measurement_id=1, per this function's measurements inventory"
+      }
+    }
+  ],
+  "resources": [
+    {
+      "resourceKey": "storage",
+      "name": "Recording storage",
+      "description": "Onboard storage shared with the recording function, reported as STORAGE_INFORMATION.available_capacity in its native MiB. The concrete pool for this instance is resolved by this function's capabilityProfileRef.resourceScope, not by sharedResourceKey alone.",
+      "kind": "quantity",
+      "units": "MiB",
+      "sharedResourceKey": "com.example.survey.storage-pool",
+      "binding": {
+        "bindingId": 2,
+        "bindingKey": "storage-level",
+        "service": "storage-information",
+        "interfaceVersion": "1",
+        "role": "report",
+        "responseMessage": "STORAGE_INFORMATION",
+        "correlation": "storageId selector bound on the function's storage-information serviceBinding, matched to STORAGE_INFORMATION.storage_id and the packet source; the reported level is that message's available_capacity field, in MiB"
+      }
+    }
+  ]
+}

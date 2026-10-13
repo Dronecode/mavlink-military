@@ -1,0 +1,116 @@
+{
+  "profileSchemaVersion": 1,
+  "profileId": "com.example.parachute.status",
+  "profileVersion": 1,
+  "name": "Parachute status and release",
+  "description": "Parachute state and health from PAYLOAD_STATE, and the MAV_CMD_DO_PARACHUTE-backed enable, disable, and release actions.",
+  "properties": [
+    {
+      "propertyId": 1,
+      "propertyKey": "deployment_state",
+      "name": "Deployment state",
+      "description": "PAYLOAD_STATE.activation_state for this function: DISARMED while auto-release is disabled, including after a release, ARMING while it is being enabled and ARMED while it is enabled, both only while the parachute is packed, ACTIVATING during a release, COMPLETED while auto-release is enabled after a release, until the parachute is repacked or auto-release is disabled, and UNKNOWN when the state is unknown or not reported.",
+      "valueType": "enum",
+      "allowedValues": ["UNKNOWN", "DISARMED", "ARMING", "ARMED", "ACTIVATING", "COMPLETED"],
+      "readable": true,
+      "writable": false,
+      "bindings": [
+        {
+          "bindingId": 1,
+          "bindingKey": "deployment-state-report",
+          "service": "payload-state",
+          "interfaceVersion": "1",
+          "role": "report",
+          "responseMessage": "PAYLOAD_STATE",
+          "correlation": "payload_id, instance_epoch, and function_id of this function, from the manager's original system and component IDs"
+        }
+      ]
+    },
+    {
+      "propertyId": 2,
+      "propertyKey": "health",
+      "name": "Health",
+      "description": "PAYLOAD_STATE.health for this function, including UNKNOWN when health is unknown or not reported.",
+      "valueType": "enum",
+      "allowedValues": ["UNKNOWN", "NOMINAL", "DEGRADED", "FAULT"],
+      "readable": true,
+      "writable": false,
+      "bindings": [
+        {
+          "bindingId": 2,
+          "bindingKey": "health-report",
+          "service": "payload-state",
+          "interfaceVersion": "1",
+          "role": "report",
+          "responseMessage": "PAYLOAD_STATE",
+          "correlation": "payload_id, instance_epoch, and function_id of this function, from the manager's original system and component IDs"
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "actionId": 1,
+      "actionKey": "disable_auto_release",
+      "name": "Disable auto-release",
+      "description": "Sends PARACHUTE_DISABLE, so crash detection no longer releases the parachute.",
+      "reporting": "service-binding",
+      "lifecycleEffect": "disarm",
+      "cancellable": false,
+      "bindings": [
+        {
+          "bindingId": 3,
+          "bindingKey": "parachute-disable",
+          "service": "parachute",
+          "interfaceVersion": "1",
+          "role": "request",
+          "requestMessage": "MAV_CMD_DO_PARACHUTE",
+          "responseMessage": "COMMAND_ACK",
+          "correlation": "COMMAND_ACK for MAV_CMD_DO_PARACHUTE from the bound target component, per the Command Protocol; param1 is PARACHUTE_DISABLE"
+        }
+      ]
+    },
+    {
+      "actionId": 2,
+      "actionKey": "enable_auto_release",
+      "name": "Enable auto-release",
+      "description": "Sends PARACHUTE_ENABLE, so crash detection can release the parachute.",
+      "reporting": "service-binding",
+      "lifecycleEffect": "arm",
+      "cancellable": false,
+      "bindings": [
+        {
+          "bindingId": 4,
+          "bindingKey": "parachute-enable",
+          "service": "parachute",
+          "interfaceVersion": "1",
+          "role": "request",
+          "requestMessage": "MAV_CMD_DO_PARACHUTE",
+          "responseMessage": "COMMAND_ACK",
+          "correlation": "COMMAND_ACK for MAV_CMD_DO_PARACHUTE from the bound target component, per the Command Protocol; param1 is PARACHUTE_ENABLE"
+        }
+      ]
+    },
+    {
+      "actionId": 3,
+      "actionKey": "release",
+      "name": "Release",
+      "description": "Sends PARACHUTE_RELEASE, which releases the parachute and stops the motors. The autopilot applies its own release checks, including the minimum release altitude.",
+      "reporting": "service-binding",
+      "lifecycleEffect": "activate",
+      "cancellable": false,
+      "bindings": [
+        {
+          "bindingId": 5,
+          "bindingKey": "parachute-release",
+          "service": "parachute",
+          "interfaceVersion": "1",
+          "role": "request",
+          "requestMessage": "MAV_CMD_DO_PARACHUTE",
+          "responseMessage": "COMMAND_ACK",
+          "correlation": "COMMAND_ACK for MAV_CMD_DO_PARACHUTE from the bound target component, per the Command Protocol; param1 is PARACHUTE_RELEASE"
+        }
+      ]
+    }
+  ]
+}

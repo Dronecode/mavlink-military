@@ -1,0 +1,144 @@
+{
+  "profileSchemaVersion": 1,
+  "profileId": "com.example.survey.recorder",
+  "profileVersion": 1,
+  "name": "Survey data recorder",
+  "description": "Bounded recording of the survey sensor's raw sample stream.",
+  "actions": [
+    {
+      "actionId": 1,
+      "actionKey": "start_recording",
+      "name": "Start recording",
+      "description": "Begins recording the selected sensor channel to onboard storage for up to duration_s seconds.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "channel": { "type": "integer", "minimum": 1, "maximum": 8 },
+          "duration_s": { "type": "integer", "minimum": 1, "maximum": 3600 }
+        },
+        "required": ["channel", "duration_s"],
+        "additionalProperties": false
+      },
+      "resultSchema": {
+        "type": "object",
+        "properties": { "file_id": { "type": "integer" } },
+        "required": ["file_id"],
+        "additionalProperties": false
+      },
+      "reporting": "progress-and-ack",
+      "lifecycleEffect": "activate",
+      "cancellable": true,
+      "cancelResponseMsec": 2000,
+      "bindings": [
+        {
+          "bindingId": 1,
+          "bindingKey": "start-recording",
+          "service": "payload-operation",
+          "interfaceVersion": "1",
+          "role": "request",
+          "requestMessage": "PAYLOAD_OPERATION_REQUEST",
+          "responseMessage": "PAYLOAD_OPERATION_STATUS",
+          "correlation": "request_id/session_id/requester identity, per PAYLOAD_OPERATION_STATUS's own correlation rules"
+        }
+      ]
+    },
+    {
+      "actionId": 2,
+      "actionKey": "stop_recording",
+      "name": "Stop recording",
+      "description": "Stops an in-progress recording before duration_s elapses and returns the file_id of the file holding the samples recorded so far. The start_recording request it stops ends with CANCELLED, so its own result is not returned.",
+      "resultSchema": {
+        "type": "object",
+        "properties": {
+          "file_id": { "type": "integer", "minimum": 0, "maximum": 4294967295 }
+        },
+        "required": ["file_id"],
+        "additionalProperties": false
+      },
+      "reporting": "progress-and-ack",
+      "lifecycleEffect": "deactivate",
+      "cancellable": false,
+      "bindings": [
+        {
+          "bindingId": 2,
+          "bindingKey": "stop-recording",
+          "service": "payload-operation",
+          "interfaceVersion": "1",
+          "role": "request",
+          "requestMessage": "PAYLOAD_OPERATION_REQUEST",
+          "responseMessage": "PAYLOAD_OPERATION_STATUS",
+          "correlation": "request_id/session_id/requester identity"
+        }
+      ]
+    }
+  ],
+  "events": [
+    {
+      "eventId": "recording_stopped",
+      "name": "Recording stopped",
+      "description": "A recording stopped by itself before duration_s elapsed, without a stop_recording request. reason is 1 when the storage filled and 2 when the survey sensor stopped sending samples. file_id names the file holding the samples recorded so far.",
+      "dataSchema": {
+        "type": "object",
+        "properties": {
+          "file_id": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+          "reason": { "type": "integer", "minimum": 1, "maximum": 2 }
+        },
+        "required": ["file_id", "reason"],
+        "additionalProperties": false
+      },
+      "binding": {
+        "bindingId": 5,
+        "bindingKey": "recording-stopped-event",
+        "service": "events",
+        "interfaceVersion": "1",
+        "role": "report",
+        "responseMessage": "EVENT",
+        "correlation": "EVENT.id from this binding's eventScope entry, with the payload_id, function_id, and instance_epoch arguments"
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "outputId": "recording_file",
+      "name": "Recording file",
+      "description": "The file identified by a completed start_recording result's file_id, retrievable over MAVLink FTP at the fixed path mftp:///payloads/recordings/<file_id>.bin, resolved against this function's manager component. This reuses the same MAVLink FTP transfer profile already defined for catalogue and capability-profile documents rather than defining a second file-transfer mechanism.",
+      "binding": {
+        "bindingId": 3,
+        "bindingKey": "recording-file-retrieval",
+        "service": "mavlink-ftp",
+        "interfaceVersion": "2",
+        "role": "report",
+        "correlation": "file_id from the completed start_recording result substituted into the fixed path mftp:///payloads/recordings/<file_id>.bin"
+      }
+    }
+  ],
+  "resources": [
+    {
+      "resourceKey": "storage",
+      "name": "Recording storage",
+      "description": "Onboard storage shared with the survey sensor function, reported as STORAGE_INFORMATION.available_capacity in its native MiB. The concrete pool for this instance is resolved by this function's capabilityProfileRef.resourceScope, not by sharedResourceKey alone.",
+      "kind": "quantity",
+      "units": "MiB",
+      "sharedResourceKey": "com.example.survey.storage-pool",
+      "binding": {
+        "bindingId": 4,
+        "bindingKey": "storage-level",
+        "service": "storage-information",
+        "interfaceVersion": "1",
+        "role": "report",
+        "responseMessage": "STORAGE_INFORMATION",
+        "correlation": "storageId selector bound on the function's storage-information serviceBinding, matched to STORAGE_INFORMATION.storage_id and the packet source; the reported level is that message's available_capacity field, in MiB"
+      }
+    }
+  ],
+  "constraints": [
+    {
+      "constraintKey": "storage-limit",
+      "description": "start_recording is bounded by the level of the storage resource declared above. Which concrete pool that is, and whether any other function draws on it, is resolved by this profile binding's resourceScope, not by this declaration alone.",
+      "kind": "shared-resource-limit",
+      "members": [{ "actionKey": "start_recording" }],
+      "resourceKey": "storage",
+      "sharedResourceKey": "com.example.survey.storage-pool"
+    }
+  ]
+}

@@ -1,0 +1,1905 @@
+{
+  "$id": "https://mavlink.io/mavlink-m/payloads.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "Schema for COMP_METADATA_TYPE_PAYLOAD_CATALOGUE. uniqueItems compares whole entries, so the key-level uniqueness rules stated in the descriptions below are not enforced structurally. A catalogue that repeats payloadId within the catalogue, functionId within a payload, inhibitId or measurementId within a function, or instanceKey or constraintKey within the catalogue, and a capability profile document that repeats propertyId, actionId, bindingId, propertyKey, actionKey, bindingKey, resourceKey, constraintKey, eventId, or outputId, is invalid metadata, and a client does not use it. A catalogue constraint member that names an instanceKey with no binding in the catalogue, or an actionKey or propertyKey that the profile bound under that instanceKey does not declare, also makes the catalogue invalid, and so does an inhibition prevents item that names an instanceKey not bound to its function, or a key that profile does not declare.",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "description": "Version of the payload-catalogue JSON schema. This is separate from function descriptor revisions and the shared MAVLink definition release.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "definitionManifest": {
+      "$ref": "#/definitions/definitionManifest"
+    },
+    "managerEpoch": {
+      "description": "Value reported in PAYLOAD_CATALOGUE_STATUS.manager_epoch. It is encoded as a decimal string so all uint64_t values remain exact in clients whose JSON number type cannot represent them losslessly.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/uint64DecimalString"
+        }
+      ]
+    },
+    "catalogueRevision": {
+      "description": "Revision reported in PAYLOAD_CATALOGUE_STATUS.catalogue_revision.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 4294967295
+    },
+    "payloads": {
+      "description": "Payloads currently managed by the reporting component. payloadId values are unique within the catalogue; a repeated payloadId makes the catalogue invalid.",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/payload"
+      }
+    },
+    "constraints": {
+      "description": "Relationships and restrictions between capability-profile bindings in this deployment, such as two instances that must not run their actions at the same time. Which instances are related is a fact about the deployment, not about the reusable profile document, so each member names an instanceKey directly. A relationship within one binding is declared in that binding's profile document instead. constraintKey values are unique within the catalogue; a repeated constraintKey makes the catalogue invalid.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/definitions/catalogueConstraint"
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "definitionManifest",
+    "managerEpoch",
+    "catalogueRevision",
+    "payloads"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "uint64DecimalString": {
+      "description": "Canonical unsigned decimal representation of a uint64_t value in the inclusive range 0 through 18446744073709551615.",
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)$",
+      "anyOf": [
+        {
+          "maxLength": 19
+        },
+        {
+          "pattern": "^(1[0-7][0-9]{18}|18[0-3][0-9]{17}|184[0-3][0-9]{16}|1844[0-5][0-9]{15}|18446[0-6][0-9]{14}|184467[0-3][0-9]{13}|1844674[0-3][0-9]{12}|184467440[0-6][0-9]{10}|1844674407[0-2][0-9]{9}|18446744073[0-6][0-9]{8}|1844674407370[0-8][0-9]{6}|18446744073709[0-4][0-9]{5}|184467440737095[0-4][0-9]{4}|18446744073709550[0-9]{3}|18446744073709551[0-5][0-9]{2}|1844674407370955160[0-9]|1844674407370955161[0-4]|18446744073709551615)$"
+        }
+      ]
+    },
+    "definitionManifest": {
+      "description": "Immutable manifest that identifies the definitions of the MAVLink-M release the publishing implementation uses: the dialect, the included and related definitions at the revisions the release pins, metadata schemas, and dictionaries. Each release has one canonical manifest, whatever revision of the included definitions a build is generated against.",
+      "type": "object",
+      "properties": {
+        "uri": {
+          "description": "URI of the immutable definition manifest.",
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "description": "Lowercase SHA-256 digest of the exact manifest file before any transport compression. It must equal the definition_manifest_sha256 that PAYLOAD_CATALOGUE_STATUS reports.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "uri",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "payload": {
+      "type": "object",
+      "properties": {
+        "payloadId": {
+          "description": "Logical payload identifier allocated by the publishing payload manager and reported in PAYLOAD_INFO.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65534
+        },
+        "instanceEpoch": {
+          "description": "Current instance value reported in PAYLOAD_INFO. It is encoded as a decimal string so all uint64_t values remain exact in clients whose JSON number type cannot represent them losslessly.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/uint64DecimalString"
+            }
+          ]
+        },
+        "label": {
+          "description": "Short name to show for the payload.",
+          "type": "string"
+        },
+        "description": {
+          "description": "Plain-language description of the payload.",
+          "type": "string"
+        },
+        "vendorName": {
+          "description": "Name of the payload vendor.",
+          "type": "string"
+        },
+        "modelName": {
+          "description": "Payload model name.",
+          "type": "string"
+        },
+        "hardwareVersion": {
+          "description": "Payload hardware version, when known.",
+          "type": "string"
+        },
+        "firmwareVersion": {
+          "description": "Payload firmware version, when known.",
+          "type": "string"
+        },
+        "serialNumber": {
+          "description": "Payload serial number, when it is appropriate to share it.",
+          "type": "string"
+        },
+        "documentationUri": {
+          "description": "URI for documentation about this payload.",
+          "type": "string"
+        },
+        "functions": {
+          "description": "Functions provided by this payload. functionId values are unique within this payload; a repeated functionId makes the catalogue invalid.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/function"
+          }
+        },
+        "vendorData": {
+          "description": "Optional vendor-owned metadata. Each property name should use a stable vendor namespace such as a reverse-domain name.",
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "payloadId",
+        "instanceEpoch",
+        "label",
+        "description",
+        "functions"
+      ],
+      "additionalProperties": false
+    },
+    "function": {
+      "type": "object",
+      "properties": {
+        "functionId": {
+          "description": "Logical function identifier allocated by the payload manager and scoped to this payloadId.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65534
+        },
+        "descriptorRevision": {
+          "description": "Revision reported in PAYLOAD_INFO.descriptor_revision.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "label": {
+          "description": "Short name to show for the function.",
+          "type": "string"
+        },
+        "description": {
+          "description": "Plain-language description of what the function does.",
+          "type": "string"
+        },
+        "documentationUri": {
+          "description": "URI for documentation about this function.",
+          "type": "string"
+        },
+        "serviceBindings": {
+          "description": "MAVLink services that provide more specific status or control for this function.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/serviceBinding"
+          }
+        },
+        "capabilityProfiles": {
+          "description": "Capability profiles bound to this function. Each entry references a versioned, retrievable document (see capabilityProfileDocument) that declares this function's properties, actions, events, and outputs under a shared, vendor-independent contract. This is distinct from vendorData, which is private and unstructured. When more than one profile is bound to a function, the property, action, event, and output ids declared across all of them must not collide; see capabilityProfileDocument for the composition rule.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/definitions/capabilityProfileRef"
+          }
+        },
+        "genericOperations": {
+          "description": "Cancellation behaviour of the generic operations this function advertises in PAYLOAD_INFO.capability_flags, keyed by operation. An operation with no entry is not cancellable: a PAYLOAD_OPERATION_CANCEL for it is answered with the request's current stage and UNSUPPORTED, and the requester applies its own response timeout. An entry does not advertise the operation; only capability_flags does.",
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "enum": [
+              "arm",
+              "disarm",
+              "activate",
+              "deactivate",
+              "reset",
+              "self-test"
+            ]
+          },
+          "additionalProperties": {
+            "$ref": "#/definitions/genericOperation"
+          }
+        },
+        "inhibitions": {
+          "description": "Complete list of inhibition records reported by this function using PAYLOAD_INHIBIT. The inhibitId values are unique within this function and instance epoch; a repeated inhibitId makes the catalogue invalid, since one report would then satisfy two listed records.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/definitions/inhibition"
+          }
+        },
+        "measurements": {
+          "description": "Complete list of measurements defined for this function and reported using PAYLOAD_MEASUREMENT. The measurementId values are unique within this function and instance epoch; a repeated measurementId makes the catalogue invalid.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/definitions/measurement"
+          }
+        },
+        "privateTypeKey": {
+          "description": "Reverse-domain key naming the private definition of a function whose PAYLOAD_INFO.function_type is PAYLOAD_FUNCTION_TYPE_VENDOR_DEFINED, in the same form as a private profileId, for example com.example.sample-function. Required for such a function and not used for any other; the schema cannot enforce this because the catalogue does not carry function_type. A receiver treats the function type as unknown unless it recognizes this key.",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*(\\.[A-Za-z0-9-]+)+$",
+          "maxLength": 128
+        },
+        "vendorData": {
+          "description": "Optional vendor-owned metadata. Each property name should use a stable vendor namespace such as a reverse-domain name.",
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "functionId",
+        "descriptorRevision",
+        "label",
+        "description"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "serviceBindings": {
+                "contains": {
+                  "type": "object",
+                  "properties": {
+                    "service": {
+                      "const": "payload-measurement"
+                    }
+                  },
+                  "required": [
+                    "service"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "serviceBindings"
+            ]
+          },
+          "then": {
+            "required": [
+              "measurements"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "serviceBindings": {
+                "contains": {
+                  "type": "object",
+                  "properties": {
+                    "service": {
+                      "const": "payload-inhibit"
+                    }
+                  },
+                  "required": [
+                    "service"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "serviceBindings"
+            ]
+          },
+          "then": {
+            "required": [
+              "inhibitions"
+            ]
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "genericOperation": {
+      "description": "Cancellation behaviour of one generic operation of a function.",
+      "type": "object",
+      "properties": {
+        "cancellable": {
+          "description": "Whether an outstanding request for this operation can be cancelled with PAYLOAD_OPERATION_CANCEL. Omitted means false. A disarm or deactivate that is a stop is never cancellable, whatever this says, so for those operations it matters only when the function advertises PAYLOAD_CAPABILITY_FLAGS_PROTECTIVE.",
+          "type": "boolean",
+          "default": false
+        },
+        "cancelResponseMsec": {
+          "description": "Maximum time, measured from the responder's receipt of a PAYLOAD_OPERATION_CANCEL, within which it answers with CANCELLING, a final stage, or a refusal, which may be a refusal at this bound that a later decision follows. The declaration in force when the request was accepted applies. A requester waits at least this long plus its allowance for the round trip after sending the cancel, and then treats the cancellation outcome as unknown. Required when cancellable is true.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "cancellable": {
+                "const": true
+              }
+            },
+            "required": [
+              "cancellable"
+            ]
+          },
+          "then": {
+            "required": [
+              "cancelResponseMsec"
+            ]
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "inhibition": {
+      "type": "object",
+      "properties": {
+        "inhibitId": {
+          "description": "Identifier reported in PAYLOAD_INHIBIT.inhibit_id. It is unique within this function and instance epoch, stays with the same condition across descriptor revisions, and is not reused during the instance epoch.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65534
+        },
+        "label": {
+          "description": "Short display name for this inhibition. Software uses inhibitId, not this label, for correlation.",
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "description": "Plain-language description of the condition and how it affects the function.",
+          "type": "string",
+          "minLength": 1
+        },
+        "documentationUri": {
+          "description": "URI for additional documentation about this inhibition.",
+          "type": "string"
+        },
+        "prevents": {
+          "description": "Operations this inhibition can keep from running while it is active or indeterminate. arm, disarm, activate, and deactivate each cover the generic operation of that name and every profile action whose lifecycleEffect is that effect; reset and self-test cover the generic RESET and RUN_SELF_TEST operations; profile covers profile actions whose lifecycleEffect is none and property writes. An object item names one action or property of a capability profile bound to this function, by that binding's instanceKey and the actionKey or propertyKey its profile declares, and covers only that action, or only that property's writes. An instanceKey that is not bound to this function, or a key its profile does not declare, makes the catalogue invalid. The payload manager rejects a request with INHIBITED only for an inhibition that lists it here. A stop is never rejected, but a listed disarm or deactivate tells a client that the device may refuse to carry one out. A disarm or deactivate of a function that advertises PAYLOAD_CAPABILITY_FLAGS_PROTECTIVE is rejected only while the inhibition's current report is ACTIVE.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "oneOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "arm",
+                  "disarm",
+                  "activate",
+                  "deactivate",
+                  "reset",
+                  "self-test",
+                  "profile"
+                ]
+              },
+              {
+                "$ref": "#/definitions/catalogueConstraintMember"
+              }
+            ]
+          }
+        },
+        "vendorData": {
+          "description": "Optional vendor-owned inhibition metadata. Each property name should use a stable vendor namespace such as a reverse-domain name.",
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "inhibitId",
+        "label",
+        "description",
+        "prevents"
+      ],
+      "additionalProperties": false
+    },
+    "measurement": {
+      "type": "object",
+      "properties": {
+        "measurementId": {
+          "description": "Identifier reported in PAYLOAD_MEASUREMENT.measurement_id. It is unique within this function and instance epoch, remains assigned to the same physical measurement across descriptor revisions, and is not reassigned during the instance epoch.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65534
+        },
+        "measurementKind": {
+          "description": "Value from PAYLOAD_MEASUREMENT_KIND expected in runtime reports. Values 1-32767 are shared kinds and values 32768-65534 are private kinds, identified by privateTypeKey. Zero is unknown and 65535 is reserved, so neither may appear in a catalogue entry. The runtime field is authoritative if the catalogue is stale or inconsistent.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65534
+        },
+        "label": {
+          "description": "Short display name for this measurement. Software uses measurementId, not this label, for correlation.",
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "description": "Plain-language description that unambiguously identifies the physical property, part, or location measured. For directional values it also identifies the axis and reference frame.",
+          "type": "string",
+          "minLength": 1
+        },
+        "documentationUri": {
+          "description": "URI for additional documentation about this measurement.",
+          "type": "string"
+        },
+        "privateTypeKey": {
+          "description": "Reverse-domain key naming the private definition of a private measurementKind (32768-65534), in the same form as a private profileId, for example com.example.sample-reading. Required for a private kind and not allowed for a shared kind. A receiver treats a private kind as unknown unless it recognizes this key.",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*(\\.[A-Za-z0-9-]+)+$",
+          "maxLength": 128
+        },
+        "vendorData": {
+          "description": "Optional vendor-owned measurement metadata. Each property name should use a stable vendor namespace such as a reverse-domain name.",
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "measurementId",
+        "measurementKind",
+        "label",
+        "description"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "measurementKind": {
+                "minimum": 32768
+              }
+            },
+            "required": [
+              "measurementKind"
+            ]
+          },
+          "then": {
+            "required": [
+              "privateTypeKey"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "privateTypeKey"
+              ]
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "serviceBinding": {
+      "type": "object",
+      "properties": {
+        "service": {
+          "description": "Stable name of a MAVLink service or message binding that can identify this function, such as camera, gimbal-v2, distance-sensor, esad, events, gripper, parachute, payload-inhibit, payload-measurement, or winch.",
+          "type": "string",
+          "minLength": 1
+        },
+        "targetComponentId": {
+          "description": "MAVLink component to which service commands are sent. It is in the publishing manager's MAVLink system. When omitted, commands for a binding that carries them go to the publishing manager's component; a report-only service sends no commands and ignores this field.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 255
+        },
+        "reportComponentId": {
+          "description": "MAVLink component expected to publish service reports. It is in the publishing manager's MAVLink system. When omitted, it defaults to targetComponentId, or to the manager component when both are omitted.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 255
+        },
+        "selectors": {
+          "description": "Native instance selectors defined by the named service, such as cameraDeviceId, gimbalDeviceId, sensorId, esadId, storeId, gripperId, or winchInstance.",
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "pattern": "^[A-Za-z][A-Za-z0-9]*$"
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 65535
+          }
+        },
+        "description": {
+          "description": "Short explanation of how the service relates to this function.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "service"
+      ],
+      "additionalProperties": false
+    },
+    "capabilityProfileRef": {
+      "description": "Reference from a function to a versioned capability-profile document. The identifier, version, and digest live here so the binding is stable even though the richer declarations are kept in a retrievable file (see capabilityProfileDocument) and do not enlarge every runtime report. A profile document is reusable across many functions and payloads, so this reference also carries instanceKey and resourceScope: the concrete, catalogue-scoped identity of this binding and the resolution of the document's abstract resources to it.",
+      "type": "object",
+      "properties": {
+        "profileId": {
+          "description": "Stable namespaced identifier of the capability profile, independent of its name and description. A shared profile reusable across vendors uses the common mavlink-m. registry namespace. A private, vendor-specific profile uses the vendor's own reverse-domain namespace, for example com.example.survey.sensor.",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*(\\.[A-Za-z0-9-]+)+$",
+          "maxLength": 128
+        },
+        "profileVersion": {
+          "description": "Version of the referenced profile document. This is independent of schemaVersion and descriptorRevision, so a profile can evolve without forcing a catalogue-wide revision. It is carried on the wire as the uint16_t profile_version, so it is at most 65535.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "definitionUri": {
+          "description": "URI of the retrievable capability-profile document identified by profileId and profileVersion. Profile documents are served only as uncompressed JSON, so the URI path ends in .json; the .json.xz form allowed for the catalogue does not apply, and a fragment is not allowed.",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^?#]*\\.json(\\?[^#]*)?$"
+        },
+        "sha256": {
+          "description": "Lowercase SHA-256 digest of the exact bytes of the profile document at definitionUri. The document is served only as uncompressed JSON and without content encoding, so every copy of one profileId and profileVersion has the same digest.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "description": {
+          "description": "Short explanation of how this profile relates to the function. This is separate from the profile's own name and description, which are declared in the referenced document.",
+          "type": "string"
+        },
+        "instanceKey": {
+          "description": "Stable identifier for this specific binding of the profile to this function, unique within the payload catalogue. A profileId identifies a capability contract, not a particular function; instanceKey is the concrete instance that resourceScope below resolves to and that a catalogue constraint member names. A repeated instanceKey makes the catalogue invalid.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "resourceScope": {
+          "description": "Resolves each capabilityResourceUse.resourceKey declared by the referenced profile document to a concrete pool for this binding. Every discrete-activation resourceKey needs an entry here, because the entry gives the pool's resourceId, which the manager allocates per deployment and a reusable profile document cannot carry. A quantity resourceKey left out here is exclusive to this instanceKey even when the profile document gives it a sharedResourceKey, since a fixed sharedResourceKey inside a reusable document cannot by itself distinguish two independent instances from a genuinely shared pool. Sharing is established only when two entries, for the same or different resourceKey and the same or different profileId, declare the same sharedPoolId. The profile document is validated separately, so this schema cannot check that each discrete-activation resourceKey has an entry with a resourceId; a catalogue that lacks one is invalid.",
+          "type": "object",
+          "propertyNames": {
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "scope": {
+                "description": "exclusive: this binding's use of the resource is independent of every other binding. shared: this binding draws on the pool named by sharedPoolId.",
+                "type": "string",
+                "enum": [
+                  "exclusive",
+                  "shared"
+                ]
+              },
+              "sharedPoolId": {
+                "description": "Required when scope is shared: catalogue-unique identifier of the concrete pool. Two resourceScope entries anywhere in the catalogue that name the same sharedPoolId draw on the same pool.",
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "resourceId": {
+                "description": "Required for a discrete-activation resource and not used for a quantity resource: the resource_id reported in PAYLOAD_RESOURCE for this binding's pool, allocated by the manager within the payload and instance epoch. Entries on the same payload that name the same sharedPoolId give the same resourceId; entries that do not share a pool give distinct values. A catalogue that breaks either rule is invalid.",
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65534
+              }
+            },
+            "required": [
+              "scope"
+            ],
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "scope": {
+                      "const": "shared"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "sharedPoolId"
+                  ]
+                }
+              }
+            ],
+            "additionalProperties": false
+          }
+        },
+        "eventScope": {
+          "description": "Gives, for each event of the referenced profile whose binding names the events service, the 32-bit EVENT.id it has at the component that sends it. An event ID combines the 8-bit component ID of its events namespace, normally the sending component's MAVLink component ID, in its highest 8 bits with a 24-bit sub-ID, so the same profile event can have a different ID on each deployment and a reusable profile document cannot carry it. Keys are eventId values declared by the profile. The profile document is validated separately, so this schema cannot check that every events-bound event has an entry, or that every entry names one; a catalogue that breaks either rule is invalid. Across every capabilityProfileRef whose events the same component sends, an id names one event: entries that share an id name the same profile event, with the same profileId, profileVersion, and eventId, because a client tells events from one component apart only by EVENT.id, and that component's events metadata defines one event under each id. This schema cannot check that either; a client treats events that break the rule as unusable.",
+          "type": "object",
+          "propertyNames": {
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "description": "EVENT.id of this event at the sending component, as defined in that component's events metadata.",
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4294967295
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "profileId",
+        "profileVersion",
+        "definitionUri",
+        "sha256",
+        "instanceKey"
+      ],
+      "additionalProperties": false
+    },
+    "capabilityProfileDocument": {
+      "description": "Schema for the document retrieved from a capabilityProfileRef.definitionUri. A capability profile declares the properties, actions, events, and outputs a function exposes under a shared contract, so that meaning is not left entirely to vendorData. Composition rule: when a function binds more than one capability profile, the propertyId, actionId, bindingId, eventId, and outputId values declared across all profiles bound to that function must not collide. A publishing implementation must not bind profiles that would collide in this way to the same function; this schema does not enforce that rule structurally because the referenced documents are validated independently of one another. Because the composition rule makes these values unique across the bound profiles, a receiver finds the profile that declares a requested actionId or propertyId by resolving that identifier across every profile bound to the function. The id and key uniqueness rules stated for each declaration are not enforced structurally, since uniqueItems compares whole entries; a document that repeats one is invalid.",
+      "type": "object",
+      "properties": {
+        "profileSchemaVersion": {
+          "description": "Version of the capability-profile document schema used by this document.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "profileId": {
+          "description": "Identifier of this profile. Must match the profileId used in any capabilityProfileRef that binds it to a function.",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*(\\.[A-Za-z0-9-]+)+$",
+          "maxLength": 128
+        },
+        "profileVersion": {
+          "description": "Version of this profile document. Must match the profileVersion used in any capabilityProfileRef that binds it to a function. It is carried on the wire as the uint16_t profile_version, so it is at most 65535.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "name": {
+          "description": "Short display name for the profile. Software uses profileId, not this name, for correlation.",
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "description": "Plain-language description of what this profile represents.",
+          "type": "string",
+          "minLength": 1
+        },
+        "documentationUri": {
+          "description": "URI for documentation of the payload API this profile exposes.",
+          "type": "string"
+        },
+        "properties": {
+          "description": "Readable and/or writable properties exposed under this profile.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/definitions/capabilityProperty"
+          }
+        },
+        "actions": {
+          "description": "Actions supported under this profile.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/definitions/capabilityAction"
+          }
+        },
+        "events": {
+          "description": "Asynchronous events reported under this profile.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/definitions/capabilityEvent"
+          }
+        },
+        "outputs": {
+          "description": "Data outputs, such as streamed or file-based products, produced under this profile.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/definitions/capabilityOutput"
+          }
+        },
+        "resources": {
+          "description": "Resources this profile's function draws on, whether exclusively or shared with other functions. This declares the relationship; the actual current level is reported at runtime through PAYLOAD_RESOURCE (for a discrete-activation resource) or the binding named here (for a quantity resource). It is a declared contract, not an enforcement mechanism: missing or stale resource information must not be interpreted as permission to operate.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/definitions/capabilityResourceUse"
+          }
+        },
+        "constraints": {
+          "description": "Declared relationships and restrictions between this profile's own properties and actions, within the one binding that binds the profile: mutual exclusion, required preconditions, shared-resource limits, and configuration ownership. A relationship between instances, such as two bindings of this profile that must not act at the same time, is declared in the catalogue's constraints, not here. These are declarations of the device's contract for planning and UX purposes. The device still enforces the actual restriction, and a client still checks current state, resource, and inhibition reports before acting; missing or stale constraint or dependency information must not be interpreted as permission to operate.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/definitions/capabilityConstraint"
+          }
+        }
+      },
+      "required": [
+        "profileSchemaVersion",
+        "profileId",
+        "profileVersion",
+        "name",
+        "description"
+      ],
+      "additionalProperties": false
+    },
+    "capabilitySchema": {
+      "description": "A JSON Schema value used as inputSchema, resultSchema, dataSchema, requestSchema, or responseSchema, restricted to the bounded subset defined here. title, description, and units are annotations a client can show beside a field, such as a form input, and validation ignores them; a schema that leaves them out is valid as before. The subset has no $ref of any kind, including a local #-fragment, no pattern, and no keyword outside this list. additionalProperties:false above rejects any unlisted keyword, including $ref and pattern, structurally; a client additionally validates each embedded schema against this shape, and bounds its own recursion by the document's own nesting-depth limit, before using it to validate a request or result value. pattern is excluded because a regular expression's cost is not bounded by any limit this schema can express: an uncompilable expression and a catastrophically backtracking one both fit well inside the value, depth, and 64-byte wire limits. String constraints are expressed with enum, minLength, and maxLength instead. A schema that is not an object, or that uses an unsupported construct, is capability profile invalid.",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "boolean",
+            "integer",
+            "number",
+            "string",
+            "array",
+            "object",
+            "null"
+          ]
+        },
+        "enum": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "const": true,
+        "title": {
+          "description": "Label to show for the value, ignored by validation. At most 128 code points.",
+          "type": "string",
+          "maxLength": 128
+        },
+        "description": {
+          "description": "Plain-language description of the value, ignored by validation. At most 4096 code points.",
+          "type": "string",
+          "maxLength": 4096
+        },
+        "units": {
+          "description": "Physical units of a numeric value, in the same form as capabilityProperty.units, such as N or m/s, ignored by validation. At most 128 code points.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "minimum": {
+          "type": "number"
+        },
+        "maximum": {
+          "type": "number"
+        },
+        "exclusiveMinimum": {
+          "type": "number"
+        },
+        "exclusiveMaximum": {
+          "type": "number"
+        },
+        "minLength": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxLength": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "minItems": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxItems": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "uniqueItems": {
+          "type": "boolean"
+        },
+        "items": {
+          "$ref": "#/definitions/capabilitySchema"
+        },
+        "properties": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/capabilitySchema"
+          }
+        },
+        "required": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "additionalProperties": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "capabilityProperty": {
+      "description": "A single readable and/or writable property declared by a capability profile. The property's effective value schema is its valueSchema when valueType is object. For any other valueType it is the JSON type the valueType names, together with minimum, maximum, and allowedValues when declared. A responder validates a written value against the effective value schema before any side effect, and a read value before reporting it.",
+      "type": "object",
+      "properties": {
+        "propertyId": {
+          "description": "Compact numeric identifier for this property, unique within the profile and stable across profileVersion increases that keep the same property. This is the value carried as property_id on the wire in PAYLOAD_OPERATION_REQUEST/STATUS.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65534
+        },
+        "propertyKey": {
+          "description": "Stable namespaced string identifier for this property, unique within the profile and independent of name. Used in metadata and tooling; propertyId is the value carried on the wire.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "name": {
+          "description": "Short display name for this property. Software uses propertyId/propertyKey, not this name, for correlation.",
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "description": "Plain-language description of what this property represents.",
+          "type": "string",
+          "minLength": 1
+        },
+        "documentationUri": {
+          "description": "URI for documentation of the API setting this property stands for.",
+          "type": "string"
+        },
+        "valueType": {
+          "description": "Data type of the property value. boolean, integer, number, and string are the JSON types of the same name, where integer is a JSON number with no fractional part. enum is any JSON value equal to one member of allowedValues. object is a JSON object that conforms to valueSchema. Through payload-operation, a value whose RFC 8785 serialization exceeds 64 bytes cannot be written, and reading one is reported as OUTPUT_TOO_LARGE.",
+          "type": "string",
+          "enum": [
+            "boolean",
+            "integer",
+            "number",
+            "string",
+            "enum",
+            "object"
+          ]
+        },
+        "units": {
+          "description": "Physical units of the value, when applicable, such as an SI unit like m, m/s, or rad. Omit for unitless or non-numeric values.",
+          "type": "string"
+        },
+        "allowedValues": {
+          "description": "Enumerated set of allowed values. Required when valueType is enum. For another scalar valueType it further restricts the allowed values.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": true
+        },
+        "valueSchema": {
+          "description": "JSON Schema for the value of an object property, restricted to the supported subset defined by capabilitySchema, with type object. Required when valueType is object and not allowed otherwise.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/capabilitySchema"
+            }
+          ]
+        },
+        "minimum": {
+          "description": "Inclusive lower bound of the allowed range, for numeric properties.",
+          "type": "number"
+        },
+        "maximum": {
+          "description": "Inclusive upper bound of the allowed range, for numeric properties.",
+          "type": "number"
+        },
+        "readable": {
+          "description": "Whether this property can be read.",
+          "type": "boolean"
+        },
+        "writable": {
+          "description": "Whether this property can be configured.",
+          "type": "boolean"
+        },
+        "bindings": {
+          "description": "Interface bindings that read or write this property. Include a binding whose role is read or report when readable is true (report for a property exposed only through an existing service's unsolicited message, such as ESAD_STATE), and a write binding when writable is true. A property that is not readable must not declare a read or report binding, and one that is not writable must not declare a write binding. A property with no bindings entry for a capability it declares is unsupported by the reporting implementation and is never reached through a generic operation.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/definitions/capabilityBinding"
+          }
+        }
+      },
+      "required": [
+        "propertyId",
+        "propertyKey",
+        "name",
+        "description",
+        "valueType",
+        "readable",
+        "writable"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "readable": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "bindings": {
+                "contains": {
+                  "type": "object",
+                  "properties": {
+                    "role": {
+                      "enum": [
+                        "read",
+                        "report"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "role"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "bindings"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "writable": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "bindings": {
+                "contains": {
+                  "type": "object",
+                  "properties": {
+                    "role": {
+                      "const": "write"
+                    }
+                  },
+                  "required": [
+                    "role"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "bindings"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "valueType": {
+                "const": "object"
+              }
+            },
+            "required": [
+              "valueType"
+            ]
+          },
+          "then": {
+            "required": [
+              "valueSchema"
+            ],
+            "properties": {
+              "valueSchema": {
+                "properties": {
+                  "type": {
+                    "const": "object"
+                  }
+                },
+                "required": [
+                  "type"
+                ]
+              }
+            }
+          },
+          "else": {
+            "not": {
+              "required": [
+                "valueSchema"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "valueType": {
+                "const": "enum"
+              }
+            },
+            "required": [
+              "valueType"
+            ]
+          },
+          "then": {
+            "required": [
+              "allowedValues"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "readable": {
+                "const": false
+              }
+            },
+            "required": [
+              "readable"
+            ]
+          },
+          "then": {
+            "properties": {
+              "bindings": {
+                "not": {
+                  "contains": {
+                    "type": "object",
+                    "properties": {
+                      "role": {
+                        "enum": [
+                          "read",
+                          "report"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "role"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "writable": {
+                "const": false
+              }
+            },
+            "required": [
+              "writable"
+            ]
+          },
+          "then": {
+            "properties": {
+              "bindings": {
+                "not": {
+                  "contains": {
+                    "type": "object",
+                    "properties": {
+                      "role": {
+                        "enum": [
+                          "write"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "role"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "capabilityAction": {
+      "description": "A single action supported by a capability profile.",
+      "type": "object",
+      "properties": {
+        "actionId": {
+          "description": "Compact numeric identifier for this action, unique within the profile and stable across profileVersion increases that keep the same action. This is the value carried as action_id on the wire in PAYLOAD_OPERATION_REQUEST/STATUS.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65534
+        },
+        "actionKey": {
+          "description": "Stable namespaced string identifier for this action, unique within the profile and independent of name. Used in metadata and tooling; actionId is the value carried on the wire.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "name": {
+          "description": "Short display name for this action. Software uses actionId/actionKey, not this name, for correlation.",
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "description": "Plain-language description of what this action does.",
+          "type": "string",
+          "minLength": 1
+        },
+        "documentationUri": {
+          "description": "URI for documentation of the API call this action stands for.",
+          "type": "string"
+        },
+        "inputSchema": {
+          "description": "JSON Schema describing the typed input accepted by this action, restricted to the supported subset defined by capabilitySchema. Omit for actions that take no input. Through payload-operation, an input whose RFC 8785 serialization exceeds 64 bytes cannot be sent; an action that needs a larger input binds another service.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/capabilitySchema"
+            }
+          ]
+        },
+        "resultSchema": {
+          "description": "JSON Schema describing the typed result returned on completion, restricted to the supported subset defined by capabilitySchema. Omit for actions that return no result. A result that does not validate against it, or whose canonical form denotes a different value, is reported as COMPLETED with FAILED and no output.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/capabilitySchema"
+            }
+          ]
+        },
+        "reporting": {
+          "description": "How progress and completion for this action are reported. command-ack-only reports only final acceptance or rejection; progress-and-ack additionally reports intermediate progress before the final result; service-binding defers to the reporting model of a named MAVLink service or message binding for this function. For a binding to payload-operation, command-ack-only sends only the final stages of PAYLOAD_OPERATION_STATUS, and progress-and-ack also sends the intermediate stages and progress_pct; an action bound to payload-operation declares one of these two, since service-binding would defer to that binding's own reporting, which this field decides. Answers to a cancel, and replays that answer a repeat of the request, are sent either way.",
+          "type": "string",
+          "enum": [
+            "command-ack-only",
+            "progress-and-ack",
+            "service-binding"
+          ]
+        },
+        "lifecycleEffect": {
+          "description": "How this action moves PAYLOAD_STATE.activation_state, whether it is carried as a PROFILE operation or by another bound service. The action is reported exactly as the matching generic operation would be for the function's advertised activation pattern, but it is still requested by its actionId, never as that generic operation. none leaves activation_state unchanged. activate, for a SINGLE, MULTIPLE, or INDEFINITE function, reports ACTIVATING while the action runs and, once it succeeds, the state the function is then in, which is COMPLETED only when it has nothing left to do, as PAYLOAD_ACTIVATION_STATE defines; for a CONTINUOUS function it reports ACTIVE once operation has started, and, once that operation has stopped, ARMED if the function stays armed, or otherwise INACTIVE. deactivate, for a continuous or otherwise stoppable function, reports DEACTIVATING and then the state the function is then in, ARMED if it stays armed or otherwise INACTIVE; it does not reverse a completed discrete activation. arm reports ARMING and then ARMED, except for a function that advertises PAYLOAD_CAPABILITY_FLAGS_PROTECTIVE and has nothing left to do, which reports COMPLETED, as PAYLOAD_ACTIVATION_STATE defines, and disarm reports DISARMED, or COMPLETED when the function has nothing left to do and does not advertise PAYLOAD_CAPABILITY_FLAGS_PROTECTIVE. After the action fails or is cancelled, activation_state reports the state actually observed. A function with an action whose effect is arm must accept the generic DISARM, and one that an action whose effect is activate can leave ACTIVE, or whose discrete activation such an action starts can be stopped while it runs, must accept the generic DEACTIVATE, as PAYLOAD_CAPABILITY_FLAGS defines, including a function that an arm action carried through the esad binding arms, whose generic DISARM the payload manager carries out with ESAD_ARMING. The schema cannot check that the effect suits the function's activation pattern, or that the function advertises that stop, because the catalogue carries neither. Omitted means none.",
+          "type": "string",
+          "enum": [
+            "none",
+            "arm",
+            "disarm",
+            "activate",
+            "deactivate"
+          ],
+          "default": "none"
+        },
+        "idempotent": {
+          "description": "Whether running this action again with the same input has no effect beyond one run, on the function or on anything it acts on, for example an action that sets an absolute position. Omitted means false. A client never sends a request under a new request_id to recover the lost outcome of an action that is not idempotent, or of one whose lifecycleEffect is arm or activate, whatever this declares, as the generic payload protocol guide defines.",
+          "type": "boolean",
+          "default": false
+        },
+        "cancellable": {
+          "description": "Whether an outstanding invocation of this action can be cancelled with PAYLOAD_OPERATION_CANCEL. Omitted means false. An action whose lifecycleEffect is disarm or deactivate is a stop, unless its function advertises PAYLOAD_CAPABILITY_FLAGS_PROTECTIVE, and a stop is never cancellable, whatever this says. A cancel for an action that is not cancellable is answered with the request's current stage and UNSUPPORTED, leaving the request running to its actual outcome; it is never answered with REJECTED.",
+          "type": "boolean",
+          "default": false
+        },
+        "cancelResponseMsec": {
+          "description": "Maximum time, measured from the responder's receipt of a PAYLOAD_OPERATION_CANCEL, within which it answers with CANCELLING, a final stage, or a refusal, which may be a refusal at this bound that a later decision follows. The declaration in force when the request was accepted applies. A requester waits at least this long plus its allowance for the round trip after sending the cancel, and then treats the cancellation outcome as unknown. Required when cancellable is true.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "bindings": {
+          "description": "Interface bindings that invoke this action and carry its result, and, when reporting is progress-and-ack, its progress reports. An action with no bindings entry is unsupported by the reporting implementation and is never reached through a generic operation.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/definitions/capabilityBinding"
+          }
+        }
+      },
+      "required": [
+        "actionId",
+        "actionKey",
+        "name",
+        "description",
+        "reporting"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "cancellable": {
+                "const": true
+              }
+            },
+            "required": [
+              "cancellable"
+            ]
+          },
+          "then": {
+            "required": [
+              "cancelResponseMsec"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "bindings": {
+                "contains": {
+                  "properties": {
+                    "service": {
+                      "const": "payload-operation"
+                    }
+                  },
+                  "required": [
+                    "service"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "bindings"
+            ]
+          },
+          "then": {
+            "properties": {
+              "reporting": {
+                "enum": [
+                  "command-ack-only",
+                  "progress-and-ack"
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "capabilityEvent": {
+      "description": "A single asynchronous event reported by a capability profile.",
+      "type": "object",
+      "properties": {
+        "eventId": {
+          "description": "Stable identifier for this event, unique within the profile and independent of name.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "name": {
+          "description": "Short display name for this event. Software uses eventId, not this name, for correlation.",
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "description": "Plain-language description of what this event means.",
+          "type": "string",
+          "minLength": 1
+        },
+        "documentationUri": {
+          "description": "URI for documentation of the API notification this event stands for.",
+          "type": "string"
+        },
+        "dataSchema": {
+          "description": "JSON Schema describing the data carried by this event, restricted to the supported subset defined by capabilitySchema. Omit for events that carry no data. For an event bound to the events service, it is an object whose properties are the event's data arguments, named as in the sending component's events metadata and in the same order, each with the JSON type of its argument type: integer for an integer argument and number for a float. Those arguments follow the three identity arguments and fit in the remaining 28 bytes of EVENT.arguments.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/capabilitySchema"
+            }
+          ]
+        },
+        "binding": {
+          "description": "Interface binding that reports this event. An event with no binding is unsupported by the reporting implementation and is never reached through a generic operation.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/capabilityBinding"
+            }
+          ]
+        }
+      },
+      "required": [
+        "eventId",
+        "name",
+        "description",
+        "binding"
+      ],
+      "additionalProperties": false
+    },
+    "capabilityOutput": {
+      "description": "A single data output, such as a streamed or file-based product, produced by a capability profile.",
+      "type": "object",
+      "properties": {
+        "outputId": {
+          "description": "Stable identifier for this output, unique within the profile and independent of name.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "name": {
+          "description": "Short display name for this output. Software uses outputId, not this name, for correlation.",
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "description": "Plain-language description of what this output represents.",
+          "type": "string",
+          "minLength": 1
+        },
+        "documentationUri": {
+          "description": "URI for documentation of the API data this output stands for.",
+          "type": "string"
+        },
+        "dataSchema": {
+          "description": "JSON Schema describing the data carried by this output, restricted to the supported subset defined by capabilitySchema. Omit for outputs whose content is opaque, such as an externally defined file or stream format.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/capabilitySchema"
+            }
+          ]
+        },
+        "binding": {
+          "description": "Interface binding that reports or streams this output. An output with no binding is unsupported by the reporting implementation and is never reached through a generic operation.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/capabilityBinding"
+            }
+          ]
+        }
+      },
+      "required": [
+        "outputId",
+        "name",
+        "description",
+        "binding"
+      ],
+      "additionalProperties": false
+    },
+    "capabilityBinding": {
+      "description": "Explicit link from a declared property, action, event, or output to the interface that reads, configures, invokes, or reports it. A service name and destination component alone do not establish this; this binding also fixes the interface version and how a request is correlated with its result or report. When an existing MAVLink service or message binding already expresses the required interaction, service names that interface directly, matching a serviceBinding.service value declared on the function. When no existing service can express it, service names a new extension service and extension defines its bounded typed exchange. selectors on the function's serviceBinding remain limited to native instance selectors; they are not a place to carry capability arguments, which belong in inputSchema/resultSchema/dataSchema on the capability declaration itself.",
+      "type": "object",
+      "properties": {
+        "bindingId": {
+          "description": "Compact numeric identifier for this binding, unique within the profile and stable across profileVersion increases that keep the same binding. It is carried as binding_id on the wire in PAYLOAD_OPERATION_REQUEST/STATUS only when service is payload-operation, whether that binding's role is request (invoking an action) or read/write (a property). A binding for any other service is used through that service and never through the generic exchange.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65534
+        },
+        "bindingKey": {
+          "description": "Stable namespaced string identifier for this binding, unique within the profile. Used in metadata and tooling; bindingId is the value carried on the wire.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "service": {
+          "description": "Name of the MAVLink service or message binding that carries this interaction. Reuse an existing service name when it already expresses the interaction; otherwise this names a new extension service whose contract is defined in extension.",
+          "type": "string",
+          "minLength": 1
+        },
+        "interfaceVersion": {
+          "description": "Version of the service, message interface, or extension contract that this binding targets.",
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "description": "How the declaration maps onto the interface: read requests the current value of a property; write requests a change to a property; request invokes an action; result is the response carrying an action's outcome; report is an asynchronous, unsolicited event or output message.",
+          "type": "string",
+          "enum": [
+            "read",
+            "write",
+            "request",
+            "result",
+            "report"
+          ]
+        },
+        "requestMessage": {
+          "description": "Name of the MAVLink message or command that initiates this operation. Omit for report-only bindings.",
+          "type": "string",
+          "minLength": 1
+        },
+        "responseMessage": {
+          "description": "Name of the MAVLink message that carries the result, acknowledgment, or report for this operation.",
+          "type": "string",
+          "minLength": 1
+        },
+        "correlation": {
+          "description": "How a request is matched to its result or report, such as a shared transaction or sequence field name, a command's target/ack fields, or a report message's own identity fields when it is unsolicited.",
+          "type": "string",
+          "minLength": 1
+        },
+        "extension": {
+          "description": "Definition of the bounded typed exchange for this binding. Required when service does not name an existing MAVLink service or message binding capable of expressing this interaction. Not allowed when service is payload-operation, whose typed input and result are the declaration's own inputSchema, resultSchema, or effective value schema.",
+          "type": "object",
+          "properties": {
+            "requestSchema": {
+              "description": "JSON Schema for the request payload of this extension contract, restricted to the supported subset defined by capabilitySchema. Omit when this binding's role carries no request payload.",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/capabilitySchema"
+                }
+              ]
+            },
+            "responseSchema": {
+              "description": "JSON Schema for the response payload of this extension contract, restricted to the supported subset defined by capabilitySchema. Omit when this binding's role carries no response payload.",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/capabilitySchema"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "bindingId",
+        "bindingKey",
+        "service",
+        "interfaceVersion",
+        "role",
+        "correlation"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "service": {
+                "const": "payload-operation"
+              }
+            },
+            "required": [
+              "service"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "extension"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "service": {
+                "const": "events"
+              }
+            },
+            "required": [
+              "service"
+            ]
+          },
+          "then": {
+            "properties": {
+              "role": {
+                "const": "report"
+              },
+              "responseMessage": {
+                "const": "EVENT"
+              }
+            },
+            "required": [
+              "responseMessage"
+            ],
+            "allOf": [
+              {
+                "not": {
+                  "required": [
+                    "requestMessage"
+                  ]
+                }
+              },
+              {
+                "not": {
+                  "required": [
+                    "extension"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "capabilityResourceUse": {
+      "description": "Declares one resource this profile's function draws on. discrete-activation resources are the finite, one-use-per-activation pools already reported by PAYLOAD_RESOURCE; quantity resources are any other consumable or shared capacity, such as storage bytes, electrical capacity, duty cycle, or processing load, and are never reported through PAYLOAD_RESOURCE.remaining_count/capacity, which stay discrete-use counts only.",
+      "type": "object",
+      "properties": {
+        "resourceKey": {
+          "description": "Stable identifier for this resource use, unique within the profile.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "name": {
+          "description": "Short display name for this resource use. Software uses resourceKey, not this name, for correlation.",
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "description": "Plain-language description of the resource and how this function draws on it.",
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "description": "discrete-activation binds to a PAYLOAD_RESOURCE pool whose resource_id the catalogue gives in the binding's capabilityProfileRef.resourceScope entry, since a reusable profile document cannot carry a per-deployment pool ID. quantity is any non-discrete capacity and requires units.",
+          "type": "string",
+          "enum": [
+            "discrete-activation",
+            "quantity"
+          ]
+        },
+        "units": {
+          "description": "Required when kind is quantity: the physical or logical unit of the reported level, such as bytes, W, or percent duty cycle.",
+          "type": "string",
+          "minLength": 1
+        },
+        "sharedResourceKey": {
+          "description": "Namespaced key identifying a kind of underlying pool this resource is capable of sharing, for example the storage a survey sensor and data recorder pair can draw on together, or a controller's capacity shared between mechanical functions. It does not identify a concrete pool. Because the same profile document is reused verbatim by every function that binds it, two entries declaring the same sharedResourceKey may equally be two independent payloads that happen to run the same profile. Actual sharing is established only by capabilityProfileRef.resourceScope, where two bindings name the same sharedPoolId; a resourceKey with no resourceScope entry is exclusive to its own instance however this key is spelled. The device remains the authority on actual shared consumption.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "binding": {
+          "description": "Interface binding that reports the current level of this resource. Omit only for a discrete-activation resource, which is always reported through PAYLOAD_RESOURCE rather than a profile-declared binding.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/capabilityBinding"
+            }
+          ]
+        }
+      },
+      "required": [
+        "resourceKey",
+        "name",
+        "description",
+        "kind"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "quantity"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "units",
+              "binding"
+            ]
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "capabilityConstraintMember": {
+      "description": "Reference to one action or property declared by the same capability profile document as the constraint that lists it. It always denotes that action or property on the binding that binds the profile; a relationship with another binding is a catalogue constraint.",
+      "type": "object",
+      "properties": {
+        "actionKey": {
+          "description": "actionKey of the referenced action in this profile document. Exactly one of actionKey or propertyKey must be given.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "propertyKey": {
+          "description": "propertyKey of the referenced property in this profile document. Exactly one of actionKey or propertyKey must be given.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "oneOf": [
+        {
+          "required": [
+            "actionKey"
+          ]
+        },
+        {
+          "required": [
+            "propertyKey"
+          ]
+        }
+      ],
+      "additionalProperties": false
+    },
+    "capabilityConstraint": {
+      "description": "Declares one relationship or restriction between capability items of one profile, within the binding that binds it: mutual exclusion, a required precondition, a shared-resource limit, or ownership of a shared writable property. This is a declaration of the device's contract. The receiver still checks current state, resource, and inhibition observations before acting and the device still enforces the actual restriction; missing or stale constraint information must not be interpreted as permission to operate.",
+      "type": "object",
+      "properties": {
+        "constraintKey": {
+          "description": "Stable identifier for this constraint, unique within the profile.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "description": {
+          "description": "Plain-language description of the relationship or restriction.",
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "description": "mutually-exclusive-actions: no two members' actions may execute concurrently; every member names an actionKey. A stop is never held by it: the conflicting action ends instead, as the generic payload protocol guide defines. requires-state: every member requires the precondition in requiredState. shared-resource-limit: every member draws on the resource named by resourceKey/sharedResourceKey and is bounded by its reported level. configuration-owner: the member named in owner holds write ownership of the shared configuration described here.",
+          "type": "string",
+          "enum": [
+            "mutually-exclusive-actions",
+            "requires-state",
+            "shared-resource-limit",
+            "configuration-owner"
+          ]
+        },
+        "members": {
+          "description": "Actions or properties of this profile that this constraint applies to. Required and used for mutually-exclusive-actions, requires-state, and shared-resource-limit. For mutually-exclusive-actions this must list two or more members, each naming an actionKey. Members are distinct: a constraint that lists the same action or property twice is invalid.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/capabilityConstraintMember"
+          },
+          "uniqueItems": true
+        },
+        "requiredState": {
+          "description": "Required for requires-state: plain-language identification of the precondition that must hold, naming the existing runtime observation (such as a function state, property, or event) that reports it. The concrete enumerated values live in that observation's own definition, not here.",
+          "type": "string",
+          "minLength": 1
+        },
+        "resourceKey": {
+          "description": "Required for shared-resource-limit: the resourceKey, in this profile's resources, that this constraint concerns.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "sharedResourceKey": {
+          "description": "Optional for shared-resource-limit: the sharedResourceKey this constraint concerns, when the limit is expressed against the shared pool rather than this profile's own resourceKey.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "owner": {
+          "description": "Required for configuration-owner: the member, from members, that holds write ownership of the shared configuration. A concurrent write from a non-owning member is a declared violation of this contract; the device still resolves and enforces the actual outcome of a conflicting write.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/capabilityConstraintMember"
+            }
+          ]
+        }
+      },
+      "required": [
+        "constraintKey",
+        "description",
+        "kind"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "mutually-exclusive-actions"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "members": {
+                "minItems": 2,
+                "items": {
+                  "required": [
+                    "actionKey"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "members"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "requires-state"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "members",
+              "requiredState"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "shared-resource-limit"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "members",
+              "resourceKey"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "configuration-owner"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "members",
+              "owner"
+            ]
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "catalogueConstraintMember": {
+      "description": "Reference to one action or property on one capability-profile binding in this catalogue, named by that binding's instanceKey and a key its profile document declares.",
+      "type": "object",
+      "properties": {
+        "instanceKey": {
+          "description": "instanceKey of a capabilityProfileRef in this catalogue. A member that names an instanceKey with no binding makes the catalogue invalid.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "actionKey": {
+          "description": "actionKey of an action declared by the profile bound under instanceKey. Exactly one of actionKey or propertyKey must be given. A key that profile does not declare makes the catalogue invalid.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "propertyKey": {
+          "description": "propertyKey of a property declared by the profile bound under instanceKey. Exactly one of actionKey or propertyKey must be given. A key that profile does not declare makes the catalogue invalid.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "instanceKey"
+      ],
+      "oneOf": [
+        {
+          "required": [
+            "actionKey"
+          ]
+        },
+        {
+          "required": [
+            "propertyKey"
+          ]
+        }
+      ],
+      "additionalProperties": false
+    },
+    "catalogueConstraint": {
+      "description": "Declares one relationship or restriction between capability items on two or more capability-profile bindings in this catalogue: mutual exclusion, a required precondition, or ownership of a shared writable property. Its members must name at least two different instanceKeys; a relationship within one binding is declared in that binding's profile document. A limit on a pool that several bindings share is expressed by resourceScope.sharedPoolId, not here. This is a declaration of the device's contract. The receiver still checks current state, resource, and inhibition observations before acting and the device still enforces the actual restriction; missing, stale, or unresolved constraint information must not be interpreted as permission to operate.",
+      "type": "object",
+      "properties": {
+        "constraintKey": {
+          "description": "Stable identifier for this constraint, unique within the catalogue.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "description": {
+          "description": "Plain-language description of the relationship or restriction.",
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "description": "mutually-exclusive-actions: no two members' actions may execute concurrently; every member names an actionKey. A stop is never held by it: the conflicting action ends instead, as the generic payload protocol guide defines. requires-state: every member requires the precondition in requiredState. configuration-owner: the member named in owner holds write ownership of the shared configuration described here.",
+          "type": "string",
+          "enum": [
+            "mutually-exclusive-actions",
+            "requires-state",
+            "configuration-owner"
+          ]
+        },
+        "members": {
+          "description": "Actions or properties this constraint applies to, each on the binding its instanceKey names. Two or more distinct members, naming at least two different instanceKeys. A constraint over three or more instances lists each of them.",
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/definitions/catalogueConstraintMember"
+          }
+        },
+        "requiredState": {
+          "description": "Required for requires-state: plain-language identification of the precondition that must hold, naming the existing runtime observation (such as a function state, property, or event) that reports it. The concrete enumerated values live in that observation's own definition, not here.",
+          "type": "string",
+          "minLength": 1
+        },
+        "owner": {
+          "description": "Required for configuration-owner: the member, equal to one entry in members, that holds write ownership of the shared configuration. A concurrent write from a non-owning member is a declared violation of this contract; the device still resolves and enforces the actual outcome of a conflicting write.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/catalogueConstraintMember"
+            }
+          ]
+        }
+      },
+      "required": [
+        "constraintKey",
+        "description",
+        "kind",
+        "members"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "mutually-exclusive-actions"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "members": {
+                "items": {
+                  "required": [
+                    "actionKey"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "requires-state"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "requiredState"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "configuration-owner"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "owner"
+            ]
+          }
+        }
+      ],
+      "additionalProperties": false
+    }
+  }
+}

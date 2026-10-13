@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "definitionName": "mavlink-military",
+  "definitionRelease": "0.1.0-draft",
+  "files": [
+    {
+      "role": "dialect",
+      "uri": "https://example.org/mavlink-m/definitions/0.1.0-draft/military.xml",
+      "sha256": "3fa29a21e67c94d49355979b270cc136f79a1157e9d24e75702d122b9725c5ce"
+    },
+    {
+      "role": "included-dialect",
+      "uri": "https://raw.githubusercontent.com/mavlink/mavlink/87da370c02e40f6f9a2eacf1b162d7f07e640467/message_definitions/v1.0/common.xml",
+      "sha256": "44a89c43069cc70d1f4cd6956835b1f3f6d4e42a6c8ba4d01c43a8ae7c35e6a6"
+    },
+    {
+      "role": "included-dialect",
+      "uri": "https://raw.githubusercontent.com/mavlink/mavlink/87da370c02e40f6f9a2eacf1b162d7f07e640467/message_definitions/v1.0/standard.xml",
+      "sha256": "64af1ee5538344782abf8b35cf199a6cd48aa06eeb6bd41c7ae31f740a06a7f3"
+    },
+    {
+      "role": "included-dialect",
+      "uri": "https://raw.githubusercontent.com/mavlink/mavlink/87da370c02e40f6f9a2eacf1b162d7f07e640467/message_definitions/v1.0/minimal.xml",
+      "sha256": "d4c7c7346432814348bb858cbab8cee7a17b23e37937c1574e2018148cbfb785"
+    },
+    {
+      "role": "related-dialect",
+      "uri": "https://raw.githubusercontent.com/mavlink/mavlink/87da370c02e40f6f9a2eacf1b162d7f07e640467/message_definitions/v1.0/development.xml",
+      "sha256": "f78753149d3095dc78022275fb16fd24abf6a76141836003b125de3e1a5033a1"
+    },
+    {
+      "role": "metadata-schema",
+      "uri": "https://example.org/mavlink-m/definitions/0.1.0-draft/payloads.schema.json",
+      "sha256": "c271de7298cf8346d4325be89124133d58abd3eb6c2bff87d1d9c9976c58c8f0"
+    },
+    {
+      "role": "metadata-schema",
+      "uri": "https://example.org/mavlink-m/definitions/0.1.0-draft/definition-manifest.schema.json",
+      "sha256": "cad8181032fb183d49171c60602130fe8debde69fe80f42320abd94a644928e9"
+    }
+  ]
+}

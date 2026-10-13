@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "vendorName": "Example Integrator",
+  "modelName": "Payload Manager",
+  "firmwareVersion": "1.0.0",
+  "hardwareVersion": "1.0.0",
+  "metadataTypes": [
+    {
+      "type": 53000,
+      "uri": "mftp:///component_metadata/payloads.json.xz"
+    },
+    {
+      "type": 4,
+      "uri": "mftp:///component_metadata/events.json"
+    }
+  ]
+}
