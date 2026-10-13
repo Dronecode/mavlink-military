@@ -25,10 +25,10 @@ import { withBase } from "vitepress";
   width: auto;
 }
 .dark-only,
-:global(.dark) .light-only {
+.dark .light-only {
   display: none;
 }
-:global(.dark) .dark-only {
+.dark .dark-only {
   display: block;
 }
 @media (max-width: 959px) {
