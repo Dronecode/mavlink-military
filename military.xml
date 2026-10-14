@@ -280,22 +280,24 @@
       returns them. Where far-side originators could choose the same
       identifier, the gateway assigns it on this side and maps it back. It
       keeps time_usec when it re-originates a message, and when it
-      translates one from another protocol it sets time_usec to the
-      far-side issue time, rounded down where the far side carries it
-      coarsely, the same for every copy; where the far side carries no
-      issue time, its own receipt time stands in, and stops hold against
-      starts only from the gateway on. A gateway applies this dialect's
-      receiver rules before it translates, the stop records of SAFETY
-      BOUNDARIES included, for the participants it represents, so it never
-      forwards what a receiver would ignore or reject, and it answers for a
-      far-side participant only with what that participant reported; on
-      its own it sends at most MAVLINK_M_ACK_RECEIVED or the rejection a
-      receiver rule requires, and nothing for a message sent to every
-      system. It carries every repeat of a stop. It does not refuse a copy
-      that differs from a message it has forwarded only in commanded fields
-      whose values are not listed: it neither forwards nor answers that copy
-      and records nothing for it, so the far-side participant's answer to
-      that message stands.
+      translates one from another protocol it sets time_usec to the far-side
+      issue time, rounded down where the far side carries it coarsely, the
+      same for every copy; where two of its messages with one message ID
+      would carry one time_usec, it adds to the later the fewest
+      microseconds that set them apart, the same for every copy of it; where
+      the far side carries no issue time, its own receipt time stands in,
+      and stops hold against starts only from the gateway on. A gateway
+      applies this dialect's receiver rules before it translates, the stop
+      records of SAFETY BOUNDARIES included, for the participants it
+      represents, so it never forwards what a receiver would ignore or
+      reject, and it answers for a far-side participant only with what that
+      participant reported; on its own it sends at most
+      MAVLINK_M_ACK_RECEIVED or the rejection a receiver rule requires, and
+      nothing for a message sent to every system. It carries every repeat of
+      a stop. It does not refuse a copy that differs from a message it has
+      forwarded only in commanded fields whose values are not listed: it
+      neither forwards nor answers that copy and records nothing for it, so
+      the far-side participant's answer to that message stands.
     - Every system. target_system 0 means every system on this MAVLink
       network. A gateway carries a stop sent with 0 to the far-side
       participants it represents as their own network's stop, with the same

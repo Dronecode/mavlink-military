@@ -43,6 +43,7 @@ sequenceDiagram
 A sender gives each message with a commanded field a `time_usec` later than that of the previous message with the same message ID it sent, so no two of its messages are answered with the same `ack_msgid`, `ack_instance` and `ack_time_usec`.
 A [SPLASH_CORRECTION](../messages/military.md#SPLASH_CORRECTION), whose `time_usec` is the time of its observation, takes the time it is issued when it carries no new observation.
 A sender without trusted time keeps this order by counting up from the last `time_usec` it sent, since its `time_usec` then only identifies the message.
+A gateway, whose `time_usec` is the far side's issue time, keeps two of its messages with one message ID apart by the fewest microseconds, as the ADDRESSING AND GATEWAYS rules in the `military.xml` header say.
 
 A refusal answers the message as the receiver read it, and a newer command for the same item can reach the receiver before the sender handles that answer, so sending the refused command again can undo the newer command or carry out an action twice.
 
