@@ -47,6 +47,7 @@ A sender without trusted time keeps this order by counting up from the last `tim
 A refusal answers the message as the receiver read it, and a newer command for the same item can reach the receiver before the sender handles that answer, so sending the refused command again can undo the newer command or carry out an action twice.
 
 A sender takes the answers of each component of a system to one message together: a `MAVLINK_M_ACK_ACCEPTED` for any copy means that component applied it, and a `MAVLINK_M_ACK_FAILED` from a component that has not accepted the message means the system has not applied it, whatever its other components answer.
+For a stop sent with `target_component` 0, the sender expects an answer from each component that could act on it, as the ADDRESSING AND GATEWAYS rules in the `military.xml` header say, so one component's `MAVLINK_M_ACK_NOT_APPLICABLE` never closes the stop for another.
 
 A sender whose command is refused:
 

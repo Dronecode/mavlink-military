@@ -247,7 +247,13 @@
       component that could act on it names that component; target_component
       0 is used for it only when the system has one. A stop addressed to a
       system uses target_component 0, so it reaches whichever component
-      holds the engagement.
+      holds the engagement. Its sender expects an answer from each component
+      of that system that could act on the stop and sends it again while one
+      of them has not answered, as the MAVLINK_M_ACK description says for
+      each system it expects to answer; one component's answer is not
+      another's, so a MAVLINK_M_ACK_NOT_APPLICABLE from a component that
+      holds nothing never closes the stop for one whose copy was lost or
+      refused.
     - System IDs. Every system ID a message carries, target_system and
       origin_sysid included, is an ID on the MAVLink network the message is
       sent on, and system IDs are unique across every network joined by
