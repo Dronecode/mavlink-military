@@ -102,7 +102,7 @@ The encoding shows only whether a byte is a defined value, not whether it is cur
 The encoding covers only the in-scope enum fields.
 The other fields of the same messages have no protection beyond the packet checksum, so a fault outside the checksum's window can change them to another valid value:
 
-- the identifiers that select which store, ESAD, effector or mission a command applies to, some of which select all of them at 0
+- the identifiers that select which store, ESAD, effector or mission a command applies to, some of which select all of them at 0, which only a stop, a status request or a built-in test may use (FIELD CONVENTIONS in the `military.xml` header)
 - coordinates and times
 - the mission type, munition, fuze and effect selections and spotting values of a fire mission
 - boolean fields such as `CALL_FOR_FIRE.mensurated`

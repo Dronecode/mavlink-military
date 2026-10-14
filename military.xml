@@ -206,6 +206,14 @@
       MAVLINK_M_ESAD_REQUEST_DISARM, and a zero-filled one decodes as
       MAVLINK_M_ENGAGEMENT_DIRECTIVE_NONE or MAVLINK_M_ESAD_REQUEST_NONE,
       which no receiver acts on.
+    - A selector's 0 selects every instance only in a stop, a status request
+      or a built-in test. An ARM, an ESAD_CONFIG, which is checked as an arm
+      is, MAV_CMD_MAVLINK_M_STORE_SET_DECEL_THRESHOLD and an
+      ENGAGEMENT_DIRECTIVE RESUME or RETARGET name one instance: a receiver
+      rejects one whose esad_id or effector_id is 0, and in one, store_id
+      selects only an ESAD or store that reports that store_id, 0 for one on
+      no store or on a single store, never every store, so a changed bit in
+      a selector cannot widen it to every instance.
 
   COORDINATE DATUM
     All altitudes are MSL (mean sea level). Joint networks often pass targeting
@@ -1246,7 +1254,7 @@
       </entry>
       <entry value="53093" name="MAV_CMD_MAVLINK_M_STORE_SET_DECEL_THRESHOLD">
         <description>Set the deceleration/landing-system trigger threshold for a store. Never sent with target_system 0; receivers ignore one that is.</description>
-        <param index="1" label="Store ID">Target store instance (0 = every store on the receiving system).</param>
+        <param index="1" label="Store ID">Target store instance: the store_id the store reports in STORE_STATUS, 0 for a single store, never every store (FIELD CONVENTIONS).</param>
         <param index="2" label="Sensor Type">Sensor (MAVLINK_M_STORE_SENSOR_TYPE) that gates deployment.</param>
         <param index="3" label="Threshold">Threshold value in the sensor's native units.</param>
         <param index="4" label="Direction">0 = trigger when reading falls below threshold, 1 = trigger when reading rises above threshold.</param>
@@ -1995,7 +2003,7 @@
     <message id="53030" name="ESAD_STATE">
       <description>Electronic Safe and Arm Device (ESAD) telemetry for one ESAD instance on a store. Reports arming, munition, and ignition states, fault flags, and software identity. esad_id identifies the device; store_id identifies the physical bay/store.</description>
       <field type="uint64_t"  name="time_usec"         units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
-      <field type="uint8_t"   name="esad_id"                       >Vehicle-local ESAD instance identifier. Must be 1-254. 0 is invalid for ESAD_STATE, 255 is reserved. A system that accepts ESAD_ARMING or ESAD_CONFIG with esad_id = 0 sets the same arming_challenge_hash on every ESAD such a command can select.</field>
+      <field type="uint8_t"   name="esad_id"                       >Vehicle-local ESAD instance identifier. Must be 1-254. 0 is invalid for ESAD_STATE, 255 is reserved. A command selects every ESAD with esad_id = 0 only in a DISARM, which checks no challenge (FIELD CONVENTIONS), so each ESAD advertises its own arming_challenge_hash.</field>
       <field type="uint32_t"  name="arming_challenge_hash"         >Challenge for this ESAD instance, which an ARM or an ESAD_CONFIG must carry. It ties a command to this state and is not secret.</field>
       <field type="uint32_t"  name="fault_flags"       enum="MAVLINK_M_ESAD_FAULT_FLAGS">Active fault flag bitmask.</field>
       <field type="float"     name="input_1"                       >Analog/digital input 1 (implementation-defined). For the standard safety inputs use the typed fields below instead.</field>
@@ -2017,14 +2025,14 @@
     <!-- 53031: ESAD_ARMING -->
     <!-- ============================================================ -->
     <message id="53031" name="ESAD_ARMING">
-      <description>ESAD arming command for one or more ESAD instances on the receiving system. An ARM must carry the challenge the selected ESAD advertises in ESAD_STATE; with esad_id = 0 it applies only if every local ESAD selected by store_id advertises arming_challenge_hash, and is otherwise rejected, so an ARM never applies in part. A DISARM applies to every selected local ESAD without checking arming_challenge_hash, so no ESAD's state can block it; as for any stop, MAVLink message signing on the link authenticates the sender. An addressed ARM whose esad_id and store_id select no local ESAD is rejected, and an addressed DISARM that selects none is answered MAVLINK_M_ACK_NOT_APPLICABLE; a DISARM sent to every system that selects no local ESAD is not acted on or answered. Each system judges only its own ESADs, so a command that reaches several systems can apply on some and not on others; the originator confirms the result for each system from its MAVLINK_M_ACK and ESAD_STATE. A receiving system refuses an ESAD_ARMING whose arming_request is not a listed value, or that is addressed to it and carries MAVLINK_M_ESAD_REQUEST_NONE: it acts on none of its fields, so it arms and disarms nothing, records the refusal as a stop (SAFETY BOUNDARIES), and answers it once with result MAVLINK_M_ACK_FAILED and ack_instance set to the esad_id the message carries. One sent to every system is refused the same way and answered only by a system where esad_id and store_id select a local ESAD; one sent to every system that carries MAVLINK_M_ESAD_REQUEST_NONE is not acted on, answered or kept as processed.</description>
+      <description>ESAD arming command for one or more ESAD instances on the receiving system. An ARM names one ESAD, by its esad_id (1-254) and the store_id it reports in ESAD_STATE, and must carry the challenge that ESAD advertises in ESAD_STATE; in an ARM store_id never means every store, and a receiver rejects an ARM with esad_id 0 (FIELD CONVENTIONS), so a changed bit in a selector cannot arm every ESAD. A DISARM applies to every selected local ESAD without checking arming_challenge_hash, so no ESAD's state can block it; as for any stop, MAVLink message signing on the link authenticates the sender. An addressed ARM whose esad_id and store_id select no local ESAD is rejected, and an addressed DISARM that selects none is answered MAVLINK_M_ACK_NOT_APPLICABLE; a DISARM sent to every system that selects no local ESAD is not acted on or answered. Each system judges only its own ESADs, so a command that reaches several systems can apply on some and not on others; the originator confirms the result for each system from its MAVLINK_M_ACK and ESAD_STATE. A receiving system refuses an ESAD_ARMING whose arming_request is not a listed value, or that is addressed to it and carries MAVLINK_M_ESAD_REQUEST_NONE: it acts on none of its fields, so it arms and disarms nothing, records the refusal as a stop (SAFETY BOUNDARIES), and answers it once with result MAVLINK_M_ACK_FAILED and ack_instance set to the esad_id the message carries. One sent to every system is refused the same way and answered only by a system where esad_id and store_id select a local ESAD; one sent to every system that carries MAVLINK_M_ESAD_REQUEST_NONE is not acted on, answered or kept as processed.</description>
       <field type="uint64_t" name="time_usec"            units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
       <field type="uint8_t"  name="target_system"                  >System ID of the intended recipient. 0 (every system) is valid only for MAVLINK_M_ESAD_REQUEST_DISARM, which each receiving system applies to its own ESADs; receivers ignore an arm request sent with 0. A receiving system refuses one sent with 0 whose arming_request is not a listed value, as the description says.</field>
       <field type="uint8_t"  name="target_component"               >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
-      <field type="uint8_t"  name="esad_id"                        >Vehicle-local ESAD instance identifier to arm or disarm. 0 = every local ESAD selected by store_id, 1-254 = specific ESAD instance, 255 = reserved.</field>
-      <field type="uint32_t" name="arming_challenge_hash"          >Challenge hash the selected ESAD advertises in ESAD_STATE. Checked for an ARM, where with esad_id = 0 every selected local ESAD must advertise it; not checked for a DISARM.</field>
+      <field type="uint8_t"  name="esad_id"                        >Vehicle-local ESAD instance identifier to arm or disarm. 0 = every local ESAD selected by store_id, in a DISARM only; 1-254 = specific ESAD instance; 255 = reserved.</field>
+      <field type="uint32_t" name="arming_challenge_hash"          >Challenge hash the selected ESAD advertises in ESAD_STATE. Checked for an ARM; not checked for a DISARM.</field>
       <field type="uint8_t"  name="arming_request"  enum="MAVLINK_M_ESAD_ARMING_REQUEST">Requested arming state change.</field>
-      <field type="uint8_t"  name="store_id"                       >Target store instance identifier. 0 = every store on the receiving system.</field>
+      <field type="uint8_t"  name="store_id"                       >Target store instance identifier. In a DISARM, 0 = every store on the receiving system; in an ARM, the store_id the selected ESAD reports in ESAD_STATE, 0 included, never every store.</field>
       <field type="uint8_t[16]" name="track_uid">Track UID (see TRACK_IDENTITY) of the engagement an ARM is for, reported back in ESAD_STATE.track_uid. All-zero if the arming is not tied to a track. Ignored for DISARM.</field>
     </message>
 
@@ -2040,10 +2048,10 @@
         match the value the selected ESAD last advertised in ESAD_STATE, so a
         command made for an older ESAD state does not apply. The hash is public,
         since ESAD_STATE goes to every system; MAVLink message signing on the
-        link authenticates the sender. With esad_id = 0, store_id = 0, or both,
-        a receiving system applies the configuration only if every local ESAD
-        selected advertises arming_challenge_hash, and otherwise rejects it. A
-        command that selects no local ESAD is rejected.
+        link authenticates the sender. It names one ESAD, by its esad_id
+        (1-254) and the store_id it reports in ESAD_STATE; a receiving system
+        rejects one with esad_id 0 (FIELD CONVENTIONS), and one that selects no
+        local ESAD.
         Only coarse, device-defined SAFE/ARM modes may be set here; this message
         must never carry a free continuous distance, a fuze timing value, or any
         height-of-burst configuration. The resulting mode is reported back in
@@ -2056,9 +2064,9 @@
       <field type="uint64_t" name="time_usec"            units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
       <field type="uint8_t"  name="target_system"                  >System ID of the intended recipient. Never 0; receivers ignore an ESAD_CONFIG sent to every system.</field>
       <field type="uint8_t"  name="target_component"               >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
-      <field type="uint32_t" name="arming_challenge_hash"          >Challenge hash the selected ESAD advertises in ESAD_STATE. With esad_id = 0 or store_id = 0, every selected local ESAD must advertise this hash.</field>
-      <field type="uint8_t"  name="esad_id"                        >Vehicle-local ESAD instance identifier to configure. 0 = every local ESAD selected by store_id, 1-254 = specific ESAD instance, 255 = reserved.</field>
-      <field type="uint8_t"  name="store_id"                       >Target store instance identifier. 0 = every store on the receiving system.</field>
+      <field type="uint32_t" name="arming_challenge_hash"          >Challenge hash the selected ESAD advertises in ESAD_STATE.</field>
+      <field type="uint8_t"  name="esad_id"                        >Vehicle-local ESAD instance identifier to configure, 1-254. 0 is rejected (FIELD CONVENTIONS); 255 = reserved.</field>
+      <field type="uint8_t"  name="store_id"                       >Target store instance identifier: the store_id the ESAD reports in ESAD_STATE, 0 included, never every store.</field>
       <field type="uint8_t"  name="trigger_distance_mode" enum="MAVLINK_M_ESAD_TRIGGER_DISTANCE_MODE">Requested coarse trigger-distance standoff mode. Coarse selection only.</field>
     </message>
 
@@ -2491,7 +2499,7 @@
       <field type="uint8_t"  name="target_component"            >Component ID of the intended recipient within target_system. 0 = every component of that system. Ignored when target_system is 0.</field>
       <field type="uint8_t[16]" name="track_uid"                >Track UID the directive applies to. All-zero if addressed by sequence only. A MAVLINK_M_ENGAGEMENT_DIRECTIVE_ABORT or MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE applies to every engagement that matches its sequence or its nonzero track_uid, whoever issued that engagement, and is never declined because one selector does not match. A MAVLINK_M_ENGAGEMENT_DIRECTIVE_RESUME or MAVLINK_M_ENGAGEMENT_DIRECTIVE_RETARGET applies only to an engagement that matches every selector it carries.</field>
       <field type="uint16_t"  name="sequence"                  >Fire mission sequence number the directive applies to. For MAVLINK_M_ENGAGEMENT_DIRECTIVE_ABORT and MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE, 0xFFFF means every fire mission the receiving system holds.</field>
-      <field type="uint32_t"  name="effector_id"               >Effector the directive is addressed to. 0 = all assigned.</field>
+      <field type="uint32_t"  name="effector_id"               >Effector the directive is addressed to. 0 = all assigned, only in MAVLINK_M_ENGAGEMENT_DIRECTIVE_ABORT and MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE: a MAVLINK_M_ENGAGEMENT_DIRECTIVE_RESUME or MAVLINK_M_ENGAGEMENT_DIRECTIVE_RETARGET names one effector, and a receiver rejects one with 0 (FIELD CONVENTIONS).</field>
       <field type="int32_t"   name="retarget_lat" units="degE7">New target latitude for RETARGET, WGS84. INT32_MAX = not provided (0,0 is a valid coordinate). Ignored unless directive is RETARGET.</field>
       <field type="int32_t"   name="retarget_lon" units="degE7">New target longitude for RETARGET, WGS84. INT32_MAX = not provided. Ignored unless directive is RETARGET.</field>
       <field type="float"     name="retarget_alt" units="m"    >New target altitude for RETARGET, MSL. NaN = not provided. Ignored unless directive is RETARGET.</field>
