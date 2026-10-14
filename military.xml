@@ -2308,13 +2308,16 @@
         a start the stop covers. A sender that gets no acknowledgment from a
         system it expects to answer sends the stop again addressed to that
         system, up to that number of times, and may send any other message
-        again, unchanged, time_usec included. A receiver treats a repeat of
-        a message it has processed (same source system and component,
-        message ID and field values, target_system and target_component
-        aside) as a duplicate: it does not act on it a second time, and
-        answers it with its latest answer to that message, or with
-        MAVLINK_M_ACK_NOT_APPLICABLE when it gave none and the repeat is
-        addressed to it; it does not answer a repeat sent with
+        again, unchanged, time_usec included. A sender never sends two
+        different messages that one system receives, addressed to it or sent
+        to every system, whose acknowledgments would carry the same ack_msgid,
+        ack_instance and ack_time_usec, so each acknowledgment names one
+        message. A receiver treats a repeat of a message it has processed
+        (same source system and component, message ID and field values,
+        target_system and target_component aside) as a duplicate: it does not
+        act on it a second time, and answers it with its latest answer to that
+        message, or with MAVLINK_M_ACK_NOT_APPLICABLE when it gave none and
+        the repeat is addressed to it; it does not answer a repeat sent with
         target_system 0 where its latest answer to that message was
         MAVLINK_M_ACK_NOT_APPLICABLE, since no message sent to every system is
         answered so. A copy that differs from a message the receiver has
