@@ -2312,7 +2312,10 @@
         aside) as a duplicate: it does not act on it a second time, and
         answers it with its latest answer to that message, or with
         MAVLINK_M_ACK_NOT_APPLICABLE when it gave none and the repeat is
-        addressed to it. A copy that differs from a message the receiver has
+        addressed to it; it does not answer a repeat sent with
+        target_system 0 where its latest answer to that message was
+        MAVLINK_M_ACK_NOT_APPLICABLE, since no message sent to every system is
+        answered so. A copy that differs from a message the receiver has
         processed only in commanded fields whose values are not listed is not
         refused: its sender gives each message with a commanded field its own
         time_usec, so the difference can only be damage. The receiver acts on
