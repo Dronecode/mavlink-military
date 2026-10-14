@@ -2326,8 +2326,15 @@
         time_usec, so the difference can only be damage. The receiver acts on
         nothing in it, records nothing for it and does not answer it, so its
         answer to that message stands, and a copy its sender sends for want of
-        an answer is checked again. Receivers ignore an acknowledgment sent
-        with target_system 0.
+        an answer is checked again. Every system is configured with the
+        duplicate window: at least the number of times set for the network
+        times the answer timeout, plus the longest delay a path of the network
+        adds, and at least the maximum age where one is configured. A receiver
+        keeps its record of each message it has processed for that window
+        after the message arrives, and a sender sends no unchanged copy of a
+        message once that window, less the longest delay a path of the network
+        adds, has passed since it first sent it. Receivers ignore an
+        acknowledgment sent with target_system 0.
       </description>
       <field type="uint64_t" name="time_usec"     units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
       <field type="uint64_t" name="ack_time_usec" units="us"  >time_usec of the acknowledged message, copied unchanged. Tells apart acknowledgments of different messages with the same ack_msgid and ack_instance, such as a MAVLINK_M_ENGAGEMENT_DIRECTIVE_CHECK_FIRE and the MAVLINK_M_ENGAGEMENT_DIRECTIVE_RESUME of the same mission.</field>
