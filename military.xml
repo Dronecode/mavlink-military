@@ -2211,7 +2211,11 @@
         issued after the refusal arrived. One sent to every system is refused
         when its clearance is not a listed value, since a receiver acts only on
         the clearance of such a message, and answered only by an aircraft where
-        sequence selects an attack it is making.
+        sequence selects an attack it is making. An aircraft that restarts
+        treats every clearance it held as withdrawn in the same way, so it acts
+        again only on a clearance issued after its restart; it sends no notice
+        of either, so its controller learns of it from a later answer or gives
+        a new clearance.
       </description>
       <field type="uint64_t" name="time_usec"    units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
       <field type="uint8_t"  name="target_system"          >System ID of the intended recipient: the attacking aircraft for a clearance, the controller for an aircraft call. 0 (every system) is valid only with clearance MAVLINK_M_CAS_ABORT or MAVLINK_M_CAS_CEASE_FIRE, and a receiver acts only on that clearance in such a message; receivers ignore any other TERMINAL_CONTROL sent with 0 whose clearance is a listed value, and refuse one whose clearance is not, as the description says.</field>
@@ -2619,7 +2623,13 @@
         answers with result MAVLINK_M_ACK_FAILED and ack_instance 0, for one
         sent to every system only if it holds an engagement. A human authority
         that receives a LOITER_MUNITION_CONTROL with such a value from a
-        munition acts on none of its fields and answers it the same way.
+        munition acts on none of its fields and answers it the same way. A
+        munition that restarts ends any consent it held and asks again with
+        MAVLINK_M_LM_CONSENT_REQUESTED for each engagement it still has, since
+        its restart is recorded as a stop covering everything (SAFETY
+        BOUNDARIES). After a refusal or a restart, it sends each such request
+        again, unchanged, until the human authority acknowledges it or grants
+        consent again, up to the number of times set for the network.
       </description>
       <field type="uint64_t"  name="time_usec"     units="us">Timestamp (UNIX epoch, microseconds UTC).</field>
       <field type="uint8_t"  name="target_system"            >System ID of the intended recipient: the munition, or the human authority for a consent request. 0 (every system) is valid only to stop. From a message sent with 0, a munition applies terminate MAVLINK_M_LM_TERMINATE_WAVE_OFF or MAVLINK_M_LM_TERMINATE_ABORT and consent_state MAVLINK_M_LM_CONSENT_WITHHELD or MAVLINK_M_LM_CONSENT_WITHDRAWN, acts on no other terminate or consent_state value (it refuses one that is not listed, as the description says), and ignores the loiter station and every other field, so after an ABORT it returns to the loiter station it already holds. It never drops the stop because the message carries something else. Receivers ignore a LOITER_MUNITION_CONTROL sent with 0 whose consent_state and terminate are listed values and carry no stop; a munition refuses one with a value that is not listed, as the description says.</field>

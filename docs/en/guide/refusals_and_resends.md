@@ -58,13 +58,16 @@ A sender whose command is refused:
 A sender treats a command as carried out only when it is confirmed: `ESAD_ARMING`, [ESAD_CONFIG](../messages/military.md#ESAD_CONFIG) and `MAV_CMD_MAVLINK_M_STORE_SAFE` when [ESAD_STATE](../messages/military.md#ESAD_STATE) or [STORE_STATUS](../messages/military.md#STORE_STATUS) reports the requested state, and the other messages when `MAVLINK_M_ACK_ACCEPTED` answers that message.
 It shows its operator each refused command, and each stop not yet confirmed, as not carried out.
 
+A munition that restarts ends any consent it held and asks again with `MAVLINK_M_LM_CONSENT_REQUESTED` for each engagement it still has, and an aircraft that restarts treats every clearance it held as withdrawn, as the descriptions of those messages say.
+
 After a refused [LOITER_MUNITION_CONTROL](../messages/military.md#LOITER_MUNITION_CONTROL), the sender shows the munition's consent as not held for every grant it had sent that munition whose `time_usec` is not later than that `MAVLINK_M_ACK_FAILED`'s plus the maximum clock offset, answered or not.
 After a `MAVLINK_M_LM_CONSENT_REQUESTED` from the munition for an engagement, it does the same for its grants for that engagement not later than the request's `time_usec` plus the maximum clock offset, and after a `MAVLINK_M_ACK_HELD` for one of its grants, for its grants for that engagement not later than the held one.
 An acknowledgment that arrives later for one of those grants does not show it as held again.
 A later grant is shown as its own answer says, since the munition holds every grant those times cover and acts on the others.
+A munition stops asking after the number of times set for the network, so if every copy of its request is lost, the human authority can go on showing as held a consent the munition has ended, until a later answer from the munition shows it ended or the authority grants again; this fails toward no release.
 
 After a refused [TERMINAL_CONTROL](../messages/military.md#TERMINAL_CONTROL), the sender shows as withdrawn each clearance it had given that aircraft whose `time_usec` is not later than that `MAVLINK_M_ACK_FAILED`'s plus the maximum clock offset, and after a `MAVLINK_M_ACK_HELD` for one of its clearances, each clearance it had given for that attack not later than the held one, in the same way.
-An aircraft repeats no notice of a withdrawn clearance, so if that `MAVLINK_M_ACK_FAILED` is lost, the controller can go on showing as given the clearances the aircraft treats as withdrawn until a later answer from the aircraft shows them withdrawn or the controller gives a new one; this fails toward no release.
+An aircraft repeats no notice of a withdrawn clearance, so if that `MAVLINK_M_ACK_FAILED` is lost, or the aircraft has restarted, the controller can go on showing as given the clearances the aircraft treats as withdrawn until a later answer from the aircraft shows them withdrawn or the controller gives a new one; this fails toward no release.
 
 Over a link that carries no answers back, a sender repeats a stop as the `MAVLINK_M_ACK` description says, building each repeat from the values it holds.
 
