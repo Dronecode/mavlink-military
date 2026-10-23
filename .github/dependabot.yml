@@ -1,7 +1,8 @@
 # Keeps the SHA-pinned actions, the hash-locked Python packages and the
 # docs site's npm packages current, each with one grouped pull request a
-# month, a week after a release at the earliest. The mavlink and
-# pymavlink pins are MAVLINK_REF and PYMAVLINK_REF in
+# month, a week after a release at the earliest; the SLSA generator that
+# signs release provenance moves in a pull request of its own. The
+# mavlink and pymavlink pins are MAVLINK_REF and PYMAVLINK_REF in
 # .github/mavlink-pins.env; dependabot can't see them, so
 # they move by hand, together, in a pull request whose checks pass.
 version: 2
@@ -29,6 +30,17 @@ updates:
       ci:
         patterns:
           - "*"
+        exclude-patterns:
+          - "slsa-framework/*"
+      # The SLSA generator that signs release provenance is called by
+      # its tag, with its reviewed commit and the actions it downloads
+      # listed in release.yml's env. A bump comes in a pull request of
+      # its own, whose release checks fail until that env moves with
+      # the tag, after a review of the new version's workflow, actions
+      # and changelog.
+      slsa:
+        patterns:
+          - "slsa-framework/*"
 
   # The hash-locked requirement files in .github/requirements, which the
   # workflows install with --require-hashes: dependabot moves each pin

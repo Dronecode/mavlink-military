@@ -424,5 +424,24 @@ class VerifyWorkflowTest(unittest.TestCase):
         self.assertFalse(rebuild["strategy"]["fail-fast"])
 
 
+class DependabotTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.updates = yaml.safe_load(
+            (ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8")
+        )["updates"]
+
+    def test_the_generator_moves_in_a_pull_request_of_its_own(self) -> None:
+        actions = next(u for u in self.updates if u["package-ecosystem"] == "github-actions")
+        self.assertEqual(actions["groups"]["ci"]["exclude-patterns"], ["slsa-framework/*"])
+        self.assertEqual(actions["groups"]["slsa"]["patterns"], ["slsa-framework/*"])
+
+    def test_the_release_locks_are_watched(self) -> None:
+        pip = next(u for u in self.updates if u["package-ecosystem"] == "pip")
+        self.assertEqual(pip["directories"], ["/.github/requirements"])
+        locks = sorted(p.name for p in (ROOT / ".github" / "requirements").glob("*"))
+        self.assertIn("test.txt", locks)
+        self.assertTrue(all(name.endswith(".txt") for name in locks), locks)
+
+
 if __name__ == "__main__":
     unittest.main()
