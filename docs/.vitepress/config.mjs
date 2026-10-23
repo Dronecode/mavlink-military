@@ -15,6 +15,11 @@ export default defineConfig({
   base,
   lastUpdated: true,
   cleanUrls: false,
+  // One page at a time. The local search index takes its entries in the order
+  // pages finish, so with pages built concurrently two builds of one commit
+  // differ in that file's hash, and so in every page that loads it. Built in
+  // page order, the same commit gives the same site, byte for byte.
+  buildConcurrency: 1,
   sitemap: { hostname },
   srcExclude: ["**/_*.md", "scripts/**", "README.md"],
 
