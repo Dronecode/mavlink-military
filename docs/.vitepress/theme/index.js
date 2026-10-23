@@ -2,6 +2,8 @@ import DefaultTheme from "vitepress/theme";
 import { getScrollOffset, inBrowser, onContentUpdated, useData, useRoute } from "vitepress";
 import { h, nextTick, onMounted, watch } from "vue";
 import HeroDronecode from "./components/HeroDronecode.vue";
+import VersionBanner from "./components/VersionBanner.vue";
+import VersionMenu from "./components/VersionMenu.vue";
 import "./style.css";
 
 // Mermaid is large, so it is imported only on pages that have a diagram. Each
@@ -67,6 +69,11 @@ export default {
   Layout: () =>
     h(DefaultTheme.Layout, null, {
       "home-hero-actions-after": () => h(HeroDronecode),
+      // Which version of the docs this is, and the others the site serves.
+      "home-hero-info-before": () => h(VersionBanner),
+      "doc-before": () => h(VersionBanner),
+      "nav-bar-content-after": () => h(VersionMenu),
+      "nav-screen-content-after": () => h(VersionMenu, { screen: true }),
     }),
   setup() {
     // The generated message pages are long enough that the initial anchor jump
