@@ -91,10 +91,27 @@ class PermissionTest(unittest.TestCase):
             with self.subTest(job=name):
                 self.assertIn("permissions", job)
 
-    def test_the_rehearsal_jobs_only_read(self) -> None:
+    def test_each_job_holds_exactly_its_permissions(self) -> None:
+        read = {"contents": "read"}
+        expected = {
+            "preflight": {"contents": "read", "actions": "read"},
+            "validate": read, "lint": read, "docs": read, "commit-checks": read, "test": read,
+            "build": read, "rebuild": read, "assemble": read,
+            "approve": {},
+            "generator-check": {"contents": "read", "actions": "read"},
+            "provenance": {"actions": "read", "id-token": "write", "contents": "write"},
+            "generator-audit": {"contents": "read", "actions": "read"},
+            "publish": {"contents": "write"},
+        }  # fmt: skip
+        self.assertEqual({name: job["permissions"] for name, job in JOBS.items()}, expected)
+
+    def test_only_the_generator_call_signs_and_only_it_and_publish_write(self) -> None:
         for name, job in JOBS.items():
             with self.subTest(job=name):
-                self.assertEqual(job["permissions"], {"contents": "read"})
+                if name != "provenance":
+                    self.assertNotIn("id-token", job["permissions"])
+                if name not in ("provenance", "publish"):
+                    self.assertNotIn("write", job["permissions"].values())
 
 
 class IsolationTest(unittest.TestCase):
@@ -221,7 +238,7 @@ class PragmaTest(unittest.TestCase):
 class GraphTest(unittest.TestCase):
     def test_the_repository_checks_run_through_their_own_workflows(self) -> None:
         self.assertEqual(
-            {n: j["uses"] for n, j in CALLS.items()},
+            {n: j["uses"] for n, j in CALLS.items() if n != "provenance"},
             {
                 "validate": "./.github/workflows/validate_dialect.yml",
                 "lint": "./.github/workflows/workflow_lint.yml",
@@ -262,6 +279,117 @@ class GraphTest(unittest.TestCase):
                 self.assertEqual(
                     JOBS[name]["steps"][0]["with"]["ref"], "${{ needs.preflight.outputs.commit }}"
                 )
+
+
+GENERATOR_LINE = (
+    "    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0"
+    " # f7dd8c54c2067bafc12ca7a55595d5ee9b75204a"
+)
+GUARD = (
+    "github.repository == 'Dronecode/mavlink-military' && github.event_name == 'push' && "
+    "startsWith(github.ref, 'refs/tags/v')"
+)
+
+
+class GeneratorTest(unittest.TestCase):
+    def test_one_call_by_tag_with_the_reviewed_commit_beside_it(self) -> None:
+        text = (WORKFLOWS / "release.yml").read_text(encoding="utf-8")
+        self.assertEqual(
+            [line for line in text.splitlines() if "slsa-framework/" in line and "uses:" in line],
+            [GENERATOR_LINE],
+        )
+        env = RELEASE["env"]
+        self.assertEqual(
+            f"    uses: {env['GENERATOR_WORKFLOW']}@{env['GENERATOR_TAG']} # {env['GENERATOR_COMMIT']}",
+            GENERATOR_LINE,
+        )
+        self.assertEqual(
+            CALLS["provenance"]["uses"], f"{env['GENERATOR_WORKFLOW']}@{env['GENERATOR_TAG']}"
+        )
+
+    def test_no_other_workflow_uses_the_slsa_projects_code(self) -> None:
+        for path in sorted(WORKFLOWS.glob("*.y*ml")):
+            if path.name != "release.yml":
+                with self.subTest(workflow=path.name):
+                    self.assertNotIn("slsa-framework/", path.read_text(encoding="utf-8"))
+
+    def test_every_input_is_set_and_nothing_uploads(self) -> None:
+        self.assertEqual(
+            CALLS["provenance"]["with"],
+            {
+                "base64-subjects": "${{ needs.assemble.outputs.subjects }}",
+                "upload-assets": False,
+                "provenance-name": "mavlink-m-${{ needs.preflight.outputs.version }}.intoto.jsonl",
+                "compile-generator": False,
+                "private-repository": False,
+                "continue-on-error": False,
+            },
+        )
+
+    def test_the_call_holds_nothing_but_the_call(self) -> None:
+        self.assertLessEqual(
+            set(CALLS["provenance"]), {"name", "if", "needs", "permissions", "uses", "with"}
+        )
+        self.assertNotIn("secrets", CALLS["provenance"])
+
+    def test_the_reviewed_actions_are_listed_with_their_commits(self) -> None:
+        env = RELEASE["env"]
+        entries = env["GENERATOR_ACTIONS"].split()
+        for entry in entries:
+            with self.subTest(entry=entry):
+                self.assertRegex(entry, r"^[\w.-]+/[\w.-]+@[\w.-]+=[0-9a-f]{40}$")
+        self.assertIn(
+            f"slsa-framework/slsa-github-generator@{env['GENERATOR_TAG']}={env['GENERATOR_COMMIT']}",
+            entries,
+        )
+
+
+class PublicationGraphTest(unittest.TestCase):
+    def test_only_the_approval_names_the_release_environment(self) -> None:
+        self.assertEqual({n for n, j in JOBS.items() if "environment" in j}, {"approve"})
+        self.assertEqual(JOBS["approve"]["environment"], "release")
+        self.assertEqual([s.get("uses") for s in JOBS["approve"]["steps"]], [None])
+
+    def test_the_approval_waits_for_two_builds_that_agree(self) -> None:
+        condition = " ".join(JOBS["approve"]["if"].split())
+        self.assertTrue(condition.startswith(GUARD))
+        self.assertIn("needs.preflight.outputs.publish == 'true'", condition)
+        self.assertIn("needs.build.outputs.sums_sha256 != ''", condition)
+        self.assertIn(
+            "needs.build.outputs.sums_sha256 == needs.rebuild.outputs.sums_sha256", condition
+        )
+        self.assertEqual(
+            sorted(JOBS["approve"]["needs"]), ["assemble", "build", "preflight", "rebuild"]
+        )
+
+    def test_signing_and_publishing_follow_the_approval_and_the_checks(self) -> None:
+        self.assertEqual(JOBS["generator-check"]["needs"], "approve")
+        self.assertEqual(
+            sorted(JOBS["provenance"]["needs"]), ["assemble", "generator-check", "preflight"]
+        )
+        self.assertEqual(JOBS["generator-audit"]["needs"], "provenance")
+        self.assertEqual(
+            sorted(JOBS["publish"]["needs"]), ["generator-audit", "preflight", "provenance"]
+        )
+        self.assertIn("needs.provenance.result == 'success'", JOBS["publish"]["if"])
+        for name in ("approve", "generator-check", "provenance", "generator-audit", "publish"):
+            with self.subTest(job=name):
+                self.assertTrue(" ".join(JOBS[name]["if"].split()).startswith(GUARD))
+
+    def test_the_publish_job_downloads_only_and_runs_the_script(self) -> None:
+        uses = [s["uses"].split("@")[0] for s in JOBS["publish"]["steps"] if "uses" in s]
+        self.assertEqual(
+            uses, ["actions/checkout", "actions/setup-python", "actions/download-artifact"]
+        )
+
+    def test_the_settings_check_runs_only_where_a_release_may_be_published(self) -> None:
+        steps = {s.get("name"): s for s in JOBS["preflight"]["steps"]}
+        settings = steps["Check the settings a publication relies on"]
+        self.assertEqual(settings["if"], "steps.plan.outputs.publish == 'true'")
+        self.assertEqual(settings["env"]["VARS_JSON"], "${{ toJSON(vars) }}")
+        self.assertNotIn(
+            "if", steps["Check that the generator's tag still names its reviewed commit"]
+        )
 
 
 if __name__ == "__main__":

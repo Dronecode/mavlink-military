@@ -268,6 +268,9 @@ def assemble(paths: dict[str, Path], plan: dict, env: dict, send=osv.post) -> di
     sbom.check_coverage(document, facts["members"])
     (out / f"mavlink-m-{version}.spdx.json").write_bytes(dumps(document))
     files = {p.name: sha256(p.read_bytes()) for p in sorted(out.iterdir())}
+    generator = None
+    if env.get("GENERATOR_COMMIT"):
+        generator = {k: env[f"GENERATOR_{k.upper()}"] for k in ("workflow", "tag", "commit")}
     notes = release_notes.notes(
         plan,
         files,
@@ -279,6 +282,7 @@ def assemble(paths: dict[str, Path], plan: dict, env: dict, send=osv.post) -> di
                 definitions["message_definitions/v1.0/military.xml"].decode("utf-8")
             ),
         },
+        generator,
     )
     (out / f"mavlink-m-{version}-notes.md").write_text(notes, encoding="utf-8")
     vulnerabilities = osv.record(plan, tools, sbom.installed_packages(notices), send=send)

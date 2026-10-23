@@ -1,10 +1,12 @@
 name: Release
 
 # Builds a release of the dialect from a final version tag vX.Y.Z on main,
-# and checks everything it ships. On every pull request, and when run by
-# hand, it rehearses the same jobs on that commit, with nothing published,
-# so the rehearsal can be a required check. Nothing in this workflow creates
-# a tag or a release.
+# checks everything it ships, and publishes it once a reviewer approves it in
+# the release environment, with SLSA provenance that the SLSA project's
+# generic generator signs. On every pull request, and when run by hand, it
+# rehearses the same jobs up to the approval, with nothing published, so the
+# rehearsal can be a required check. Nothing in this workflow creates a tag;
+# only a pushed tag on Dronecode's repository leads to a release.
 #
 # Every job runs on a fresh GitHub-hosted ubuntu-24.04 runner, restores and
 # saves no cache, and reads nothing another run produced. Its Python tools
@@ -24,6 +26,23 @@ concurrency:
   group: ${{ github.workflow }}-release-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+env:
+  # The SLSA generic generator, which must be called by its version tag, and
+  # the commit that tag names, reviewed with the actions its jobs download
+  # at that commit (as the runner logs them: action@ref=commit). The
+  # provenance job's uses line repeats the tag and the commit; a test keeps
+  # them equal. A bump changes all four together, after reviewing the new
+  # version's workflow, actions and changelog.
+  GENERATOR_WORKFLOW: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml
+  GENERATOR_TAG: v2.1.0
+  GENERATOR_COMMIT: f7dd8c54c2067bafc12ca7a55595d5ee9b75204a
+  GENERATOR_ACTIONS: >-
+    slsa-framework/slsa-github-generator@v2.1.0=f7dd8c54c2067bafc12ca7a55595d5ee9b75204a
+    actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683=11bd71901bbe5b1630ceea73d27597364c9af683
+    actions/setup-go@f111f3307d8850f501ac008e886eec1fd1932a34=f111f3307d8850f501ac008e886eec1fd1932a34
+    actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08=65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08
+    actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16=fa0a91b85d4f404e444e00e005971372dc801d16
+
 jobs:
   preflight:
     name: Plan the release
@@ -31,6 +50,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read # the history, the tags and the releases
+      actions: read # the release environment's protection rules
     outputs:
       tag: ${{ steps.plan.outputs.tag }}
       version: ${{ steps.plan.outputs.version }}
@@ -58,6 +78,20 @@ jobs:
           PYMAVLINK_DIR: pymavlink
           PYTHONPATH: ${{ github.workspace }}
         run: python3 .github/scripts/release/release_plan.py "$RUNNER_TEMP/plan"
+
+      - name: Check that the generator's tag still names its reviewed commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/release/release_generator.py pin
+
+      - name: Check the settings a publication relies on
+        if: steps.plan.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # The generator publishes the run's variables in its provenance, so
+          # there must be none.
+          VARS_JSON: ${{ toJSON(vars) }}
+        run: python3 .github/scripts/release/release_settings.py
 
       - name: Keep the plan for the other jobs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -312,4 +346,148 @@ jobs:
           name: release-files
           path: ${{ runner.temp }}/release
           if-no-files-found: error
+          # The publish job reads them after the approval, which GitHub lets
+          # wait up to 30 days.
+          retention-days: 30
+
+  approve:
+    name: Approve the release
+    # The only job that names the release environment, so a reviewer other
+    # than whoever pushed the tag approves the release before anything is
+    # signed or published, and only when both builds agree.
+    if: >-
+      github.repository == 'Dronecode/mavlink-military' && github.event_name == 'push' &&
+      startsWith(github.ref, 'refs/tags/v') && needs.preflight.outputs.publish == 'true' &&
+      needs.build.outputs.sums_sha256 != '' &&
+      needs.build.outputs.sums_sha256 == needs.rebuild.outputs.sums_sha256
+    needs: [preflight, build, rebuild, assemble]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: release
+    permissions: {}
+    steps:
+      - name: Show what is approved
+        env:
+          TAG: ${{ needs.preflight.outputs.tag }}
+          COMMIT: ${{ needs.preflight.outputs.commit }}
+          SUBJECTS: ${{ needs.assemble.outputs.subjects_sha256 }}
+        run: echo "Approved $TAG at $COMMIT, release files with subject list SHA-256 $SUBJECTS"
+
+  generator-check:
+    name: Check the generator this run loaded
+    if: >-
+      github.repository == 'Dronecode/mavlink-military' && github.event_name == 'push' &&
+      startsWith(github.ref, 'refs/tags/v')
+    needs: approve
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read # checks out the check script
+      actions: read # this run attempt's record of the workflows it called
+    steps:
+      - name: Check out the check script
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts/release
+
+      - name: Check the loaded generator and its tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 .github/scripts/release/release_generator.py run
+          python3 .github/scripts/release/release_generator.py pin
+
+  provenance:
+    name: Sign the provenance
+    # Exactly the permissions the generator's workflow declares for its jobs.
+    # contents: write is a ceiling GitHub makes every caller grant, because the
+    # generator's upload job declares it; with upload-assets false that job
+    # never runs, no running generator job declares it, and generator-audit
+    # checks from the job logs that none received it.
+    if: >-
+      github.repository == 'Dronecode/mavlink-military' && github.event_name == 'push' &&
+      startsWith(github.ref, 'refs/tags/v')
+    needs: [preflight, assemble, generator-check]
+    permissions:
+      actions: read # the generator reads its own workflow run
+      id-token: write # keyless signing of the provenance
+      contents: write # a ceiling only, see above
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0 # f7dd8c54c2067bafc12ca7a55595d5ee9b75204a
+    with:
+      base64-subjects: ${{ needs.assemble.outputs.subjects }}
+      upload-assets: false
+      provenance-name: mavlink-m-${{ needs.preflight.outputs.version }}.intoto.jsonl
+      compile-generator: false
+      private-repository: false
+      continue-on-error: false
+
+  generator-audit:
+    name: Audit the generator's jobs
+    if: >-
+      github.repository == 'Dronecode/mavlink-military' && github.event_name == 'push' &&
+      startsWith(github.ref, 'refs/tags/v')
+    needs: provenance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read # checks out the audit script
+      actions: read # the generator jobs' logs and the run's approvals
+    steps:
+      - name: Check out the audit script
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts/release
+
+      - name: Audit the generator's jobs from their logs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GENERATOR_JOB: Sign the provenance
+        run: python3 .github/scripts/release/release_generator.py audit "$RUNNER_TEMP/audit.json"
+
+      - name: Keep the audit record
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-generator-audit
+          path: ${{ runner.temp }}/audit.json
+          if-no-files-found: error
           retention-days: 7
+
+  publish:
+    name: Publish the release
+    if: >-
+      github.repository == 'Dronecode/mavlink-military' && github.event_name == 'push' &&
+      startsWith(github.ref, 'refs/tags/v') && needs.provenance.result == 'success'
+    needs: [preflight, provenance, generator-audit]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write # creates the release and uploads its files
+    steps:
+      - name: Check out the publish script
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts/release
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12.15"
+
+      - name: Download the release files, the provenance and the audit record
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: "{release-files,release-generator-audit,${{ needs.provenance.outputs.provenance-name }}}"
+          path: ${{ runner.temp }}/in
+
+      - name: Verify, publish and verify again
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.preflight.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
+          PROVENANCE: ${{ needs.provenance.outputs.provenance-name }}
+        run: |
+          python3 .github/scripts/release/release_publish.py "$RUNNER_TEMP/in/release-files" \
+            "$RUNNER_TEMP/in/$PROVENANCE/$PROVENANCE" "$RUNNER_TEMP/in/release-generator-audit/audit.json"

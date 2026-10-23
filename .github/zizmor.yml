@@ -5,3 +5,14 @@ rules:
   # and would stop checking those steps. Switch once actionlint accepts it.
   self-repository:
     disable: true
+  unpinned-uses:
+    config:
+      policies:
+        # The SLSA generic generator must be referenced by its version tag:
+        # it fails when referenced by a commit, so release.yml calls it by
+        # tag, with the commit beside it. This policy names that one
+        # workflow; release.yml's contract test holds the tag and the commit
+        # to the reviewed pair, and its preflight checks the tag still names
+        # that commit. Every other reference stays pinned by commit.
+        "slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml": ref-pin
+        "*": hash-pin

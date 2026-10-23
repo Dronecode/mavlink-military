@@ -233,6 +233,7 @@ class AssembleTest(AssembleCase):
             f"<https://github.com/example/mavlink-military/blob/v{V}/military.xml#L4>.",
             notes,
         )
+        self.assertNotIn("## Verifying it", notes)
         self.assertEqual(json.loads(evidence["osv.json"])["with_findings"], 0)
         self.assertEqual(result["jobs"], {name: "success" for name in ra.NEEDED})
         self.assertEqual(result["notes"], notes)
@@ -271,6 +272,14 @@ class AssembleTest(AssembleCase):
             with self.assertRaises(ra.sbom.SbomError) as caught:
                 self.assemble()
         self.assertIn(f"mavlink-m-{V}-python.tar.gz: the SBOM lists 1 files for 2 members", str(caught.exception))  # fmt: skip
+
+    def test_signed_releases_carry_the_verification_commands(self) -> None:
+        env = {"GENERATOR_WORKFLOW": "slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml",
+               "GENERATOR_TAG": "v2.1.0", "GENERATOR_COMMIT": "f" * 40}  # fmt: skip
+        self.assemble(env)
+        self.assertIn(
+            "--signer-digest " + "f" * 40, (self.out / f"mavlink-m-{V}-notes.md").read_text()
+        )
 
     def test_the_two_builds_must_agree(self) -> None:
         (self.b / "SHA256SUMS").write_text("0" * 64 + "  x\n")
@@ -330,9 +339,11 @@ class AssembleTest(AssembleCase):
     def test_a_name_outside_the_charset_is_refused_at_the_end(self) -> None:
         real = ra.release_notes.notes
 
-        def notes_and_a_stray_file(plan: dict, files: dict, facts: dict) -> str:
+        def notes_and_a_stray_file(
+            plan: dict, files: dict, facts: dict, generator: dict | None
+        ) -> str:
             (self.out / "a b.md").write_text("x")
-            return real(plan, files, facts)
+            return real(plan, files, facts, generator)
 
         with mock.patch.object(ra.release_notes, "notes", side_effect=notes_and_a_stray_file):
             self.refused("release file names outside [A-Za-z0-9._-]: ['a b.md']")

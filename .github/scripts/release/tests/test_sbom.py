@@ -497,6 +497,25 @@ class NotesTest(unittest.TestCase):
         self.assertIn("call for a patch step", text)
         self.assertNotIn("definitions moved", text)
 
+    def test_a_signed_release_says_how_to_verify_it(self) -> None:
+        generator = {"workflow": "slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml",
+                     "tag": "v2.1.0", "commit": "f" * 40}  # fmt: skip
+        plan = dict(PLAN, repository="Dronecode/mavlink-military")
+        text = release_notes.notes(plan, {}, generator=generator)
+        self.assertIn("## Verifying it", text)
+        self.assertIn("slsa-github-generator v2.1.0 at commit `" + "f" * 40 + "`", text)
+        self.assertIn(
+            "gh attestation verify FILE --bundle mavlink-m-1.1.0.intoto.jsonl --repo Dronecode/mavlink-military \\\n",
+            text,
+        )
+        self.assertIn(f"  --source-ref refs/tags/v1.1.0 --source-digest {'c' * 40} \\\n", text)
+        self.assertIn(
+            "--builder-id https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@refs/tags/v2.1.0",
+            text,
+        )
+        self.assertIn("includes the account that pushed the release tag", text)
+        self.assertNotIn("## Verifying it", release_notes.notes(plan, {}))
+
     def test_code_spans(self) -> None:
         self.assertEqual(release_notes.code("plain"), "`plain`")
         self.assertEqual(release_notes.code("a `b` c"), "``a `b` c``")
