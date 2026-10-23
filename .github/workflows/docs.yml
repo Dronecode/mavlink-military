@@ -13,13 +13,6 @@ on:
       - ".github/mavlink-pins.env"
       - ".github/scripts/docs/**"
   pull_request:
-    paths:
-      - "docs/**"
-      - "military.xml"
-      - "IDMAPPING.md"
-      - ".github/workflows/docs.yml"
-      - ".github/mavlink-pins.env"
-      - ".github/scripts/docs/**"
   workflow_dispatch:
 
 concurrency:
