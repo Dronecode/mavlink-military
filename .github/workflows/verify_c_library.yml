@@ -1,0 +1,96 @@
+name: Verify C Library
+
+# Checks once a day that the published C library is what the publish job
+# of generate_c_lib.yml made from main. check_c_library.py checks that the
+# library's head names a source commit on main with its pins, that a
+# successful c-library deployment made by that workflow exists for it, and
+# that no generator input changed after the newest such deployment; then a
+# regeneration at main, with the locked tooling, must equal the library
+# apart from the build date line and the README.md and LICENSE that the
+# publish leaves alone. Only public data is read, with a read-only token,
+# and only the Dronecode repository runs the check, as the library is
+# Dronecode's. GitHub stops a schedule after 60 days without activity in
+# the repository; a manual run starts it again. Pull requests run the
+# scripts' tests.
+
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  C_LIBRARY_REPO: Dronecode/mavlink-military-c_library_v2
+
+jobs:
+  test:
+    name: Test the verification scripts
+    if: github.event_name == 'pull_request' || github.repository == 'Dronecode/mavlink-military'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run the unit tests of this workflow's scripts
+        run: python3 -m unittest discover --start-directory .github/scripts/verify_c_library/tests --verbose
+
+  verify:
+    name: Verify the published headers
+    if: github.event_name != 'pull_request' && github.repository == 'Dronecode/mavlink-military'
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read # checks out this repository and its history
+      deployments: read # reads the c-library deployments
+      actions: read # reads the run behind each deployment
+    steps:
+      - name: Check out this repository with its history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Clone the C library
+        # The library is public, so the clone needs no credentials.
+        run: git clone --quiet --depth 1 "${GITHUB_SERVER_URL}/${C_LIBRARY_REPO}.git" "$RUNNER_TEMP/c_library"
+
+      - name: Check the library's head against its source and its deployment
+        id: record
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          python3 .github/scripts/verify_c_library/check_c_library.py
+          --library "$RUNNER_TEMP/c_library" --source .
+          --remote "${GITHUB_SERVER_URL}/${C_LIBRARY_REPO}.git"
+
+      - name: Check that each pin is still on its upstream default branch
+        if: steps.record.outputs.result == 'verify'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/generate_c_lib/check_pins_upstream.py .github/mavlink-pins.env
+
+      - name: Set up MAVLink generation tooling
+        if: steps.record.outputs.result == 'verify'
+        uses: ./.github/actions/setup-mavlink-tooling
+
+      - name: Regenerate the headers at main
+        if: steps.record.outputs.result == 'verify'
+        run: .github/scripts/generate_c_lib/generate_c_headers.sh . mavlink pymavlink "$RUNNER_TEMP/out"
+
+      - name: Compare the regeneration with the library
+        if: steps.record.outputs.result == 'verify'
+        # mavgen stamps the generation date into each version.h, the only
+        # line a regeneration on another day changes; compare_library.py
+        # accepts that line only in the exact form mavgen writes it.
+        run: python3 .github/scripts/verify_c_library/compare_library.py "$RUNNER_TEMP/out" "$RUNNER_TEMP/c_library"
