@@ -1,0 +1,137 @@
+name: Deploy Docs
+
+# Publishes the documentation site. docs.yml builds main's pages, which sit
+# at main/. The root sends a visitor on to main/, every page path the site
+# had before it had versions (en/...) sends a visitor to the same page there,
+# sitemap.xml indexes each version's sitemap, and versions.json lists the
+# versions for the version menu and banners. Any failure stops the deploy.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "military.xml"
+      - "IDMAPPING.md"
+      - ".github/workflows/docs.yml"
+      - ".github/workflows/docs_deploy.yml"
+      - ".github/mavlink-pins.env"
+      - ".github/scripts/docs/**"
+      - ".github/scripts/docs_deploy/**"
+  pull_request:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  # docs.yml, called below, takes the group "<this workflow's name>-docs-<ref>";
+  # a caller sharing its called workflow's group would deadlock.
+  group: ${{ github.workflow }}-docs_deploy-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  pins:
+    name: Check the generator pins
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read # the pins file and the check script
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check that each pin is on its upstream default branch
+        # The build runs mavlink's markdown generator at MAVLINK_REF, and a
+        # commit that exists only in a fork can still be checked out by its SHA
+        # through the upstream repository, so the pins are checked first, as
+        # before the C library is published. The job token only reads public
+        # data here.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/generate_c_lib/check_pins_upstream.py .github/mavlink-pins.env
+
+  build:
+    name: Build main
+    needs: pins
+    uses: ./.github/workflows/docs.yml
+    permissions:
+      contents: read # checks out the docs and their history
+    with:
+      version: main
+      artifact: docs-main
+
+  assemble:
+    name: Assemble the site
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # checks out the assembly script
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12.15"
+
+      - name: Run the unit tests of this workflow's scripts (100% line and branch coverage)
+        # The coverage tool is hash-locked and wheel-only.
+        run: |
+          python3 -m pip install --quiet --require-hashes --only-binary :all: --no-deps -r .github/requirements/test.txt
+          python3 -m coverage run --branch --data-file="$RUNNER_TEMP/.coverage" \
+            --source=.github/scripts/docs_deploy --omit='*/tests/*' \
+            -m unittest discover --start-directory .github/scripts/docs_deploy/tests --verbose
+          python3 -m coverage report --data-file="$RUNNER_TEMP/.coverage" --show-missing --fail-under=100
+
+      - name: Download main's pages
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: docs-main
+          path: ${{ runner.temp }}/main
+
+      - name: Assemble the site
+        run: python3 .github/scripts/docs_deploy/assemble_site.py "$RUNNER_TEMP/main" "$RUNNER_TEMP/site" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: ${{ runner.temp }}/site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    # A Pages site is public even when its repository is private, so only the
+    # Dronecode repository deploys, and only from main; the jobs above still
+    # build and assemble the site everywhere else, as a check.
+    if: >-
+      github.repository == 'Dronecode/mavlink-military' &&
+      github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: assemble
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # checks out the site check script
+      pages: write # deploy-pages publishes the built site to GitHub Pages
+      id-token: write # and proves the deployment's origin with an OIDC token
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+      - name: Check out the site check
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts/docs
+
+      - name: Check the deployed site
+        # The site is live once deploy-pages returns, but the CDN can lag,
+        # so each request retries.
+        env:
+          SITE: ${{ steps.deployment.outputs.page_url }}
+        run: .github/scripts/docs/check_deployed_site.sh "$SITE"

@@ -1,27 +1,21 @@
 name: Docs
 
-# The message reference is generated at the MAVLINK_REF that
-# .github/mavlink-pins.env pins, so a pin bump rebuilds the site too.
-# release.yml calls this workflow with a release's tag to build that
-# release's pages below the site's root, at <tag>/.
+# Builds and checks the site's pages for one version and uploads them as an
+# artifact; nothing here deploys. The message reference is generated at the
+# MAVLINK_REF that .github/mavlink-pins.env pins, so a pin bump rebuilds the
+# site too. On a pull request or by hand it builds main's pages, as a check.
+# docs_deploy.yml calls it to build main's pages at main/ and deploys them;
+# release.yml calls it with a release's tag to build that release's pages
+# at <tag>/.
 on:
-  push:
-    branches: [main]
-    paths:
-      - "docs/**"
-      - "military.xml"
-      - "IDMAPPING.md"
-      - ".github/workflows/docs.yml"
-      - ".github/mavlink-pins.env"
-      - ".github/scripts/docs/**"
   pull_request:
   workflow_dispatch:
   workflow_call:
     inputs:
       version:
-        description: Release tag whose pages to build, such as v1.0.0; empty for the site's root
+        description: Version whose pages to build, main or a release tag such as v1.0.0
         type: string
-        default: ""
+        default: main
       artifact:
         description: Name of the artifact the built site is uploaded as
         type: string
@@ -44,9 +38,9 @@ env:
   # DOCS_HOSTNAME to that address.
   DOCS_BASE: /
   DOCS_HOSTNAME: https://mavlink-m.dronecode.org
-  # The version a caller asks for, built below the root (config.mjs and
-  # check_site.py reject anything but main or a release tag); empty, at the root.
-  DOCS_VERSION: ${{ inputs.version }}
+  # The version to build, below the root at <version>/: main unless a caller
+  # names a release tag (config.mjs and check_site.py reject anything else).
+  DOCS_VERSION: ${{ inputs.version || 'main' }}
 
 jobs:
   build:
@@ -69,8 +63,9 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
-          # A release's pages restore no cache: a tag run can read caches that
-          # other runs on main wrote, and cache contents are not verified.
+          # Pages built for a caller restore no cache: they are deployed or
+          # released, a cache is written by other runs and its contents are
+          # not verified. Pull request checks may use one.
           cache: ${{ !inputs.version && 'npm' || '' }}
           package-manager-cache: ${{ !inputs.version }}
           cache-dependency-path: docs/package-lock.json
@@ -115,46 +110,10 @@ jobs:
           python3 -m coverage report --data-file="$RUNNER_TEMP/.coverage" --show-missing --fail-under=100 \
             --include=scripts/check_site.py,scripts/write_site_files.py
 
-      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
-        if: ${{ !inputs.version }}
-        with:
-          path: docs/.vitepress/dist
-
-      - name: Upload the release's built pages
-        if: ${{ inputs.version }}
+      - name: Upload the built pages
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ${{ inputs.artifact }}
+          name: ${{ inputs.artifact || 'docs-site' }}
           path: docs/.vitepress/dist
           if-no-files-found: error
           retention-days: 1
-
-  deploy:
-    name: Deploy to GitHub Pages
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read # checks out the site check script
-      pages: write # deploy-pages publishes the built site to GitHub Pages
-      id-token: write # and proves the deployment's origin with an OIDC token
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
-
-      - name: Check out the site check
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          sparse-checkout: .github/scripts/docs
-
-      - name: Check the deployed site
-        # The site is live once deploy-pages returns, but the CDN can lag,
-        # so each request retries.
-        env:
-          SITE: ${{ steps.deployment.outputs.page_url }}
-        run: .github/scripts/docs/check_deployed_site.sh "$SITE"
