@@ -9,8 +9,6 @@ name: Lint CI Workflows
 
 on:
   pull_request:
-    paths:
-      - ".github/**"
   push:
     branches: [main]
     paths:
