@@ -61,6 +61,24 @@ jobs:
       - name: Run the unit tests of this workflow's scripts
         run: python3 -m unittest discover --start-directory .github/scripts/generate_c_lib/tests --verbose
 
+  pins:
+    name: Check the generator pins
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check that each pin is on its upstream default branch
+        # A commit that exists only in a fork can still be checked out by its
+        # SHA through the upstream repository, so each pin is checked by its
+        # ancestry. The job token only reads public data here.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/generate_c_lib/check_pins_upstream.py .github/mavlink-pins.env
+
   rehearse-publish:
     name: Rehearse the publish
     # publish runs only on main. On a pull request this job runs the same
@@ -95,9 +113,9 @@ jobs:
     # can be kept in that environment and limited to main. It pushes the
     # headers the generate job built, so no generator code or Python package
     # runs in the job that holds the key, and it waits for the tests of the
-    # scripts it runs.
+    # scripts it runs and for the pins' check.
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    needs: [generate, test]
+    needs: [generate, test, pins]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment: c-library
