@@ -9,9 +9,9 @@ description: >-
 
 inputs:
   python-version:
-    description: Python version used for the generator
+    description: Python version used for the generator, one whose wheels .github/requirements/generator.txt holds
     required: false
-    default: "3.x"
+    default: "3.12.15"
 
 runs:
   using: composite
@@ -47,8 +47,13 @@ runs:
         persist-credentials: false
 
     - name: Install generator dependencies
+      # Exact versions, each with the hash of every wheel, installed as
+      # wheels only and without dependency resolution: no sdist build code
+      # runs, and a file that differs from the lock fails the install.
       shell: bash
-      run: python3 -m pip install --quiet future lxml
+      run: |
+        python3 -m pip install --quiet --require-hashes --only-binary :all: --no-deps \
+          -r .github/requirements/generator.txt
 
     - name: Place the dialect beside the upstream definitions
       shell: bash

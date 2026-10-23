@@ -9,6 +9,7 @@ on:
       - ".github/mavlink-pins.env"
       - ".github/actions/setup-mavlink-tooling/**"
       - ".github/scripts/generate_c_lib/**"
+      - ".github/requirements/generator.txt"
   pull_request:
     paths:
       - "military.xml"
@@ -16,6 +17,7 @@ on:
       - ".github/mavlink-pins.env"
       - ".github/actions/setup-mavlink-tooling/**"
       - ".github/scripts/generate_c_lib/**"
+      - ".github/requirements/generator.txt"
   workflow_dispatch:
 
 env:
@@ -31,7 +33,7 @@ permissions:
 jobs:
   generate:
     name: Generate C headers
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Check out this repository
@@ -55,7 +57,7 @@ jobs:
 
   test:
     name: Test the scripts
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Check out this repository
@@ -74,7 +76,7 @@ jobs:
     # to what it publishes shows in review. It holds no credentials.
     if: github.event_name == 'pull_request'
     needs: generate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Check out this repository
@@ -103,7 +105,7 @@ jobs:
     # scripts it runs.
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: [generate, test]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment: c-library
     steps:

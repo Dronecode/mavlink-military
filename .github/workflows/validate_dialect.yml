@@ -20,7 +20,7 @@ concurrency:
 jobs:
   schema:
     name: Schema validation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Check out this repository
@@ -45,7 +45,7 @@ jobs:
 
   policy:
     name: ID allocation and naming policy
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Check out this repository
@@ -58,7 +58,7 @@ jobs:
 
   script-tests:
     name: Check script tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Check out this repository
@@ -78,7 +78,7 @@ jobs:
   wire-compat:
     name: Wire-compatibility report
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
       # Both checks only report: the dialect is still changing, and whether
@@ -114,7 +114,7 @@ jobs:
 
   generate-c:
     name: Generate and compile C
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Check out this repository
@@ -147,7 +147,7 @@ jobs:
 
   generate-python:
     name: Generate and import Python
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Check out this repository
