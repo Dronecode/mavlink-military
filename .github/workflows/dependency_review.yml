@@ -1,0 +1,42 @@
+name: Dependency Review
+
+# Fails a pull request that adds or changes a dependency with a known
+# vulnerability rated high or critical, or under a license outside the
+# list below: the docs site's npm packages, the hash-locked Python
+# packages in .github/requirements and the actions the workflows use.
+# It reads GitHub's dependency graph, a setting of each repository, so
+# it runs only in the Dronecode repository; elsewhere the job is
+# skipped, which reports success. Packages a pull request leaves alone
+# are covered by dependabot alerts instead.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Dependency review
+    if: github.repository == 'Dronecode/mavlink-military'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Review the dependency changes
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          # Every docs package is a development dependency, which the
+          # action's default scope leaves out.
+          fail-on-scopes: runtime, development, unknown
+          # The licenses the dependencies carry today. DOMPurify's
+          # "MPL-2.0 OR Apache-2.0" passes through Apache-2.0.
+          allow-licenses: MIT, ISC, BSD-2-Clause, BSD-3-Clause, Apache-2.0, CC0-1.0, Unlicense, PSF-2.0, 0BSD
+          # No call to a service outside GitHub, and no pull request
+          # comment, which would need a write token.
+          show-openssf-scorecard: false
+          comment-summary-in-pr: never
