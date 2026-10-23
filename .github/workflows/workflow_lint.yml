@@ -64,6 +64,13 @@ jobs:
       - name: Run the unit tests of this workflow's scripts
         run: python3 -m unittest discover --start-directory .github/scripts/workflow_lint/tests --verbose
 
+      - name: Check the CI policy
+        # Hash-locked pip installs, npm ci without install scripts, and
+        # pull_request triggers that run on every pull request, in every
+        # workflow, action and script; warnings for runner labels and Python
+        # versions that can move. check_ci_policy.py says why each rule holds.
+        run: python3 .github/scripts/workflow_lint/check_ci_policy.py
+
   zizmor:
     name: zizmor
     runs-on: ubuntu-24.04
