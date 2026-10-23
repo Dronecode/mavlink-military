@@ -62,9 +62,14 @@ jobs:
           cache-dependency-path: docs/package-lock.json
 
       - name: Install dependencies
+        # npm ci installs exactly what the lockfile pins, without running any
+        # package's install script (esbuild's binary arrives as its own
+        # platform package). npm audit signatures then checks every package
+        # against the registry's signing keys.
         run: |
           pip install beautifulsoup4 lxml
-          npm ci
+          npm ci --ignore-scripts
+          npm audit signatures
 
       - name: Test the site checks
         run: |
