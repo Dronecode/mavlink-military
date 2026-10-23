@@ -1,0 +1,101 @@
+name: Verify Releases
+
+# Re-verifies every published release once a week, as a consumer checks one:
+# its tag and release, its assets and their server-side digests, its notes,
+# its provenance online and offline, GitHub's release and asset attestations,
+# its pages on the docs site, and a byte-for-byte rebuild from its tag. It
+# also watches the generator that signs the provenance: its tag still names
+# the reviewed commit, its repository is active, it has no unreviewed
+# advisory, and a newer release of it is reported. With no release it checks
+# the generator alone and passes. It only reads.
+#
+# GitHub stops the schedule of a public repository after 60 days without
+# activity; the release documentation says how to turn it back on.
+on:
+  schedule:
+    - cron: "23 6 * * 1"
+  # Its script's tests run with the other release scripts' in release.yml,
+  # on every pull request; this workflow runs on its schedule and by hand.
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-release_verify-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify every release and the generator
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read # the releases, their files, the tags and release.yml at each tag
+      attestations: read # gh release verify and verify-asset
+    outputs:
+      tags: ${{ steps.list.outputs.tags }}
+      count: ${{ steps.list.outputs.count }}
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12.15"
+
+      - name: List the releases against the tags
+        id: list
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/release/release_verify.py list
+
+      - name: Verify every release and the generator
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/release/release_verify.py verify "$RUNNER_TEMP/report.json"
+
+      - name: Keep the report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-verification
+          path: ${{ runner.temp }}/report.json
+          if-no-files-found: warn
+          retention-days: 90
+
+  rebuild:
+    name: Rebuild a release from its tag
+    needs: verify
+    if: needs.verify.outputs.count != '0'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read # the tag, its generator pins and the release's files
+    strategy:
+      fail-fast: false
+      matrix:
+        tag: ${{ fromJSON(needs.verify.outputs.tags) }}
+    steps:
+      - name: Check out the release's tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ matrix.tag }}
+          persist-credentials: false
+
+      - name: Set up MAVLink generation tooling at the tag
+        # The tag's own action: its pins, its Python and its generator lock.
+        uses: ./.github/actions/setup-mavlink-tooling
+
+      - name: Rebuild the package with the tag's scripts and plan, and compare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ matrix.tag }}
+          MAVLINK_DIR: mavlink
+          PYMAVLINK_DIR: pymavlink
+        run: |
+          python3 .github/scripts/release/release_verify.py plan "$TAG" "$RUNNER_TEMP/plan"
+          python3 .github/scripts/release/release_package.py "$RUNNER_TEMP/plan/plan.json" "$RUNNER_TEMP/package"
+          python3 .github/scripts/release/release_verify.py compare "$TAG" "$RUNNER_TEMP/package"

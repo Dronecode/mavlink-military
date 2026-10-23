@@ -3,8 +3,9 @@
 
 FakeGh writes a wrapper script that the scripts run through GH. Each call is
 answered by the first response whose args equal the call's arguments (or start
-with them, for a response marked prefix) and not used up (a response with
-times answers that many calls), printing its stdout and stderr,
+with them, for a response marked prefix), holds every string of its contains
+somewhere in the call, and is not used up (a response with times answers that
+many calls), printing its stdout and stderr,
 writing its files into the directory after --dir or into the path after
 --output, and exiting with its code. A call with no response fails with exit 1
 and "fake gh: no response". Every call is logged, so a test can assert what
@@ -24,6 +25,9 @@ def answer(config: Path, args: list[str]) -> int:
         log.write(json.dumps(args) + "\n")
     for index, response in enumerate(setup["responses"]):
         wanted = response["args"]
+        joined = " ".join(args)
+        if response.get("contains") and not all(part in joined for part in response["contains"]):
+            continue
         if args == wanted or (response.get("prefix") and args[: len(wanted)] == wanted):
             if response.get("times") is not None:
                 used = config.with_name(f"{config.name}.used-{index}")
@@ -67,11 +71,12 @@ class FakeGh:
         )
 
     def on(self, *args: str, stdout: object = "", exit: int = 0, stderr: str = "",
-           files: dict | None = None, prefix: bool = False, times: int | None = None) -> None:  # fmt: skip
+           files: dict | None = None, prefix: bool = False, times: int | None = None,
+           contains: list[str] | None = None) -> None:  # fmt: skip
         """Answer a call; a stdout that is not a string is sent as JSON."""
         text = stdout if isinstance(stdout, str) else json.dumps(stdout)
         entry = {"args": list(args), "stdout": text, "exit": exit, "stderr": stderr,
-                 "prefix": prefix, "times": times}  # fmt: skip
+                 "prefix": prefix, "times": times, "contains": contains}  # fmt: skip
         if files:
             entry["files"] = {
                 k: v.decode("latin-1") if isinstance(v, bytes) else v for k, v in files.items()

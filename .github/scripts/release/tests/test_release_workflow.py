@@ -392,5 +392,37 @@ class PublicationGraphTest(unittest.TestCase):
         )
 
 
+class VerifyWorkflowTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.workflow = load(WORKFLOWS / "release_verify.yml")
+
+    def test_weekly_and_by_hand_only(self) -> None:
+        # No pull request trigger: its script's tests run in release.yml on every pull request,
+        # and a pull request run would read every release for nothing.
+        on = self.workflow["on"]
+        self.assertEqual(sorted(on), ["schedule", "workflow_dispatch"])
+        self.assertEqual(on["schedule"], [{"cron": "23 6 * * 1"}])
+        self.assertIs(self.workflow["concurrency"]["cancel-in-progress"], False)
+
+    def test_it_only_reads(self) -> None:
+        self.assertEqual(self.workflow["permissions"], {})
+        jobs = self.workflow["jobs"]
+        self.assertEqual(
+            jobs["verify"]["permissions"], {"contents": "read", "attestations": "read"}
+        )
+        self.assertEqual(jobs["rebuild"]["permissions"], {"contents": "read"})
+
+    def test_every_release_is_rebuilt_from_its_tag_when_there_is_one(self) -> None:
+        rebuild = self.workflow["jobs"]["rebuild"]
+        self.assertEqual(rebuild["if"], "needs.verify.outputs.count != '0'")
+        self.assertEqual(
+            rebuild["strategy"]["matrix"]["tag"], "${{ fromJSON(needs.verify.outputs.tags) }}"
+        )
+        self.assertEqual(rebuild["steps"][0]["with"]["ref"], "refs/tags/${{ matrix.tag }}")
+        # The tag's checkout brings the tag's own setup action: its pins, Python and lock.
+        self.assertEqual(rebuild["steps"][1]["uses"], SETUP)
+        self.assertFalse(rebuild["strategy"]["fail-fast"])
+
+
 if __name__ == "__main__":
     unittest.main()
