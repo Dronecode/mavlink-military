@@ -1,4 +1,5 @@
-# Keeps the SHA-pinned actions current with one grouped pull request a
+# Keeps the SHA-pinned actions, the hash-locked Python packages and the
+# docs site's npm packages current, each with one grouped pull request a
 # month, a week after a release at the earliest. The mavlink and
 # pymavlink pins are MAVLINK_REF and PYMAVLINK_REF in
 # .github/mavlink-pins.env; dependabot can't see them, so
@@ -26,5 +27,43 @@ updates:
       prefix: "chore(repo)"
     groups:
       ci:
+        patterns:
+          - "*"
+
+  # The hash-locked requirement files in .github/requirements, which the
+  # workflows install with --require-hashes: dependabot moves each pin
+  # together with the hashes of its new version. directories, like
+  # above, keeps the path out of the titles, and the group name is short
+  # enough that "chore(repo): bump the pip group across 1 directory with
+  # 3 updates" stays within 72 characters with a squash merge's " (#NNN)".
+  - package-ecosystem: "pip"
+    directories:
+      - "/.github/requirements"
+    schedule:
+      interval: "monthly"
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "chore(repo)"
+    groups:
+      pip:
+        patterns:
+          - "*"
+
+  # The docs site's npm lockfile, through its two direct dependencies,
+  # mermaid and VitePress. A package deeper in the lockfile that needs a
+  # security fix arrives as a dependabot security update, outside this
+  # schedule.
+  - package-ecosystem: "npm"
+    directories:
+      - "/docs"
+    schedule:
+      interval: "monthly"
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "chore(repo)"
+    groups:
+      npm:
         patterns:
           - "*"
