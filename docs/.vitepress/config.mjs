@@ -1,16 +1,17 @@
+import { execFileSync } from "node:child_process";
 import { defineConfig } from "vitepress";
 import { sidebar } from "./get_sidebar.js";
+import { REPO as repo, pinSourceLink, siteLayout } from "./site.mjs";
 
-// Served at the root of https://mavlink-m.dronecode.org/. CI sets DOCS_BASE and
-// DOCS_HOSTNAME (docs.yml); the defaults build for the same place.
-const base = process.env.DOCS_BASE || "/";
-// The sitemap resolves each page against the hostname, which drops the last
-// path segment unless the hostname ends in a slash.
-const hostname = (process.env.DOCS_HOSTNAME || "https://mavlink-m.dronecode.org").replace(/\/?$/, "/");
-const repo = "https://github.com/Dronecode/mavlink-military";
+// Served below the root of https://mavlink-m.dronecode.org/. CI sets DOCS_BASE
+// and DOCS_HOSTNAME to the site's root and DOCS_VERSION to the version built
+// (docs.yml); site.mjs places the build. The defaults build for the root.
+const layout = siteLayout(process.env);
+const { base, hostname } = layout;
+const commit = execFileSync("git", ["rev-parse", "--short=12", "HEAD"], { encoding: "utf8" }).trim();
 
 export default defineConfig({
-  title: "MAVLink-M",
+  title: layout.release ? `MAVLink-M ${layout.version}` : "MAVLink-M",
   description: "MAVLink-M: an open MAVLink 2 dialect for military payloads and platforms",
   base,
   lastUpdated: true,
@@ -30,6 +31,12 @@ export default defineConfig({
   // reading braces in a diagram as template syntax.
   markdown: {
     config(md) {
+      const link = md.renderer.rules.link_open ?? ((tokens, idx, options, env, self) => self.renderToken(tokens, idx, options));
+      md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
+        const href = tokens[idx].attrGet("href");
+        if (href) tokens[idx].attrSet("href", pinSourceLink(href, layout.ref));
+        return link(tokens, idx, options, env, self);
+      };
       const fence = md.renderer.rules.fence;
       md.renderer.rules.fence = (tokens, idx, options, env, self) => {
         const token = tokens[idx];
@@ -44,17 +51,22 @@ export default defineConfig({
     // the home link's only content, so its alt text names the site.
     logo: { light: "/site/mavlink_logo_light.svg", dark: "/site/mavlink_logo_dark.svg", alt: "MAVLink-M" },
     siteTitle: false,
+    // Read by the version menu and banner (theme/versions.js): this build's
+    // version, and the root where versions.json lists every version served.
+    docsVersion: layout.version,
+    docsRoot: layout.root,
     sidebar: sidebar("en"),
     externalLinkIcon: true,
     search: { provider: "local" },
     outline: { level: [2, 3] },
 
-    // Serialized into the client bundle, so it can't close over `repo`.
+    // Serialized into the client bundle, so it can't close over `repo`. A
+    // release's pages are fixed, so their edit links say they open main.
     editLink: {
       pattern: ({ filePath, frontmatter }) =>
         "https://github.com/Dronecode/mavlink-military/edit/main/" +
         (frontmatter.editLink_path || `docs/${filePath}`),
-      text: "Edit on GitHub",
+      text: layout.release ? "Edit this page on main" : "Edit on GitHub",
     },
 
     nav: [
@@ -72,8 +84,13 @@ export default defineConfig({
 
     socialLinks: [{ icon: "github", link: repo }],
 
+    // Every build carries the license, the notices of the code it bundles, and
+    // its version record (scripts/write_site_files.py writes all three).
     footer: {
-      message: "Released under the MIT License.",
+      message:
+        `Released under the <a href="${base}LICENSE.txt">MIT License</a>. ` +
+        `<a href="${base}THIRD-PARTY-NOTICES.txt">Third-party notices</a>. ` +
+        `MAVLink-M ${layout.version}, commit <a href="${base}version.json">${commit}</a>.`,
       copyright: "Copyright © Dronecode Foundation",
     },
   },

@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Check the built documentation site before it is deployed.
 
-Run from docs/ after `npm run docs:build`, with the DOCS_BASE and
-DOCS_HOSTNAME the build used (docs.yml sets both for CI). It reads the
-site from .vitepress/dist, or from the directory given as its argument.
-It checks:
+Run from docs/ after `npm run docs:build`, with the DOCS_BASE,
+DOCS_HOSTNAME and DOCS_VERSION the build used (docs.yml sets them for CI).
+DOCS_BASE and DOCS_HOSTNAME give the site's root; the build sits below it at
+main/ or at a release tag's <tag>/, as DOCS_VERSION says, or at the root if
+it is unset, as config.mjs places it. It reads the site from
+.vitepress/dist, or from the directory given as its argument. It checks:
 
 - sitemap.xml: every URL starts with the site's address, DOCS_HOSTNAME
   with a trailing slash, and names a page the build produced.
@@ -21,6 +23,7 @@ dialect page does not have.
 from __future__ import annotations
 
 import os
+import re
 import sys
 from collections import Counter
 import xml.etree.ElementTree as ET
@@ -31,6 +34,7 @@ from urllib.parse import unquote, urljoin, urlsplit
 DIST = Path(__file__).resolve().parents[1] / ".vitepress" / "dist"
 GENERATED = "en/messages/"
 SITEMAP_NS = "{http://www.sitemaps.org/schemas/sitemap/0.9}"
+RELEASE_TAG = re.compile(r"v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")  # ASCII digits only
 
 
 class Page(HTMLParser):
@@ -71,10 +75,16 @@ def page_file(rel: str) -> str:
 
 def main(argv: list[str]) -> int:
     dist = Path(argv[1]) if len(argv) > 1 else DIST
-    base = slash("/" + os.environ.get("DOCS_BASE", "/").strip("/"))
-    hostname = slash(
-        os.environ.get("DOCS_HOSTNAME", "https://mavlink-m.dronecode.org")
-    )
+    version = os.environ.get("DOCS_VERSION", "")
+    if version not in ("", "main") and not RELEASE_TAG.fullmatch(version):
+        print(
+            f"ERROR: DOCS_VERSION {version} is neither main nor a release tag such as v1.0.0",
+            file=sys.stderr,
+        )
+        return 1
+    below = f"{version}/" if version else ""
+    base = slash("/" + os.environ.get("DOCS_BASE", "/").strip("/")) + below
+    hostname = slash(os.environ.get("DOCS_HOSTNAME", "https://mavlink-m.dronecode.org")) + below
     if not (dist / "index.html").is_file():
         print(f"ERROR: no built site in {dist}; run npm run docs:build first", file=sys.stderr)
         return 1

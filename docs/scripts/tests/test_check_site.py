@@ -68,13 +68,14 @@ class CheckSiteTest(unittest.TestCase):
         )
 
     def check(self, env: dict[str, str | None] | None = None, argv: list[str] | None = None):
-        """Run the check with DOCS_BASE and DOCS_HOSTNAME set for the test site.
+        """Run the check with DOCS_BASE and DOCS_HOSTNAME set for the test site, at its root.
 
         A None value in env removes that variable. Returns (status, stdout, stderr).
         """
         values: dict[str, str | None] = {
             "DOCS_BASE": BASE,
             "DOCS_HOSTNAME": HOST,
+            "DOCS_VERSION": None,
             "GITHUB_STEP_SUMMARY": None,
         }
         values.update(env or {})
@@ -191,6 +192,48 @@ class CheckSiteTest(unittest.TestCase):
         status, out, _ = self.check({"DOCS_BASE": None, "DOCS_HOSTNAME": None})
         self.assertEqual(status, 0, out)
 
+    def versioned(self, version: str) -> None:
+        """The test site as config.mjs builds it for a version, below the root."""
+        self.write("index.html", page(f'<a href="/site/{version}/en/">Docs</a>'))
+        self.write("en/index.html", page(f'<a href="/site/{version}/en/guide.html">Guide</a>'))
+        self.sitemap("", "en/", host=f"{HOST}/{version}")
+
+    def test_main_and_releases_are_checked_below_the_root(self) -> None:
+        for version in ("main", "v0.1.0", "v12.0.3"):
+            with self.subTest(version=version):
+                self.versioned(version)
+                status, out, _ = self.check({"DOCS_VERSION": version})
+                self.assertEqual(status, 0, out)
+                # The two links above, and the three relative links of the guide and reference.
+                self.assertIn("4 pages, 2 sitemap URLs and 5 links checked: 0 error(s)", out)
+
+    def test_a_version_with_sitemap_urls_at_the_root_fails(self) -> None:
+        status, out, _ = self.check({"DOCS_VERSION": "v1.0.0"})
+        self.assertEqual(status, 1)
+        self.assertIn(
+            "sitemap.xml: https://example.org/site/en/guide.html is not under the site address "
+            "https://example.org/site/v1.0.0/",
+            out,
+        )
+        # The home page's link to /site/en/ lies outside this version's pages, so of the
+        # five links only the four relative ones are checked.
+        self.assertIn("4 sitemap URLs and 4 links checked: 4 error(s)", out)
+
+    def test_a_version_that_is_no_release_tag_fails(self) -> None:
+        for version in (
+            "1.0.0",
+            "v1.0",
+            "v01.0.0",
+            "v1.0.0-rc.1",
+            "v1.0.0+1",
+            "develop",
+            "v1.\uff10.0",
+        ):
+            with self.subTest(version=version):
+                status, out, err = self.check({"DOCS_VERSION": version})
+                self.assertEqual((status, out), (1, ""))
+                self.assertIn(f"DOCS_VERSION {version} is neither main nor a release tag", err)
+
     def test_reads_the_default_build_directory(self) -> None:
         with mock.patch.object(check_site, "DIST", self.dist):
             status, out, _ = self.check(argv=["check_site.py"])
@@ -232,6 +275,9 @@ class CheckSiteTest(unittest.TestCase):
         with mock.patch.object(sys, "argv", ["check_site.py", str(self.dist)]):
             with mock.patch.dict(os.environ, {"DOCS_BASE": BASE, "DOCS_HOSTNAME": HOST}):
                 os.environ.pop("GITHUB_STEP_SUMMARY", None)
+                # The fixture site sits at the root; docs.yml sets DOCS_VERSION for
+                # every step, the step that runs these tests among them.
+                os.environ.pop("DOCS_VERSION", None)
                 with contextlib.redirect_stdout(io.StringIO()):
                     with self.assertRaises(SystemExit) as exit_:
                         runpy.run_path(check_site.__file__, run_name="__main__")

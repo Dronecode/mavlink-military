@@ -6,9 +6,10 @@
   "scripts": {
     "docs:messages": "python3 scripts/generate_messages.py",
     "docs:dev": "vitepress dev .",
-    "docs:build": "vitepress build .",
+    "docs:build": "vitepress build . && python3 scripts/write_site_files.py",
     "docs:check": "python3 scripts/check_site.py",
-    "docs:preview": "vitepress preview ."
+    "docs:preview": "vitepress preview .",
+    "docs:test": "node --test --experimental-test-coverage --test-coverage-lines=100 --test-coverage-branches=100 --test-coverage-functions=100 --test-coverage-exclude=\".vitepress/tests/**\" \".vitepress/tests/*.test.mjs\""
   },
   "devDependencies": {
     "mermaid": "^12.2.0",
