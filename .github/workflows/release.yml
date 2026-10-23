@@ -1,0 +1,315 @@
+name: Release
+
+# Builds a release of the dialect from a final version tag vX.Y.Z on main,
+# and checks everything it ships. On every pull request, and when run by
+# hand, it rehearses the same jobs on that commit, with nothing published,
+# so the rehearsal can be a required check. Nothing in this workflow creates
+# a tag or a release.
+#
+# Every job runs on a fresh GitHub-hosted ubuntu-24.04 runner, restores and
+# saves no cache, and reads nothing another run produced. Its Python tools
+# come from hash-locked, wheel-only requirement files at Python 3.12.15.
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+  pull_request:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  # The workflows called below take "<this workflow's name>-<their file>-<ref>"
+  # as their group; this one carries this file's name, so no two share one.
+  group: ${{ github.workflow }}-release-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  preflight:
+    name: Plan the release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read # the history, the tags and the releases
+    outputs:
+      tag: ${{ steps.plan.outputs.tag }}
+      version: ${{ steps.plan.outputs.version }}
+      commit: ${{ steps.plan.outputs.commit }}
+      previous: ${{ steps.plan.outputs.previous }}
+      publish: ${{ steps.plan.outputs.publish }}
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # the plan reads every tag and the history since the last release
+          persist-credentials: false
+
+      - name: Set up MAVLink generation tooling
+        # mavlink and pymavlink at the pins, Python 3.12.15 and the generator
+        # lock: mavlink's API-break checker, which the plan runs against the
+        # previous release, imports lxml.
+        uses: ./.github/actions/setup-mavlink-tooling
+
+      - name: Plan the version and check it against the version policy
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAVLINK_DIR: mavlink
+          PYMAVLINK_DIR: pymavlink
+          PYTHONPATH: ${{ github.workspace }}
+        run: python3 .github/scripts/release/release_plan.py "$RUNNER_TEMP/plan"
+
+      - name: Keep the plan for the other jobs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-plan
+          path: ${{ runner.temp }}/plan/plan.json
+          if-no-files-found: error
+          retention-days: 7
+
+  validate:
+    name: Check the dialect
+    needs: preflight
+    uses: ./.github/workflows/validate_dialect.yml
+    permissions:
+      contents: read # checks out the dialect and the generator
+
+  lint:
+    name: Lint the workflows
+    needs: preflight
+    uses: ./.github/workflows/workflow_lint.yml
+    permissions:
+      contents: read # checks out the workflows
+
+  docs:
+    name: Build the release's docs
+    needs: preflight
+    uses: ./.github/workflows/docs.yml
+    permissions:
+      contents: read # checks out the docs and their history
+    with:
+      version: ${{ needs.preflight.outputs.tag }}
+      artifact: release-docs
+
+  commit-checks:
+    name: Check the commits since the last release
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read # the history since the last release
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.preflight.outputs.commit }}
+          fetch-depth: 0 # the range runs back to the previous release
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12.15"
+
+      - name: Run the commit checks this commit carries
+        env:
+          PREVIOUS: ${{ needs.preflight.outputs.previous }}
+        run: python3 .github/scripts/release/release_commit_checks.py "$PREVIOUS" "$RUNNER_TEMP/commit-checks.json"
+
+      - name: Keep the record
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-commit-checks
+          path: ${{ runner.temp }}/commit-checks.json
+          if-no-files-found: error
+          retention-days: 7
+
+  test:
+    name: Test the release scripts (100% line and branch coverage)
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read # checks out the scripts and the generator pins
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.preflight.outputs.commit }}
+          persist-credentials: false
+
+      - name: Set up MAVLink generation tooling
+        uses: ./.github/actions/setup-mavlink-tooling
+
+      - name: Install the hash-locked test tools
+        run: |
+          python3 -m pip install --quiet --require-hashes --only-binary :all: --no-deps \
+            -r .github/requirements/test.txt -r .github/requirements/zizmor.txt
+
+      - name: Run the tests under the coverage gate
+        env:
+          MAVLINK_DIR: ${{ github.workspace }}/mavlink
+          PYMAVLINK_DIR: ${{ github.workspace }}/pymavlink
+        run: |
+          mkdir -p "$RUNNER_TEMP/records"
+          python3 -m coverage run --branch --data-file="$RUNNER_TEMP/.coverage" \
+            --source=.github/scripts/release --omit='*/tests/*' \
+            -m unittest discover --start-directory .github/scripts/release/tests --verbose
+          python3 -m coverage report --data-file="$RUNNER_TEMP/.coverage" --show-missing --fail-under=100
+          python3 -m coverage json --data-file="$RUNNER_TEMP/.coverage" -o "$RUNNER_TEMP/records/coverage.json"
+
+      - name: Record zizmor's findings as SARIF
+        # Evidence only: zizmor exits 0 in this format whatever it finds, so
+        # workflow_lint.yml's run, in its plain format, is the gate. It reads
+        # .github alone: the mavlink and pymavlink checkouts beside it hold
+        # workflows of their own.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: zizmor --no-progress --format sarif .github > "$RUNNER_TEMP/records/zizmor.sarif"
+
+      - name: Keep the records
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-records
+          path: ${{ runner.temp }}/records
+          if-no-files-found: error
+          retention-days: 7
+
+  build:
+    name: Build the package
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read # checks out the release commit and the generator pins
+    outputs:
+      sums_sha256: ${{ steps.build.outputs.sums_sha256 }}
+    steps:
+      - name: Check out the release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.preflight.outputs.commit }}
+          persist-credentials: false
+
+      - name: Set up MAVLink generation tooling
+        uses: ./.github/actions/setup-mavlink-tooling
+
+      - name: Download the plan
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-plan
+          path: ${{ runner.temp }}/plan
+
+      - name: Build the package
+        id: build
+        env:
+          MAVLINK_DIR: mavlink
+          PYMAVLINK_DIR: pymavlink
+        run: python3 .github/scripts/release/release_package.py "$RUNNER_TEMP/plan/plan.json" "$RUNNER_TEMP/package"
+
+      - name: Keep the package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-build-a
+          path: ${{ runner.temp }}/package
+          if-no-files-found: error
+          retention-days: 7
+
+  rebuild:
+    name: Build the package again, independently
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read # checks out the release commit and the generator pins
+    outputs:
+      sums_sha256: ${{ steps.build.outputs.sums_sha256 }}
+    env:
+      # Another runner, time zone, locale and umask than the first build; the
+      # package must not change.
+      TZ: Pacific/Kiritimati
+      LC_ALL: C.UTF-8
+    steps:
+      - name: Check out the release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.preflight.outputs.commit }}
+          persist-credentials: false
+
+      - name: Set up MAVLink generation tooling
+        uses: ./.github/actions/setup-mavlink-tooling
+
+      - name: Download the plan
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-plan
+          path: ${{ runner.temp }}/plan
+
+      - name: Build the package
+        id: build
+        env:
+          MAVLINK_DIR: mavlink
+          PYMAVLINK_DIR: pymavlink
+        run: |
+          umask 077
+          python3 .github/scripts/release/release_package.py "$RUNNER_TEMP/plan/plan.json" "$RUNNER_TEMP/package"
+
+      - name: Keep the package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-build-b
+          path: ${{ runner.temp }}/package
+          if-no-files-found: error
+          retention-days: 7
+
+  assemble:
+    name: Compare the builds and assemble the release
+    needs: [preflight, validate, lint, docs, commit-checks, test, build, rebuild]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read # the release commit's LICENSE and docs lockfile
+    outputs:
+      subjects: ${{ steps.assemble.outputs.subjects }}
+      subjects_sha256: ${{ steps.assemble.outputs.subjects_sha256 }}
+    steps:
+      - name: Check out the release commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.preflight.outputs.commit }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12.15"
+
+      - name: Download the plan, both builds and the docs
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: release-{plan,build-a,build-b,docs}
+          path: ${{ runner.temp }}/in
+
+      - name: Download the records
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: release-{records,commit-checks}
+          path: ${{ runner.temp }}/records
+          merge-multiple: true
+
+      - name: Compare the builds and assemble the release files
+        id: assemble
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          python3 .github/scripts/release/release_assemble.py "$RUNNER_TEMP/in/release-plan/plan.json" \
+            "$RUNNER_TEMP/in/release-build-a" "$RUNNER_TEMP/in/release-build-b" "$RUNNER_TEMP/in/release-docs" \
+            "$RUNNER_TEMP/records" "$RUNNER_TEMP/release"
+
+      - name: Keep the release files
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-files
+          path: ${{ runner.temp }}/release
+          if-no-files-found: error
+          retention-days: 7
