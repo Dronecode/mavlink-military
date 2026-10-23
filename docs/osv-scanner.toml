@@ -1,0 +1,66 @@
+# Advisories against the site's lockfile that cannot reach the built site.
+# osv-scanner and the OpenSSF Scorecard read this file, which sits next to
+# package-lock.json. Each entry gives its reason and lapses on its
+# ignoreUntil date, so the record is looked at again; an entry goes once
+# the lockfile no longer holds the affected version.
+#
+# vite 5.4.21 and esbuild 0.21.5: every advisory concerns a development
+# server (vitepress dev, or esbuild's own serve mode). CI and the
+# published site use vitepress build, whose static output runs no server.
+# The vite fixes exist only from vite 6.4, which VitePress 1.6.4, the
+# current stable release, does not accept. Until then the vite ones do
+# apply to a contributor's own dev server (npm run docs:dev), which
+# listens on localhost only.
+
+[[IgnoredVulns]]
+id = "GHSA-67mh-4wv8-2f99"
+ignoreUntil = 2027-01-21T00:00:00Z
+reason = "esbuild serve mode answers any origin; the site uses esbuild only through vite, never its serve mode"
+
+[[IgnoredVulns]]
+id = "GHSA-4w7w-66w2-5vf9"
+ignoreUntil = 2027-01-21T00:00:00Z
+reason = "vite dev server: path traversal in optimized dependency .map handling; the built site runs no dev server"
+
+[[IgnoredVulns]]
+id = "GHSA-9jrq-w75r-8gcw"
+ignoreUntil = 2027-01-21T00:00:00Z
+reason = "vite dev server: cross-origin script execution through custom middleware; the built site runs no dev server"
+
+[[IgnoredVulns]]
+id = "GHSA-fx2h-pf6j-xcff"
+ignoreUntil = 2027-01-21T00:00:00Z
+reason = "vite dev server on Windows: server.fs.deny bypass through alternate paths; the built site runs no dev server"
+
+[[IgnoredVulns]]
+id = "GHSA-rq7h-c2jc-7f22"
+ignoreUntil = 2027-01-21T00:00:00Z
+reason = "vite dev server: files outside server.fs.allow served when project paths match system paths; the built site runs no dev server"
+
+[[IgnoredVulns]]
+id = "GHSA-587h-7wmj-h5pm"
+ignoreUntil = 2027-01-21T00:00:00Z
+reason = "launch-editor in the vite dev server on Windows: existence check bypass; the built site runs no dev server"
+
+[[IgnoredVulns]]
+id = "GHSA-698v-4r3x-3vcv"
+ignoreUntil = 2027-01-21T00:00:00Z
+reason = "launch-editor in the vite dev server on Windows: % not escaped in command arguments; the built site runs no dev server"
+
+[[IgnoredVulns]]
+id = "GHSA-r825-w8mm-5pxw"
+ignoreUntil = 2027-01-21T00:00:00Z
+reason = "launch-editor in the vite dev server: editor command-line flags misread; the built site runs no dev server"
+
+[[IgnoredVulns]]
+id = "GHSA-v6wh-96g9-6wx3"
+ignoreUntil = 2027-01-21T00:00:00Z
+reason = "launch-editor in the vite dev server on Windows: NTLMv2 hash disclosure through UNC paths; the built site runs no dev server"
+
+# KaTeX 0.16.47, which mermaid 11 uses to draw math in a diagram. The fix
+# needs mermaid 12.
+
+[[IgnoredVulns]]
+id = "GHSA-238p-pmpm-9mq7"
+ignoreUntil = 2027-01-21T00:00:00Z
+reason = "needs untrusted math input with KaTeX's trust option on a page with existing prototype pollution; the site's diagrams come from this repository and contain no math"
