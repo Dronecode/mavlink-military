@@ -246,3 +246,12 @@ these:
 The site is built with [VitePress](https://vitepress.dev) from `docs/`. See
 [the contributing page](docs/en/contributing.md) for how to build and preview
 it locally.
+
+## Releases
+
+The maintainers publish releases from version tags on `main`. [Releases and
+Versions](docs/en/releases/index.md) says what a release holds and how its
+version is numbered, [Verifying a Release](docs/en/releases/verify.md) how to
+check one, and [Making a Release](docs/en/releases/maintainers.md) how the
+maintainers publish one. A commit marked with `!` makes the next release a
+breaking one, so mark every change that breaks senders or receivers.
