@@ -1,0 +1,5 @@
+{
+  "schema": 1,
+  "comment": "Releases withdrawn after publication, by tag, each with its reason and the link to the decision that withdrew it. A withdrawn release keeps its assets and its pages, which show a withdrawn banner, and the docs root never serves it. Changed only by a reviewed pull request; docs_deploy.yml reads it.",
+  "withdrawn": {}
+}

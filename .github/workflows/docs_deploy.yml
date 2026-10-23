@@ -1,10 +1,16 @@
 name: Deploy Docs
 
 # Publishes the documentation site. docs.yml builds main's pages, which sit
-# at main/. The root sends a visitor on to main/, every page path the site
-# had before it had versions (en/...) sends a visitor to the same page there,
-# sitemap.xml indexes each version's sitemap, and versions.json lists the
-# versions for the version menu and banners. Any failure stops the deploy.
+# at main/. Below them, each published release's pages sit at <tag>/,
+# unpacked from the docs archive attached to that release once the archive
+# verifies as a consumer checks a release file; a released version is never
+# rebuilt. The root sends a visitor on to the latest release, or to main/
+# while there is none; every page path the site had before it had versions
+# (en/...) sends a visitor to the same page there; sitemap.xml indexes each
+# version's sitemap; versions.json lists the versions for the version menu
+# and banners. Any failure stops the deploy. A release published with the job
+# token starts no workflow run, so this runs daily too and picks it up, or by
+# hand right after a release.
 on:
   push:
     branches: [main]
@@ -17,7 +23,11 @@ on:
       - ".github/mavlink-pins.env"
       - ".github/scripts/docs/**"
       - ".github/scripts/docs_deploy/**"
+      - ".github/scripts/release/**"
+      - ".github/release-status.json"
   pull_request:
+  schedule:
+    - cron: "41 4 * * *"
   workflow_dispatch:
 
 permissions: {}
@@ -67,7 +77,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      contents: read # checks out the assembly script
+      contents: read # the assembly script, the releases and their files
+      attestations: read # gh release verify and verify-asset read each release's attestation
     steps:
       - name: Check out this repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -94,8 +105,12 @@ jobs:
           name: docs-main
           path: ${{ runner.temp }}/main
 
-      - name: Assemble the site
-        run: python3 .github/scripts/docs_deploy/assemble_site.py "$RUNNER_TEMP/main" "$RUNNER_TEMP/site" >> "$GITHUB_STEP_SUMMARY"
+      - name: Add every release's verified pages and assemble the site
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 .github/scripts/docs_deploy/assemble_site.py "$RUNNER_TEMP/main" "$RUNNER_TEMP/site" \
+            "$RUNNER_TEMP/releases" >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
