@@ -40,7 +40,7 @@ env:
 jobs:
   build:
     name: Build the site
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
       run:
@@ -53,7 +53,7 @@ jobs:
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: "3.x"
+          python-version: "3.12.15"
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -62,12 +62,13 @@ jobs:
           cache-dependency-path: docs/package-lock.json
 
       - name: Install dependencies
-        # npm ci installs exactly what the lockfile pins, without running any
+        # The Python packages install from a hash lock, as wheels only. npm ci
+        # installs exactly what the lockfile pins, without running any
         # package's install script (esbuild's binary arrives as its own
         # platform package). npm audit signatures then checks every package
         # against the registry's signing keys.
         run: |
-          pip install beautifulsoup4 lxml
+          python3 -m pip install --require-hashes --only-binary :all: --no-deps -r ../.github/requirements/docs.txt
           npm ci --ignore-scripts
           npm audit signatures
 
