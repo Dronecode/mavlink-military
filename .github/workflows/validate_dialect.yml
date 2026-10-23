@@ -9,12 +9,17 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # release.yml runs the same checks on the commit it releases.
+  workflow_call:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # A called workflow takes its caller's name in github.workflow, so this
+  # file's name keeps its group apart from the caller's and from the other
+  # workflows the caller runs beside it.
+  group: ${{ github.workflow }}-validate_dialect-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
