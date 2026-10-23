@@ -2,6 +2,8 @@ name: Docs
 
 # The message reference is generated at the MAVLINK_REF that
 # .github/mavlink-pins.env pins, so a pin bump rebuilds the site too.
+# release.yml calls this workflow with a release's tag to build that
+# release's pages below the site's root, at <tag>/.
 on:
   push:
     branches: [main]
@@ -14,9 +16,22 @@ on:
       - ".github/scripts/docs/**"
   pull_request:
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      version:
+        description: Release tag whose pages to build, such as v1.0.0; empty for the site's root
+        type: string
+        default: ""
+      artifact:
+        description: Name of the artifact the built site is uploaded as
+        type: string
+        default: docs-site
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # A called workflow takes its caller's name in github.workflow, so this
+  # file's name keeps its group apart from the caller's and from the other
+  # workflows the caller runs beside it.
+  group: ${{ github.workflow }}-docs-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -29,6 +44,9 @@ env:
   # DOCS_HOSTNAME to that address.
   DOCS_BASE: /
   DOCS_HOSTNAME: https://mavlink-m.dronecode.org
+  # The version a caller asks for, built below the root (config.mjs and
+  # check_site.py reject anything but main or a release tag); empty, at the root.
+  DOCS_VERSION: ${{ inputs.version }}
 
 jobs:
   build:
@@ -51,7 +69,10 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
-          cache: npm
+          # A release's pages restore no cache: a tag run can read caches that
+          # other runs on main wrote, and cache contents are not verified.
+          cache: ${{ !inputs.version && 'npm' || '' }}
+          package-manager-cache: ${{ !inputs.version }}
           cache-dependency-path: docs/package-lock.json
 
       - name: Install dependencies
@@ -82,9 +103,31 @@ jobs:
       - name: Check the built site
         run: npm run docs:check
 
+      - name: Test the version layout and the version menu and banner rules
+        run: npm run docs:test
+
+      - name: Check the coverage of the site's version scripts
+        # 100% of lines and branches; the tool is hash-locked and wheel-only.
+        run: |
+          python3 -m pip install --quiet --require-hashes --only-binary :all: --no-deps -r ../.github/requirements/test.txt
+          python3 -m coverage run --branch --data-file="$RUNNER_TEMP/.coverage" --source=scripts --omit='*/tests/*' \
+            -m unittest scripts/tests/test_check_site.py scripts/tests/test_write_site_files.py
+          python3 -m coverage report --data-file="$RUNNER_TEMP/.coverage" --show-missing --fail-under=100 \
+            --include=scripts/check_site.py,scripts/write_site_files.py
+
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        if: ${{ !inputs.version }}
         with:
           path: docs/.vitepress/dist
+
+      - name: Upload the release's built pages
+        if: ${{ inputs.version }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ inputs.artifact }}
+          path: docs/.vitepress/dist
+          if-no-files-found: error
+          retention-days: 1
 
   deploy:
     name: Deploy to GitHub Pages
