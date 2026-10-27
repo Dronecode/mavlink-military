@@ -8,7 +8,7 @@
 # pin lists the hash of every file PyPI holds for its version. To add a
 # package or move a pin by hand, regenerate the lines below with uv from
 # the top-level packages, a week back like Dependabot's cooldown:
-#   printf 'coverage==7.16.2\nPyYAML==6.0.3\n' | uv pip compile - \
+#   printf 'coverage==<version>\nPyYAML==<version>\n' | uv pip compile - \
 #     --python-version 3.12 --generate-hashes --only-binary :all: \
 #     --no-annotate --no-header --exclude-newer <date a week ago>
 coverage==7.16.2 \
