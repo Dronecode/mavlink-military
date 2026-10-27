@@ -56,6 +56,18 @@ Keep `--source-ref` and `--source-digest`. A pull request's run in this reposito
 
 To pin the generator's tag as well as its commit, replace `--signer-workflow "$GEN"` with `--cert-identity "https://github.com/$GEN@refs/tags/v2.1.0"` and keep `--signer-digest`; gh does not take the two flags together.
 
+## Check the tag's signature
+
+A maintainer signs every release tag with GPG, and the release refuses to build a tag that GitHub does not verify or that someone other than its signer pushed. GitHub shows a verified tag as **Verified** on the tag's page. To check it yourself, import the maintainer's public keys, which GitHub serves at `https://github.com/USER.gpg`, and verify the tag in a clone:
+
+```sh
+curl -fsSL https://github.com/USER.gpg | gpg --import
+git fetch --tags https://github.com/Dronecode/mavlink-military
+git tag -v "$TAG"
+```
+
+The tag names the commit that the provenance's `--source-digest` binds, so a verified tag and a verified file together tie the release to the maintainer who made it.
+
 ## Check a file offline
 
 While online, save the trusted root once:
@@ -138,4 +150,4 @@ The claim is about the Build track only; it makes no claim about source controls
 - The format is SLSA Provenance v0.2. The [SLSA specification](https://slsa.dev/spec/v1.2/) marks a later version as current, and policy tools that expect the v1 shape need a mapping.
 - `materials` lists only this repository at the release commit; the generator marks the materials incomplete. The tool versions, the Python lock and the generator pins are in the release's evidence bundle and SBOM instead.
 - The generator also records `reproducible: false`, a statement about itself; the release's own two-build comparison is the reproducibility evidence.
-- The provenance publishes the release run's GitHub context, permanently, in the release and in the transparency log: the push event, including the account that pushed the tag, and the repository's configuration variables. The release workflow refuses to sign while any configuration variable is set, and the maintainer who pushes a release tag keeps their GitHub email address private, so the event carries a no-reply address.
+- The provenance publishes the release run's GitHub context, permanently, in the release and in the transparency log: the push event, including the account that pushed the tag, and the repository's configuration variables. The release workflow refuses to sign while any configuration variable is set. A maintainer who keeps their GitHub email address private has a no-reply address recorded instead of their own.

@@ -1,6 +1,6 @@
 # Releases and Versions
 
-A release is a fixed version of the dialect to depend on: the definitions, the C headers and the Python module generated from them, that version's documentation, and machine-readable records of every check the release passed, all signed with SLSA provenance. Releases are published from version tags on `main`, after a maintainer approves them. The `main` branch, and the [C library](https://github.com/Dronecode/mavlink-military-c_library_v2) generated from it, are the development channel.
+A release is a fixed version of the dialect to depend on: the definitions, the C headers and the Python module generated from them, that version's documentation, and machine-readable records of every check the release passed, all signed with SLSA provenance. Releases are published from version tags on `main` that a maintainer signed with GPG. The `main` branch, and the [C library](https://github.com/Dronecode/mavlink-military-c_library_v2) generated from it, are the development channel.
 
 The [releases page](https://github.com/Dronecode/mavlink-military/releases) lists every published version. [Verifying a Release](verify.md) shows how to check a file you downloaded; [Making a Release](maintainers.md) is the maintainers' procedure.
 
@@ -20,7 +20,7 @@ The [releases page](https://github.com/Dronecode/mavlink-military/releases) list
 | `mavlink-m-X.Y.Z-notes.md` | The release notes, which are also the release's description. |
 | `SHA256SUMS` | The SHA-256 of every file above. |
 | `mavlink-m-X.Y.Z.intoto.jsonl` | The SLSA provenance, which signs every file `SHA256SUMS` lists and `SHA256SUMS` itself. |
-| `mavlink-m-X.Y.Z-publish.json` | The publication record: the approval, the identity of the provenance signer and every asset's server-side digest. |
+| `mavlink-m-X.Y.Z-publish.json` | The publication record: the identity of the provenance signer and every asset's server-side digest. |
 
 Each archive carries `LICENSE`, `LICENSES/`, `REUSE.toml` and `NOTICE`. The dialect and this repository's files are under the MIT license. The generated C and Python code is under the generator's grant, `LicenseRef-MAVLink-generated-code`, whose notice must be kept in all copies or substantial portions. The MAVLink definitions that `military.xml` includes are under the MIT license, as the MAVLink project states. The generator itself is not included.
 
@@ -47,7 +47,7 @@ A change is breaking when any of these holds:
 
 An addition is a `feat` commit; a message or an extension field added, which the wire report lists for information; an addition to the included MAVLink definitions when they move to another commit; or a change of `military.xml`'s `<version>`, which sets the C `MAVLINK_VERSION` constant. A release whose number is below what its changes call for does not build. The first release may take any number.
 
-Whether to release a version is the working group's decision. A `Decision:` line in the release tag's message, or in the approval's comment, can link the public record of that decision; the notes show the tag's link and the publication record shows the approval's. Link only a record that anyone can read.
+Whether to release a version is the working group's decision. A `Decision:` line in the release tag's message can link the public record of that decision, and the notes show it. Link only a record that anyone can read.
 
 ## Documentation versions
 
