@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publish an approved release, after checking it as a consumer would.
+"""Publish a release, after checking it as a consumer would.
 
 Usage: release_publish.py <files> <bundle> <audit.json>
   files       the release files the assemble job wrote, SHA256SUMS among them
@@ -23,12 +23,11 @@ Before anything is created on GitHub:
    names the commit this run built.
 
 Then it creates a draft release with every file and the bundle, checks every
-asset's server-side SHA-256, adds the publish record (approvals without who
-approved, the generator's jobs, the certificate, the asset digests), and
-publishes the release as the latest. A draft that a failed attempt left is
-deleted first; a published release is never touched. Last, it downloads the
-published release into a new directory and checks every file again, the
-provenance included.
+asset's server-side SHA-256, adds the publish record (the generator's jobs,
+the certificate, the asset digests), and publishes the release as the
+latest. A draft that a failed attempt left is deleted first; a published
+release is never touched. Last, it downloads the published release into a
+new directory and checks every file again, the provenance included.
 """
 
 from __future__ import annotations
@@ -171,7 +170,6 @@ def publish(files: Path, bundle: Path, audit: dict, env: dict) -> dict:
         "repository": repo,
         "run": {"id": env.get("GITHUB_RUN_ID"), "attempt": env.get("GITHUB_RUN_ATTEMPT"),
                 "url": f"{env.get('GITHUB_SERVER_URL')}/{repo}/actions/runs/{env.get('GITHUB_RUN_ID')}"},  # fmt: skip
-        "approvals": audit["approvals"],
         "generator": {**audit["generator"], "jobs": audit["jobs"]},
         "provenance": {"bundle": bundle.name, "sha256": sha256(bundle), "certificate": certificate},
         "assets": dict(sorted(server.items())),

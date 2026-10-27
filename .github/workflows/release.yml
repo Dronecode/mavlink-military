@@ -1,12 +1,12 @@
 name: Release
 
 # Builds a release of the dialect from a final version tag vX.Y.Z on main,
-# checks everything it ships, and publishes it once a reviewer approves it in
-# the release environment, with SLSA provenance that the SLSA project's
-# generic generator signs. On every pull request, and when run by hand, it
-# rehearses the same jobs up to the approval, with nothing published, so the
-# rehearsal can be a required check. Nothing in this workflow creates a tag;
-# only a pushed tag on Dronecode's repository leads to a release.
+# which an administrator signed with GPG and pushed, checks everything it
+# ships, and publishes it with SLSA provenance that the SLSA project's generic
+# generator signs. On every pull request, and when run by hand, it rehearses
+# the same jobs up to the signing, with nothing published, so the rehearsal
+# can be a required check. Nothing in this workflow creates a tag; only a
+# pushed tag on Dronecode's repository leads to a release.
 #
 # Every job runs on a fresh GitHub-hosted ubuntu-24.04 runner, restores and
 # saves no cache, and reads nothing another run produced. Its Python tools
@@ -50,7 +50,6 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read # the history, the tags and the releases
-      actions: read # the release environment's protection rules
     outputs:
       tag: ${{ steps.plan.outputs.tag }}
       version: ${{ steps.plan.outputs.version }}
@@ -92,6 +91,12 @@ jobs:
           # there must be none.
           VARS_JSON: ${{ toJSON(vars) }}
         run: python3 .github/scripts/release/release_settings.py
+
+      - name: Check that the administrator who pushed the tag signed it with GPG
+        if: steps.plan.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/release/release_tag.py
 
       - name: Keep the plan for the other jobs
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -346,39 +351,17 @@ jobs:
           name: release-files
           path: ${{ runner.temp }}/release
           if-no-files-found: error
-          # The publish job reads them after the approval, which GitHub lets
-          # wait up to 30 days.
-          retention-days: 30
+          retention-days: 7
 
-  approve:
-    name: Approve the release
-    # The only job that names the release environment, so a reviewer other
-    # than whoever pushed the tag approves the release before anything is
-    # signed or published, and only when both builds agree.
+  generator-check:
+    name: Check the generator this run loaded
+    # The first job of the publication, and only when both builds agree.
     if: >-
       github.repository == 'Dronecode/mavlink-military' && github.event_name == 'push' &&
       startsWith(github.ref, 'refs/tags/v') && needs.preflight.outputs.publish == 'true' &&
       needs.build.outputs.sums_sha256 != '' &&
       needs.build.outputs.sums_sha256 == needs.rebuild.outputs.sums_sha256
     needs: [preflight, build, rebuild, assemble]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    environment: release
-    permissions: {}
-    steps:
-      - name: Show what is approved
-        env:
-          TAG: ${{ needs.preflight.outputs.tag }}
-          COMMIT: ${{ needs.preflight.outputs.commit }}
-          SUBJECTS: ${{ needs.assemble.outputs.subjects_sha256 }}
-        run: echo "Approved $TAG at $COMMIT, release files with subject list SHA-256 $SUBJECTS"
-
-  generator-check:
-    name: Check the generator this run loaded
-    if: >-
-      github.repository == 'Dronecode/mavlink-military' && github.event_name == 'push' &&
-      startsWith(github.ref, 'refs/tags/v')
-    needs: approve
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -432,7 +415,7 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read # checks out the audit script
-      actions: read # the generator jobs' logs and the run's approvals
+      actions: read # the generator jobs' logs
     steps:
       - name: Check out the audit script
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

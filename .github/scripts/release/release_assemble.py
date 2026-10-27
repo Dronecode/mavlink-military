@@ -29,8 +29,8 @@ as JSON; the GITHUB_* variables describe the run.
 
 GITHUB_OUTPUT receives subjects, the base64 of SHA256SUMS followed by the line
 for SHA256SUMS itself, which is what the provenance generator signs, and
-subjects_sha256, the SHA-256 of that text. A Markdown summary of what an
-approver approves goes to GITHUB_STEP_SUMMARY: the tag and commit, the builds'
+subjects_sha256, the SHA-256 of that text. A Markdown summary of what the
+release holds goes to GITHUB_STEP_SUMMARY: the tag and commit, the builds'
 agreement and checks, the job results, the vulnerability record, every file's
 SHA-256 and the notes.
 """
@@ -67,7 +67,7 @@ PACKAGE = (
     "manifest.json",
 )
 KNOWN_GAPS = [
-    "The approval, the provenance and the server-side digests come after this bundle; the publish record holds them.",
+    "The provenance and the server-side digests come after this bundle; the publish record holds them.",
     "The called workflows (validate_dialect.yml, workflow_lint.yml, docs.yml) are recorded by their job results; "
     "their logs are in the run.",
     "The vulnerability record lists findings; which of them would block a release is for the maintainers to set.",

@@ -364,7 +364,7 @@ class AssembleTest(AssembleCase):
         result = self.assemble(send=findings)
         rows = result["vulnerabilities"]["components"]
         self.assertEqual(rows[-1], {"component": "npm:pkg@1.0.0", "findings": ["GHSA-1", "GHSA-2"], "complete": False,
-                                    "disposition": "listed for review before approval"})  # fmt: skip
+                                    "disposition": "listed for review"})  # fmt: skip
         self.assertEqual(rows[0]["component"], f"pkg:github/example/one@{'b' * 40}")
         self.assertIn("- npm:pkg@1.0.0: GHSA-1, GHSA-2", ra.summary(self.plan, result))
 

@@ -175,7 +175,7 @@ class RunTest(GhCase):
 
 
 class AuditTest(GhCase):
-    def answer(self, jobs: list[dict], logs: dict[int, str], approvals: list | None = None) -> None:
+    def answer(self, jobs: list[dict], logs: dict[int, str]) -> None:
         self.gh.on(
             "api",
             f"repos/{REPO}/actions/runs/77/attempts/2/jobs?per_page=100",
@@ -183,15 +183,12 @@ class AuditTest(GhCase):
         )
         for job_id, text in logs.items():
             self.gh.on("api", f"repos/{REPO}/actions/jobs/{job_id}/logs", stdout=text)
-        self.gh.on("api", f"repos/{REPO}/actions/runs/77/approvals", stdout=approvals if approvals is not None else [
-            {"state": "approved", "comment": "Decision: https://example.org/1", "environments": [{"name": "release"}],
-             "user": {"login": "someone"}}])  # fmt: skip
 
     def job(self, job_id: int, name: str, conclusion: str = "success") -> dict:
         return {"id": job_id, "name": f"Sign the provenance / {name}", "conclusion": conclusion,
                 "started_at": "2026-10-20T02:32:39Z", "completed_at": "2026-10-20T02:34:00Z"}  # fmt: skip
 
-    def test_a_clean_run_is_recorded_without_who_approved(self) -> None:
+    def test_a_clean_run_is_recorded(self) -> None:
         jobs = [self.job(1, "detect-env"), self.job(2, "generator"), self.job(3, "upload-assets", "skipped"),
                 {"id": 9, "name": "Publish the release", "conclusion": "success"}]  # fmt: skip
         self.answer(
@@ -204,7 +201,7 @@ class AuditTest(GhCase):
         record_path = self.tmp / "audit.json"
         code, out = self.main(rg, "audit", str(record_path))
         self.assertEqual(code, 0, out)
-        self.assertIn("2 generator job(s) audited; 1 approval(s) recorded", out)
+        self.assertIn("2 generator job(s) audited", out)
         record = json.loads(record_path.read_text())
         self.assertEqual(
             [j["name"] for j in record["jobs"]],
@@ -212,68 +209,7 @@ class AuditTest(GhCase):
         )
         self.assertEqual(record["jobs"][0]["seconds"], 81)
         self.assertEqual(record["jobs"][1]["token"], {"Actions": "read", "Contents": "read"})
-        self.assertEqual(
-            record["approvals"],
-            [
-                {
-                    "state": "approved",
-                    "environments": ["release"],
-                    "decision": "https://example.org/1",
-                }
-            ],
-        )
-        self.assertNotIn("someone", record_path.read_text())
-        self.assertNotIn("Decision:", record_path.read_text())
-
-    def test_approvals_keep_no_comment_and_need_a_second_person(self) -> None:
-        def approval(
-            login: str, state: str = "approved", env: str = "release", comment: str | None = "ok"
-        ) -> dict:
-            return {
-                "state": state,
-                "comment": comment,
-                "environments": [{"name": env}],
-                "user": {"login": login},
-            }
-
-        self.assertEqual(
-            rg.approvals_record(
-                [
-                    approval("other", comment="Looks fine.\nDecision: https://example.org/2"),
-                    approval("tagger", state="rejected", comment=None),
-                ],
-                ENV,
-            ),
-            [
-                {
-                    "state": "approved",
-                    "environments": ["release"],
-                    "decision": "https://example.org/2",
-                },
-                {"state": "rejected", "environments": ["release"], "decision": None},
-            ],
-        )
-        for approvals, message in (
-            ([approval("tagger")], "an approval comes from the account that pushed the tag"),
-            ([approval("rerunner")], "an approval comes from the account that pushed the tag"),
-            (
-                [approval("other", env="github-pages")],
-                "this run holds no approval of the release environment",
-            ),
-            (
-                [approval("other", state="rejected")],
-                "this run holds no approval of the release environment",
-            ),
-            ([], "this run holds no approval of the release environment"),
-        ):
-            with self.subTest(message=message, approvals=approvals), self.assertRaises(
-                rg.GeneratorError
-            ) as caught:
-                rg.approvals_record(approvals, ENV)
-            self.assertIn(message, str(caught.exception))
-            self.assertNotIn("tagger", str(caught.exception))
-        without_user = {"state": "approved", "environments": [{"name": "release"}]}
-        self.assertEqual(rg.approvals_record([without_user], {}), [{"state": "approved", "environments": ["release"], "decision": None}])  # fmt: skip
+        self.assertNotIn("approvals", record)
 
     def test_an_unknown_action_a_moved_inner_action_or_a_write_token_fails(self) -> None:
         for text, message in (
@@ -305,33 +241,13 @@ class AuditTest(GhCase):
         self.assertEqual(self.main(rg, "audit", str(record_path))[0], 0)
         self.assertIsNone(json.loads(record_path.read_text())["jobs"][0]["seconds"])
 
-    def test_a_run_without_an_approval_fails(self) -> None:
-        self.answer([self.job(1, "generator")], {1: log()}, approvals=[])
-        code, out = self.main(rg, "audit", str(self.tmp / "audit.json"))
-        self.assertEqual(code, 1)
-        self.assertIn("this run holds no approval of the release environment", out)
 
-
-SETTINGS_ENV = {"VARS_JSON": "{}", "RELEASE_ENVIRONMENT": "release"}
+SETTINGS_ENV = {"VARS_JSON": "{}"}
 
 
 class SettingsTest(GhCase):
-    def environment(self, **changes: object) -> dict:
-        env = {
-            "can_admins_bypass": False,
-            "protection_rules": [{"type": "required_reviewers", "prevent_self_review": True, "reviewers": [{"type": "Team"}]}],
-            "deployment_branch_policy": {"protected_branches": False, "custom_branch_policies": True},
-        }  # fmt: skip
-        env.update(changes)
-        return env
-
-    def answer(self, environment: dict | None = None, policies: list | None = None, main_rules: list | None = None,
-               rulesets: list | None = None, details: dict | None = None) -> None:  # fmt: skip
-        self.gh.on(
-            "api", f"repos/{REPO}/environments/release", stdout=environment or self.environment()
-        )
-        self.gh.on("api", f"repos/{REPO}/environments/release/deployment-branch-policies",
-                   stdout={"branch_policies": policies if policies is not None else [{"type": "tag", "name": "v*"}]})  # fmt: skip
+    def answer(self, main_rules: list | None = None, rulesets: list | None = None,
+               details: dict | None = None) -> None:  # fmt: skip
         self.gh.on("api", f"repos/{REPO}/rules/branches/main?per_page=100", stdout=main_rules if main_rules is not None else [
             {"type": "pull_request", "parameters": {"required_approving_review_count": 1}, "ruleset_id": 1},
             {"type": "non_fast_forward", "ruleset_id": 1}, {"type": "deletion", "ruleset_id": 1}])  # fmt: skip
@@ -357,32 +273,18 @@ class SettingsTest(GhCase):
         self.answer()
         code, out = self.run_settings()
         self.assertEqual(code, 0, out)
-        self.assertIn(
-            "the release environment, the rulesets on main and on every tag, and the variables hold",
-            out,
-        )
+        self.assertIn("the rulesets on main and on every tag, and the variables hold", out)
 
-    def test_environment_shortfalls(self) -> None:
-        reviewer = {
-            "type": "required_reviewers",
-            "prevent_self_review": True,
-            "reviewers": [{"type": "Team"}],
-        }
-        for environment, policies, message in (
-            (self.environment(can_admins_bypass=True), None, "administrators can bypass"),
-            (self.environment(protection_rules=[]), None, "no required reviewers"),
-            (self.environment(protection_rules=[dict(reviewer, reviewers=[])]), None, "names no reviewer"),
-            (self.environment(protection_rules=[dict(reviewer, prevent_self_review=False)]), None, "the person who starts a release can approve it"),
-            (self.environment(deployment_branch_policy=None), None, "not limited to selected tags"),
-            (None, [{"type": "branch", "name": "main"}], "deployments are allowed from [('branch', 'main')], not tags v* alone"),
-        ):  # fmt: skip
-            with self.subTest(message=message):
-                self.gh.responses.clear()
-                self.answer(environment, policies)
-                code, out = self.run_settings()
-                self.assertEqual(code, 1)
-                self.assertIn(message, out)
-                self.assertNotIn("Team", out)
+    def test_the_administrators_may_bypass(self) -> None:
+        admins = [{"actor_type": "RepositoryRole", "actor_id": 5, "bypass_mode": "always"},
+                  {"actor_type": "OrganizationAdmin", "actor_id": 1, "bypass_mode": "always"}]  # fmt: skip
+        self.answer(details={
+            1: {"current_user_can_bypass": "never", "bypass_actors": admins},
+            2: {"current_user_can_bypass": "never", "conditions": {"ref_name": {"include": ["~ALL"]}},
+                "rules": [{"type": "creation"}, {"type": "update"}, {"type": "deletion"}], "bypass_actors": admins},
+        })  # fmt: skip
+        code, out = self.run_settings()
+        self.assertEqual(code, 0, out)
 
     def test_main_shortfalls(self) -> None:
         for rules, details, message in (
@@ -390,7 +292,8 @@ class SettingsTest(GhCase):
             ([{"type": "pull_request", "parameters": {"required_approving_review_count": 0}, "ruleset_id": 1},
               {"type": "non_fast_forward", "ruleset_id": 1}, {"type": "deletion", "ruleset_id": 1}], None, "a pull request needs no approval"),
             (None, {1: {"current_user_can_bypass": "always"}}, "this run's token can bypass it (always)"),
-            (None, {1: {"current_user_can_bypass": "never", "bypass_actors": [{"actor_type": "Team"}]}}, "its bypass list is not empty"),
+            (None, {1: {"current_user_can_bypass": "never", "bypass_actors": [{"actor_type": "Team", "actor_id": 9}]}},
+             "main ruleset 1: its bypass list names more than the administrators"),
         ):  # fmt: skip
             with self.subTest(message=message):
                 self.gh.responses.clear()
@@ -433,17 +336,6 @@ class SettingsTest(GhCase):
                 self.assertEqual(code, 1)
                 self.assertIn(f"configuration variables are set ({message})", out)
 
-    def test_a_missing_environment_is_named(self) -> None:
-        self.gh.on(
-            "api", f"repos/{REPO}/environments/release", exit=1, stderr="gh: Not Found (HTTP 404)\n"
-        )
-        self.answer()
-        code, out = self.run_settings()
-        self.assertEqual(code, 1)
-        self.assertIn(
-            "environment release does not exist; a run naming it would create it unprotected", out
-        )
-
     def test_a_failed_read_fails_closed(self) -> None:
         code, out = self.run_settings()
         self.assertEqual(code, 1)
@@ -457,14 +349,6 @@ class SettingsTest(GhCase):
             with self.assertRaises(SystemExit) as exit_:
                 runpy.run_path(rs.__file__, run_name="__main__")
         self.assertEqual(exit_.exception.code, 2)
-
-    def test_the_default_environment_name(self) -> None:
-        self.answer()
-        env = dict(SETTINGS_ENV)
-        del env["RELEASE_ENVIRONMENT"]
-        with mock.patch.dict(os.environ, env), mock.patch.dict(os.environ):
-            os.environ.pop("RELEASE_ENVIRONMENT", None)
-            self.assertEqual(rs.check(dict(os.environ)), [])
 
 
 if __name__ == "__main__":

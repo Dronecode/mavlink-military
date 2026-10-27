@@ -22,12 +22,7 @@ run    This run attempt's record lists, among the workflows it called,
 audit  The logs of the generator's jobs in this attempt show every action
        they downloaded at a commit GENERATOR_ACTIONS lists, the generator's
        own at GENERATOR_COMMIT, and no job token with Contents: write. The
-       run holds an approval of the release environment, and no approval
-       comes from the account that pushed the tag or started this attempt
-       (GITHUB_ACTOR, GITHUB_TRIGGERING_ACTOR), which a re-run could
-       otherwise let through. The record keeps each job's duration and each
-       approval's state, environments and the decision link its comment
-       gives, never who approved nor the comment's text.
+       record keeps each job's duration, downloads and token permissions.
 
 Each prints what it checked and exits 1 on any shortfall or failed read.
 """
@@ -47,8 +42,6 @@ import gh_api  # noqa: E402
 DOWNLOAD = re.compile(r"Download action repository '([^']+)' \(SHA:([0-9a-f]{40})\)")
 PERMISSION = re.compile(r"^\S+ ([A-Za-z-]+): (read|write)$")
 GROUP_START, GROUP_END = "##[group]GITHUB_TOKEN Permissions", "##[endgroup]"
-DECISION = re.compile(r"^Decision: (https://[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]+)$", re.M)
-ENVIRONMENT = "release"
 
 
 class GeneratorError(Exception):
@@ -139,26 +132,6 @@ def seconds(job: dict) -> int | None:
     return int((end - start).total_seconds())
 
 
-def approvals_record(approvals: list[dict], env: dict) -> list[dict]:
-    """The run's approvals as the evidence keeps them, after the two-person checks."""
-    actors = {env.get("GITHUB_ACTOR"), env.get("GITHUB_TRIGGERING_ACTOR")} - {None, ""}
-    record, approved = [], False
-    for approval in approvals:
-        environments = sorted(e["name"] for e in approval.get("environments", []))
-        if approval.get("state") == "approved":
-            if (approval.get("user") or {}).get("login") in actors:
-                raise GeneratorError(
-                    "an approval comes from the account that pushed the tag or started this attempt"
-                )
-            approved = approved or ENVIRONMENT in environments
-        decision = DECISION.search(approval.get("comment") or "")
-        record.append({"state": approval.get("state"), "environments": environments,
-                       "decision": decision.group(1) if decision else None})  # fmt: skip
-    if not approved:
-        raise GeneratorError(f"this run holds no approval of the {ENVIRONMENT} environment")
-    return record
-
-
 def audit(gen: dict, env: dict) -> dict:
     repo, run_id, attempt = (
         env["GITHUB_REPOSITORY"],
@@ -188,8 +161,6 @@ def audit(gen: dict, env: dict) -> dict:
             "name": job["name"], "conclusion": job["conclusion"], "seconds": seconds(job),
             "downloads": [f"{a}={s}" for a, s in downloads], "token": permissions,
         })  # fmt: skip
-    approvals = gh_api.api(f"repos/{repo}/actions/runs/{run_id}/approvals") or []
-    record["approvals"] = approvals_record(approvals, env)
     return record
 
 
@@ -213,9 +184,7 @@ def main(argv: list[str]) -> int:
             Path(argv[2]).write_text(
                 json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8"
             )
-            print(
-                f"{len(record['jobs'])} generator job(s) audited; {len(record['approvals'])} approval(s) recorded"
-            )
+            print(f"{len(record['jobs'])} generator job(s) audited")
     except (GeneratorError, gh_api.GitHubError, KeyError) as error:
         print(f"::error title=release generator::{error}")
         return 1

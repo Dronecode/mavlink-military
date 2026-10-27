@@ -7,8 +7,8 @@ the MAVLink definitions by commit, lxml as a PyPI package and every npm package
 installed for the docs build. The record lists each component with the IDs of
 the advisories found, "none found" included, and the UTC time of the query. It
 does not block a release: which findings should, and how they are handled, is
-for the maintainers to set; the approver sees the record before approving. A
-failed query fails, so a release never carries a record that was not made.
+for the maintainers to set; they read the record in the rehearsal on main
+before they tag. A failed query fails, so a release never carries a record that was not made.
 """
 
 from __future__ import annotations
@@ -80,7 +80,7 @@ def record(
         rows.append({
             "component": component, "findings": ids,
             "complete": "next_page_token" not in result,
-            "disposition": "listed for review before approval" if ids else "none found",
+            "disposition": "listed for review" if ids else "none found",
         })  # fmt: skip
     return {
         "source": "OSV",

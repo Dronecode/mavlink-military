@@ -43,8 +43,7 @@ CERTIFICATE = {
     "sourceRepositoryRef": f"refs/tags/{TAG}", "sourceRepositoryDigest": SHA, "runnerEnvironment": "github-hosted",
 }  # fmt: skip
 AUDIT = {"generator": {"workflow": WORKFLOW, "tag": "v2.1.0", "commit": COMMIT},
-         "jobs": [{"name": "Sign the provenance / generator", "seconds": 90}],
-         "approvals": [{"state": "approved", "comment": "", "environments": ["release"]}]}  # fmt: skip
+         "jobs": [{"name": "Sign the provenance / generator", "seconds": 90}]}  # fmt: skip
 
 
 def digest(data: bytes) -> str:
@@ -154,7 +153,7 @@ class PublishTest(PublishCase):
         self.assertIn(f"published {TAG} with 5 assets", out)
         record = json.loads(record_holder["data"])
         self.assertEqual(record["provenance"]["certificate"], CERTIFICATE)
-        self.assertEqual(record["approvals"], AUDIT["approvals"])
+        self.assertNotIn("approvals", record)
         self.assertEqual(sorted(record["assets"]), sorted(list(self.contents) + [self.bundle.name]))
         calls = self.gh.calls()
         verify = [c for c in calls if c[:2] == ["attestation", "verify"]]

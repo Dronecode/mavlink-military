@@ -94,10 +94,9 @@ class PermissionTest(unittest.TestCase):
     def test_each_job_holds_exactly_its_permissions(self) -> None:
         read = {"contents": "read"}
         expected = {
-            "preflight": {"contents": "read", "actions": "read"},
+            "preflight": {"contents": "read"},
             "validate": read, "lint": read, "docs": read, "commit-checks": read, "test": read,
             "build": read, "rebuild": read, "assemble": read,
-            "approve": {},
             "generator-check": {"contents": "read", "actions": "read"},
             "provenance": {"actions": "read", "id-token": "write", "contents": "write"},
             "generator-audit": {"contents": "read", "actions": "read"},
@@ -345,13 +344,11 @@ class GeneratorTest(unittest.TestCase):
 
 
 class PublicationGraphTest(unittest.TestCase):
-    def test_only_the_approval_names_the_release_environment(self) -> None:
-        self.assertEqual({n for n, j in JOBS.items() if "environment" in j}, {"approve"})
-        self.assertEqual(JOBS["approve"]["environment"], "release")
-        self.assertEqual([s.get("uses") for s in JOBS["approve"]["steps"]], [None])
+    def test_no_job_names_an_environment(self) -> None:
+        self.assertEqual({n for n, j in JOBS.items() if "environment" in j}, set())
 
-    def test_the_approval_waits_for_two_builds_that_agree(self) -> None:
-        condition = " ".join(JOBS["approve"]["if"].split())
+    def test_the_publication_waits_for_two_builds_that_agree(self) -> None:
+        condition = " ".join(JOBS["generator-check"]["if"].split())
         self.assertTrue(condition.startswith(GUARD))
         self.assertIn("needs.preflight.outputs.publish == 'true'", condition)
         self.assertIn("needs.build.outputs.sums_sha256 != ''", condition)
@@ -359,11 +356,10 @@ class PublicationGraphTest(unittest.TestCase):
             "needs.build.outputs.sums_sha256 == needs.rebuild.outputs.sums_sha256", condition
         )
         self.assertEqual(
-            sorted(JOBS["approve"]["needs"]), ["assemble", "build", "preflight", "rebuild"]
+            sorted(JOBS["generator-check"]["needs"]), ["assemble", "build", "preflight", "rebuild"]
         )
 
-    def test_signing_and_publishing_follow_the_approval_and_the_checks(self) -> None:
-        self.assertEqual(JOBS["generator-check"]["needs"], "approve")
+    def test_signing_and_publishing_follow_the_checks(self) -> None:
         self.assertEqual(
             sorted(JOBS["provenance"]["needs"]), ["assemble", "generator-check", "preflight"]
         )
@@ -372,7 +368,7 @@ class PublicationGraphTest(unittest.TestCase):
             sorted(JOBS["publish"]["needs"]), ["generator-audit", "preflight", "provenance"]
         )
         self.assertIn("needs.provenance.result == 'success'", JOBS["publish"]["if"])
-        for name in ("approve", "generator-check", "provenance", "generator-audit", "publish"):
+        for name in ("generator-check", "provenance", "generator-audit", "publish"):
             with self.subTest(job=name):
                 self.assertTrue(" ".join(JOBS[name]["if"].split()).startswith(GUARD))
 
@@ -382,11 +378,14 @@ class PublicationGraphTest(unittest.TestCase):
             uses, ["actions/checkout", "actions/setup-python", "actions/download-artifact"]
         )
 
-    def test_the_settings_check_runs_only_where_a_release_may_be_published(self) -> None:
+    def test_the_settings_and_tag_checks_run_only_where_a_release_may_be_published(self) -> None:
         steps = {s.get("name"): s for s in JOBS["preflight"]["steps"]}
         settings = steps["Check the settings a publication relies on"]
         self.assertEqual(settings["if"], "steps.plan.outputs.publish == 'true'")
         self.assertEqual(settings["env"]["VARS_JSON"], "${{ toJSON(vars) }}")
+        tag = steps["Check that the administrator who pushed the tag signed it with GPG"]
+        self.assertEqual(tag["if"], "steps.plan.outputs.publish == 'true'")
+        self.assertEqual(tag["run"], "python3 .github/scripts/release/release_tag.py")
         self.assertNotIn(
             "if", steps["Check that the generator's tag still names its reviewed commit"]
         )
