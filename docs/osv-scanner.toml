@@ -56,11 +56,3 @@ reason = "launch-editor in the vite dev server: editor command-line flags misrea
 id = "GHSA-v6wh-96g9-6wx3"
 ignoreUntil = 2027-01-21T00:00:00Z
 reason = "launch-editor in the vite dev server on Windows: NTLMv2 hash disclosure through UNC paths; the built site runs no dev server"
-
-# KaTeX 0.16.47, which mermaid 11 uses to draw math in a diagram. The fix
-# needs mermaid 12.
-
-[[IgnoredVulns]]
-id = "GHSA-238p-pmpm-9mq7"
-ignoreUntil = 2027-01-21T00:00:00Z
-reason = "needs untrusted math input with KaTeX's trust option on a page with existing prototype pollution; the site's diagrams come from this repository and contain no math"
