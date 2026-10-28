@@ -17,8 +17,6 @@ flowchart LR
   U --> PUB["Publish: verify, draft, check digests, publish, verify again"]
 ```
 
-On every pull request, and when run by hand, the same workflow rehearses everything up to the signing and publishes nothing. Its summary shows the version the changes call for.
-
 ## Who can release
 
 Only the repository's administrators. A ruleset lets only them push a tag, and the run checks that the tag is signed with a GPG key of the account that pushed it, so a release takes an administrator's GitHub account and their private key. Before your first release:
@@ -59,7 +57,7 @@ gh api repos/$R/environments/github-pages/deployment-branch-policies --jq '.bran
 
 ## Publish a release
 
-1. Check that `main` is green and that a rehearsal on it names the version you intend; a tag below what the changes call for fails. Read the rehearsal's summary: the builds' agreement and checks, the vulnerability record and the release notes.
+1. Check that `main` is green and choose the version. The run refuses a version below what the changes since the previous release call for, names the bump they call for, and publishes nothing; an administrator can then delete the refused tag and push the right one.
 2. Sign the tag on `main` and push it. A `Decision:` line can link the public record of the working group's decision, and the notes show it. The tag's message is public as soon as it is pushed. Push one release tag at a time: GitHub starts no workflow for a push of more than three tags at once.
 
     ```sh
@@ -74,7 +72,7 @@ If a run fails after the draft was made, re-run it: the draft is deleted and mad
 
 ## Keep the release path current
 
-- **Generator.** Dependabot proposes a new generator version in a pull request of its own, and the release checks fail until `GENERATOR_TAG`, `GENERATOR_COMMIT` and `GENERATOR_ACTIONS` in `release.yml` move with the tag. Review the new version's workflow, its actions and its changelog first. Reject a version whose running jobs gain a write permission or whose upload condition changes. Each earlier release keeps its own generator commit in its own `release.yml`.
+- **Generator.** Dependabot proposes a new generator version in a pull request of its own, and the release scripts' tests in **Lint CI Workflows** fail until `GENERATOR_TAG`, `GENERATOR_COMMIT` and `GENERATOR_ACTIONS` in `release.yml` move with the tag. Review the new version's workflow, its actions and its changelog first. Reject a version whose running jobs gain a write permission or whose upload condition changes. Each earlier release keeps its own generator commit in its own `release.yml`.
 - **Python tools.** Dependabot proposes updates to the hash-locked files in `.github/requirements`, each pin with the hashes of its new version; to add a package, regenerate the file with the command in its header.
 - **Generator pins.** `MAVLINK_REF` and `PYMAVLINK_REF` move by hand, together. The next release's version policy then also compares the included definitions and the fixed C headers.
 

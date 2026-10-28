@@ -263,13 +263,13 @@ class BuildTest(Fixture):
         self.assertIn("(clause 2)", notice)
         self.assertNotIn("Kungliga", self.members("python")["NOTICE"].decode("utf-8"))
 
-    def test_the_package_does_not_depend_on_the_mode(self) -> None:
-        # What a rehearsal builds is what a release publishes: the build reads neither the
-        # plan's mode nor its publish flag.
-        for mode, publish in (("release", True), ("rehearsal", False)):
-            with self.subTest(mode=mode):
-                out = self.tmp / f"mode-{mode}"
-                self.build(out, dict(self.plan, mode=mode, publish=publish))
+    def test_the_package_does_not_depend_on_the_publish_flag(self) -> None:
+        # What a fork's run builds is what Dronecode's publishes: the build does not read
+        # the plan's publish flag.
+        for publish in (True, False):
+            with self.subTest(publish=publish):
+                out = self.tmp / f"publish-{publish}"
+                self.build(out, dict(self.plan, publish=publish))
                 self.assertEqual(
                     (out / "SHA256SUMS").read_bytes(), (self.out / "SHA256SUMS").read_bytes()
                 )

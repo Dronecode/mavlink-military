@@ -59,15 +59,8 @@ RUNS = {name: as_run(job["steps"]) for name, job in STEPS.items()}
 
 
 class TriggerTest(unittest.TestCase):
-    def test_final_version_tags_pull_requests_and_manual_runs_only(self) -> None:
-        self.assertEqual(sorted(RELEASE["on"]), ["pull_request", "push", "workflow_dispatch"])
-        self.assertEqual(RELEASE["on"]["push"], {"tags": ["v[0-9]+.[0-9]+.[0-9]+"]})
-        self.assertIsNone(RELEASE["on"]["workflow_dispatch"])  # no inputs
-
-    def test_every_pull_request_rehearses(self) -> None:
-        # No path or branch filter: a workflow a filter skips reports no check, so the
-        # rehearsal could not be a required one.
-        self.assertIsNone(RELEASE["on"]["pull_request"])
+    def test_final_version_tags_only(self) -> None:
+        self.assertEqual(RELEASE["on"], {"push": {"tags": ["v[0-9]+.[0-9]+.[0-9]+"]}})
 
     def test_no_workflow_starts_from_another_workflow_or_a_dispatch(self) -> None:
         # A job token with contents: write can send repository_dispatch events,
@@ -181,7 +174,7 @@ class RunTest(unittest.TestCase):
             RELEASE["concurrency"],
             {
                 "group": "${{ github.workflow }}-release-${{ github.ref }}",
-                "cancel-in-progress": "${{ github.event_name == 'pull_request' }}",
+                "cancel-in-progress": False,
             },
         )
         for name, job in JOBS.items():
@@ -284,10 +277,7 @@ GENERATOR_LINE = (
     "    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0"
     " # f7dd8c54c2067bafc12ca7a55595d5ee9b75204a"
 )
-GUARD = (
-    "github.repository == 'Dronecode/mavlink-military' && github.event_name == 'push' && "
-    "startsWith(github.ref, 'refs/tags/v')"
-)
+GUARD = "github.repository == 'Dronecode/mavlink-military'"
 
 
 class GeneratorTest(unittest.TestCase):

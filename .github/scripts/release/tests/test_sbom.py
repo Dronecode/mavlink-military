@@ -365,7 +365,7 @@ class SbomTest(unittest.TestCase):
 
 
 PLAN = {
-    "version": "1.1.0", "tag": "v1.1.0", "commit": "c" * 40, "mode": "release", "decision": None,
+    "version": "1.1.0", "tag": "v1.1.0", "commit": "c" * 40, "decision": None,
     "repository": "Dronecode/mavlink-military", "pin_notes": ["PYMAVLINK_REF is not mavlink's submodule"],
     "dialect": {"version": "4", "previous": "3", "dialect": "1", "previous_dialect": "0"},
     "previous": {"tag": "v1.0.0", "commit": "p" * 40}, "pins": {"mavlink": "a" * 40, "pymavlink": "b" * 40},
@@ -375,7 +375,7 @@ PLAN = {
         {"commit": "3" * 40, "subject": "docs(site): thank Ann <ann.b+x@mail.example.org>", "change": "other"},
         {"commit": "2" * 40, "subject": "fix(dialect)!: retype a field", "change": "breaking"},
     ],
-    "policy": {"required": "minor", "breaches": [], "mismatches": ["a note"]},
+    "policy": {"required": "minor", "mismatches": ["a note"]},
     "wire": {"breaking": ["BREAKING: message 1 X: retyped"], "info": ["INFO: message 2 Y added"], "api_breaks": ["MAV_X renamed"], "verdict": "1 wire-breaking change(s)"},
     "closure": {"from": "a" * 40, "to": "d" * 40, "breaking": [], "info": ["common.xml: INFO: message 3 Z added"]},
     "generator_change": {"from": "b" * 40, "to": "e" * 40, "fixed_headers_changed": ["protocol.h"], "commits": ["x"]},
@@ -467,15 +467,12 @@ class NotesTest(unittest.TestCase):
         self.assertIn("## Protocol", without)
         self.assertNotIn("SYSID32", without)  # fmt: skip
 
-    def test_a_rehearsal_of_a_first_release(self) -> None:
+    def test_a_first_release(self) -> None:
         plan = copy.deepcopy(PLAN)
-        plan.update(mode="rehearsal", previous=None, changes=[], decision="https://example.org/d/1",
+        plan.update(previous=None, changes=[], decision="https://example.org/d/1",
                     generator={"commit": "b" * 40, "reports_version": None}, pin_notes=[],
                     dialect={"version": "4", "previous": None, "dialect": "1", "previous_dialect": None})  # fmt: skip
         text = release_notes.notes(plan, {})
-        self.assertIn(
-            "This is a rehearsal of the release process. Nothing of it is published.", text
-        )
         self.assertIn("## Changes in this first release\n\nNo commits.", text)
         self.assertIn("This is the first release", text)
         self.assertIn("Decision: <https://example.org/d/1>", text)

@@ -35,9 +35,9 @@ updates:
       # The SLSA generator that signs release provenance is called by
       # its tag, with its reviewed commit and the actions it downloads
       # listed in release.yml's env. A bump comes in a pull request of
-      # its own, whose release checks fail until that env moves with
-      # the tag, after a review of the new version's workflow, actions
-      # and changelog.
+      # its own, whose release script tests (Lint CI Workflows) fail
+      # until that env moves with the tag, after a review of the new
+      # version's workflow, actions and changelog.
       slsa:
         patterns:
           - "slsa-framework/*"

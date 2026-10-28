@@ -3,10 +3,8 @@ name: Release
 # Builds a release of the dialect from a final version tag vX.Y.Z on main,
 # which an administrator signed with GPG and pushed, checks everything it
 # ships, and publishes it with SLSA provenance that the SLSA project's generic
-# generator signs. On every pull request, and when run by hand, it rehearses
-# the same jobs up to the signing, with nothing published, so the rehearsal
-# can be a required check. Nothing in this workflow creates a tag; only a
-# pushed tag on Dronecode's repository leads to a release.
+# generator signs. Nothing in this workflow creates a tag; only a pushed tag on
+# Dronecode's repository leads to a release.
 #
 # Every job runs on a fresh GitHub-hosted ubuntu-24.04 runner, restores and
 # saves no cache, and reads nothing another run produced. Its Python tools
@@ -15,8 +13,6 @@ on:
   push:
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+"
-  pull_request:
-  workflow_dispatch:
 
 permissions: {}
 
@@ -24,7 +20,7 @@ concurrency:
   # The workflows called below take "<this workflow's name>-<their file>-<ref>"
   # as their group; this one carries this file's name, so no two share one.
   group: ${{ github.workflow }}-release-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 
 env:
   # The SLSA generic generator, which must be called by its version tag, and
@@ -357,8 +353,7 @@ jobs:
     name: Check the generator this run loaded
     # The first job of the publication, and only when both builds agree.
     if: >-
-      github.repository == 'Dronecode/mavlink-military' && github.event_name == 'push' &&
-      startsWith(github.ref, 'refs/tags/v') && needs.preflight.outputs.publish == 'true' &&
+      github.repository == 'Dronecode/mavlink-military' && needs.preflight.outputs.publish == 'true' &&
       needs.build.outputs.sums_sha256 != '' &&
       needs.build.outputs.sums_sha256 == needs.rebuild.outputs.sums_sha256
     needs: [preflight, build, rebuild, assemble]
@@ -388,9 +383,7 @@ jobs:
     # generator's upload job declares it; with upload-assets false that job
     # never runs, no running generator job declares it, and generator-audit
     # checks from the job logs that none received it.
-    if: >-
-      github.repository == 'Dronecode/mavlink-military' && github.event_name == 'push' &&
-      startsWith(github.ref, 'refs/tags/v')
+    if: github.repository == 'Dronecode/mavlink-military'
     needs: [preflight, assemble, generator-check]
     permissions:
       actions: read # the generator reads its own workflow run
@@ -407,9 +400,7 @@ jobs:
 
   generator-audit:
     name: Audit the generator's jobs
-    if: >-
-      github.repository == 'Dronecode/mavlink-military' && github.event_name == 'push' &&
-      startsWith(github.ref, 'refs/tags/v')
+    if: github.repository == 'Dronecode/mavlink-military'
     needs: provenance
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -440,8 +431,7 @@ jobs:
   publish:
     name: Publish the release
     if: >-
-      github.repository == 'Dronecode/mavlink-military' && github.event_name == 'push' &&
-      startsWith(github.ref, 'refs/tags/v') && needs.provenance.result == 'success'
+      github.repository == 'Dronecode/mavlink-military' && needs.provenance.result == 'success'
     needs: [preflight, provenance, generator-audit]
     runs-on: ubuntu-24.04
     timeout-minutes: 15

@@ -203,8 +203,6 @@ def notes(
     its provenance."""
     facts = facts or {}
     lines = [f"# MAVLink-M {plan['version']}", ""]
-    if plan["mode"] != "release":
-        lines += ["This is a rehearsal of the release process. Nothing of it is published.", ""]
     intro = (
         f"Release {plan['tag']} of the MAVLink-M dialect, built from commit {code(plan['commit'])}."
     )

@@ -179,7 +179,7 @@ class PlanTestCase(unittest.TestCase):
             ["git", "show", spec], cwd=self.repo, check=True, capture_output=True
         ).stdout
 
-    def env(self, event: str = "pull_request", tag: str = "", repo: str = REPO) -> dict[str, str]:
+    def env(self, event: str = "push", tag: str = "", repo: str = REPO) -> dict[str, str]:
         env = {"GITHUB_REPOSITORY": repo, "GITHUB_EVENT_NAME": event, "GITHUB_OUTPUT": str(self.output),
                "MAVLINK_DIR": str(self.mavlink), "PYMAVLINK_DIR": str(self.pymavlink), **self.gh.env()}  # fmt: skip
         if tag:
@@ -192,12 +192,15 @@ class PlanTestCase(unittest.TestCase):
 
     def plan(
         self,
-        event: str = "pull_request",
-        tag: str = "",
+        tag: str = "v0.1.0",
+        event: str = "push",
         repo: str = REPO,
         argv: list[str] | None = None,
     ):
-        """Run release_plan.main in the repository; (status, stdout, stderr)."""
+        """Run release_plan.main in the repository for the push of a tag, which it makes
+        annotated at HEAD unless it exists; (status, stdout, stderr)."""
+        if tag and not self.git("tag", "--list", tag):
+            self.tag(tag)
         self.gh.on("api", f"repos/{repo}/releases?per_page=100&page=1", stdout=self.releases)
         out, err = io.StringIO(), io.StringIO()
         cwd = os.getcwd()
@@ -227,14 +230,14 @@ class PlanTestCase(unittest.TestCase):
 
 
 class FirstReleaseTest(PlanTestCase):
-    def test_a_rehearsal_before_any_release_plans_0_0_0(self) -> None:
+    def test_a_first_release_is_planned(self) -> None:
         status, out, _ = self.plan()
         self.assertEqual(status, 0, out)
-        self.assertIn("v0.0.0 (rehearsal), previous release none, publish False", out)
+        self.assertIn("v0.1.0, previous release none, publish True", out)
         plan = self.result()
         self.assertEqual(
-            (plan["mode"], plan["version"], plan["previous"], plan["publish"]),
-            ("rehearsal", "0.0.0", None, False),
+            (plan["version"], plan["previous"], plan["publish"], plan["decision"]),
+            ("0.1.0", None, True, None),
         )
         self.assertEqual(plan["pins"], {"mavlink": MAVPIN, "pymavlink": PYMPIN})
         self.assertEqual(
@@ -260,23 +263,21 @@ class FirstReleaseTest(PlanTestCase):
         )
         self.assertEqual(
             self.output.read_text(),
-            f"tag=v0.0.0\nversion=0.0.0\ncommit={plan['commit']}\nprevious=none\npublish=false\n",
+            f"tag=v0.1.0\nversion=0.1.0\ncommit={plan['commit']}\nprevious=none\npublish=true\n",
         )
         self.assertEqual(self.reports.calls, [])
 
     def test_a_first_release_may_take_any_version(self) -> None:
         self.tag("v2.5.0", "first release\n\nDecision: https://example.org/decisions/1")
-        status, out, _ = self.plan(event="push", tag="v2.5.0")
+        status, out, _ = self.plan("v2.5.0")
         self.assertEqual(status, 0, out)
         plan = self.result()
-        self.assertEqual(
-            (plan["mode"], plan["version"], plan["publish"]), ("release", "2.5.0", True)
-        )
+        self.assertEqual((plan["version"], plan["publish"]), ("2.5.0", True))
         self.assertEqual(plan["decision"], "https://example.org/decisions/1")
 
     def test_a_tag_outside_dronecode_never_publishes(self) -> None:
         self.tag("v1.0.0")
-        status, _, _ = self.plan(event="push", tag="v1.0.0", repo="fork/mavlink-military")
+        status, _, _ = self.plan("v1.0.0", repo="fork/mavlink-military")
         self.assertEqual((status, self.result()["publish"]), (0, False))
 
     def test_subjects_outside_the_convention_warn(self) -> None:
@@ -315,13 +316,16 @@ class ReleaseChecksTest(PlanTestCase):
         for tag in ("v1.0", "v01.0.0", "1.0.0", "v1.0.0-rc.1"):
             with self.subTest(tag=tag):
                 self.tag(tag)
-                status, out, _ = self.plan(event="push", tag=tag)
+                status, out, _ = self.plan(tag)
                 self.assert_breach(status, out, f"'{tag}' is no release tag of the form vX.Y.Z")
 
-    def test_a_tag_seen_by_a_rehearsal_must_be_a_release_tag(self) -> None:
-        self.tag("v1.0")
-        status, out, _ = self.plan(event="workflow_dispatch", tag="v1.0")
-        self.assert_breach(status, out, "'v1.0' is no release tag of the form vX.Y.Z")
+    def test_only_the_push_of_a_tag_is_planned(self) -> None:
+        for tag, event in (("", "push"), ("v1.0.0", "workflow_dispatch"), ("", "pull_request")):
+            with self.subTest(tag=tag, event=event):
+                status, out, _ = self.plan(tag, event=event)
+                self.assert_breach(
+                    status, out, "a release plan runs only for the push of a version tag vX.Y.Z"
+                )
 
     def test_a_shallow_checkout_is_refused(self) -> None:
         self.tag("v1.0.0")
@@ -332,18 +336,18 @@ class ReleaseChecksTest(PlanTestCase):
                 "true\n" if a == ("rev-parse", "--is-shallow-repository") else real_git(*a)
             ),
         ):
-            status, out, _ = self.plan(event="push", tag="v1.0.0")
+            status, out, _ = self.plan("v1.0.0")
         self.assert_breach(status, out, "the checkout is shallow")
 
     def test_a_lightweight_tag_is_refused(self) -> None:
         self.tag("v1.0.0", message=None)
-        status, out, _ = self.plan(event="push", tag="v1.0.0")
+        status, out, _ = self.plan("v1.0.0")
         self.assert_breach(status, out, "v1.0.0 is a lightweight tag")
 
     def test_a_tag_on_another_commit_is_refused(self) -> None:
         self.tag("v1.0.0")
         self.commit("fix(repo): later")
-        status, out, _ = self.plan(event="push", tag="v1.0.0")
+        status, out, _ = self.plan("v1.0.0")
         self.assert_breach(status, out, "v1.0.0 does not name the checked-out commit")
 
     def test_a_tag_off_main_is_refused(self) -> None:
@@ -352,7 +356,7 @@ class ReleaseChecksTest(PlanTestCase):
         self.commit("fix(repo): on a side branch")
         self.git("update-ref", "refs/remotes/origin/main", first)
         self.tag("v1.0.0")
-        status, out, _ = self.plan(event="push", tag="v1.0.0")
+        status, out, _ = self.plan("v1.0.0")
         self.assert_breach(
             status, out, "v1.0.0 is not on origin/main; releases come from main only"
         )
@@ -386,9 +390,9 @@ class LaterReleaseTest(PlanTestCase):
         self.tag("v1.0.0")
         self.publish("v1.0.0")
 
-    def test_the_next_rehearsal_follows_the_previous_release(self) -> None:
+    def test_a_patch_follows_the_previous_release(self) -> None:
         self.commit("fix(dialect): describe a field")
-        status, out, _ = self.plan()
+        status, out, _ = self.plan("v1.0.1")
         self.assertEqual(status, 0, out)
         plan = self.result()
         self.assertEqual(
@@ -407,7 +411,7 @@ class LaterReleaseTest(PlanTestCase):
     def test_a_changed_dialect_version_is_an_addition(self) -> None:
         # military.xml's <version> sets the C MAVLINK_VERSION constant; <dialect> changes nothing.
         self.commit("fix(dialect): renumber the dialect", dialect(version="4", number="7"))
-        status, out, _ = self.plan()
+        status, out, _ = self.plan("v1.1.0")
         self.assertEqual(status, 0, out)
         plan = self.result()
         self.assertEqual(
@@ -419,7 +423,7 @@ class LaterReleaseTest(PlanTestCase):
     def test_a_feature_calls_for_a_minor_bump(self) -> None:
         self.commit("feat(dialect): add a message", dialect({53000: "ONE", 53001: "TWO"}))
         self.reports.wire = [(0, "INFO: message 53001 TWO added (entry x)\nverdict\n", "")]
-        self.plan()
+        self.plan("v1.1.0")
         self.assertEqual(
             (self.result()["version"], self.result()["policy"]["required"]), ("1.1.0", "minor")
         )
@@ -427,30 +431,17 @@ class LaterReleaseTest(PlanTestCase):
     def test_a_patch_tag_below_a_required_minor_is_refused(self) -> None:
         self.commit("feat(dialect): add a message")
         self.tag("v1.0.1")
-        status, out, _ = self.plan(event="push", tag="v1.0.1")
+        status, out, _ = self.plan("v1.0.1")
         self.assert_breach(
             status,
             out,
             "the changes since v1.0.0 call for a minor bump, but v1.0.1 is a patch bump",
         )
 
-    def test_a_rehearsal_reports_breaches_as_warnings(self) -> None:
-        self.commit("feat(dialect): add a message")
-        self.tag("v1.0.1")
-        status, out, _ = self.plan(event="workflow_dispatch", tag="v1.0.1")
-        self.assertEqual(status, 0)
-        self.assertIn(
-            "::warning title=release plan::the changes since v1.0.0 call for a minor bump", out
-        )
-        self.assertEqual(
-            self.result()["policy"]["breaches"],
-            ["the changes since v1.0.0 call for a minor bump, but v1.0.1 is a patch bump"],
-        )
-
     def test_a_tag_that_skips_a_version_is_refused(self) -> None:
         self.commit("fix(dialect): describe a field")
         self.tag("v1.0.2")
-        status, out, _ = self.plan(event="push", tag="v1.0.2")
+        status, out, _ = self.plan("v1.0.2")
         self.assert_breach(
             status,
             out,
@@ -466,7 +457,7 @@ class LaterReleaseTest(PlanTestCase):
                 "",
             )
         ]
-        self.plan()
+        self.plan("v2.0.0")
         plan = self.result()
         self.assertEqual(
             (plan["version"], plan["wire"]["breaking"]),
@@ -477,7 +468,7 @@ class LaterReleaseTest(PlanTestCase):
     def test_a_wire_break_without_a_marked_commit_is_a_mismatch(self) -> None:
         self.commit("fix(dialect): retype a field")
         self.reports.wire = [(0, "BREAKING: message 53000 ONE: field retyped\nverdict\n", "")]
-        self.plan()
+        self.plan("v2.0.0")
         self.assertEqual(
             self.result()["policy"]["mismatches"],
             ["the wire reports show breaking changes that no commit marks with !"],
@@ -485,7 +476,7 @@ class LaterReleaseTest(PlanTestCase):
 
     def test_a_marked_commit_without_a_wire_break_is_a_mismatch(self) -> None:
         self.commit("fix(dialect)!: change a meaning")
-        self.plan()
+        self.plan("v2.0.0")
         self.assertEqual(
             self.result()["policy"]["mismatches"],
             ["commits marked with ! change no wire row: each declares a change of meaning"],
@@ -498,7 +489,7 @@ class LaterReleaseTest(PlanTestCase):
             "Name removals/changes detected in military_extensions.xml:\n - X\nName removals/changes detected in military.xml:\n - MAV_X renamed\nSummary\n",
             "",
         )
-        self.plan()
+        self.plan("v2.0.0")
         plan = self.result()
         self.assertEqual(
             (plan["wire"]["api_breaks"], plan["version"]), (["MAV_X renamed"], "2.0.0")
@@ -510,7 +501,7 @@ class LaterReleaseTest(PlanTestCase):
         for api in ((1, "Traceback\n", ""), (2, "", "usage\n")):
             with self.subTest(code=api[0]):
                 self.reports.api = api
-                status, out, _ = self.plan()
+                status, out, _ = self.plan("v1.0.1")
                 self.assert_breach(
                     status, out, f"check_api_break.py exited {api[0]} without a verdict"
                 )
@@ -518,12 +509,12 @@ class LaterReleaseTest(PlanTestCase):
     def test_a_wire_report_failure_fails(self) -> None:
         self.commit("fix(dialect): change")
         self.reports.wire = [(1, "", "Traceback\n")]
-        status, out, _ = self.plan()
+        status, out, _ = self.plan("v1.0.1")
         self.assert_breach(status, out, "check_wire_compat.py exited 1: Traceback")
 
     def test_an_id_given_another_name_is_breaking(self) -> None:
         self.commit("fix(dialect): rename", dialect({53000: "RENAMED"}, {45000: "MAV_CMD_B"}))
-        self.plan()
+        self.plan("v2.0.0")
         self.assertEqual(self.result()["id_reuse"], ["message 53000 was ONE in v1.0.0, is RENAMED"])
         self.assertEqual(self.result()["version"], "2.0.0")
 
@@ -534,7 +525,7 @@ class LaterReleaseTest(PlanTestCase):
         ]
         self.publish("v1.0.0", xml=b"<other/>")
         self.commit("fix(dialect): describe")
-        status, out, _ = self.plan()
+        status, out, _ = self.plan("v1.0.1")
         self.assert_breach(
             status, out, "v1.0.0: its military.xml asset does not match its SHA256SUMS and tag"
         )
@@ -546,12 +537,13 @@ class LaterReleaseTest(PlanTestCase):
             {"tag_name": "nightly", "draft": False, "prerelease": False},
         ]
         self.commit("fix(dialect): describe")
-        self.plan()
-        self.assertEqual(self.result()["version"], "1.0.1")
+        status, out, _ = self.plan("v1.0.1")
+        self.assertEqual(status, 0, out)
+        self.assertEqual(self.result()["previous"]["tag"], "v1.0.0")
 
     def test_a_published_release_whose_tag_is_missing_fails(self) -> None:
         self.releases.append({"tag_name": "v1.5.0", "draft": False, "prerelease": False})
-        status, out, _ = self.plan()
+        status, out, _ = self.plan("v1.0.1")
         self.assert_breach(
             status, out, "release v1.5.0 is published but its tag is not in this checkout"
         )
@@ -561,7 +553,7 @@ class LaterReleaseTest(PlanTestCase):
         self.gh.on("api", f"repos/{REPO}/releases?per_page=100&page=2", stdout=self.releases)
         self.releases = page
         self.commit("fix(dialect): describe")
-        status, out, _ = self.plan()
+        status, out, _ = self.plan("v1.0.1")
         self.assertEqual(status, 0, out)
         self.assertEqual(self.result()["previous"]["tag"], "v1.0.0")
 
@@ -598,7 +590,7 @@ class LaterReleaseTest(PlanTestCase):
         self.reports.wire = [(0, CLEAN + "\n", "")] * 1 + [
             (0, "BREAKING: message 1 X: retyped\nv\n", ""), (0, "INFO: message 2 Y added\nv\n", ""), (0, "v\n", ""),
         ]  # fmt: skip
-        status, out, _ = self.plan()
+        status, out, _ = self.plan("v2.0.0")
         self.assertEqual(status, 0, out)
         plan = self.result()
         self.assertEqual(
@@ -735,7 +727,7 @@ class UnitTest(unittest.TestCase):
 
     def test_a_plan_without_github_output_prints_only(self) -> None:
         result = {"warnings": [], "pin_notes": [], "policy": {"mismatches": []}, "previous": None,
-                  "tag": "v0.0.0", "mode": "rehearsal", "publish": False}  # fmt: skip
+                  "tag": "v0.1.0", "publish": False}  # fmt: skip
         with tempfile.TemporaryDirectory() as out, mock.patch.object(
             rp, "plan", return_value=result
         ), mock.patch.dict(os.environ):
@@ -744,7 +736,7 @@ class UnitTest(unittest.TestCase):
             with contextlib.redirect_stdout(stdout):
                 self.assertEqual(rp.main(["release_plan.py", out]), 0)
         self.assertEqual(
-            stdout.getvalue(), "v0.0.0 (rehearsal), previous release none, publish False\n"
+            stdout.getvalue(), "v0.1.0, previous release none, publish False\n"
         )
 
     def test_runs_as_a_script(self) -> None:

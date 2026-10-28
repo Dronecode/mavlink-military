@@ -52,7 +52,7 @@ sha256sum --check --ignore-missing SHA256SUMS
 | `--predicate-type` | The SLSA Provenance v0.2 format the generator writes; gh looks for v1 by default and finds nothing without this flag. |
 | `--deny-self-hosted-runners` | A GitHub-hosted runner built the file. |
 
-Keep `--source-ref` and `--source-digest`. A pull request's run in this repository can also obtain a signature from the same generator, naming this repository as its source; only the release tag and its commit tie a file to a release.
+Keep `--source-ref` and `--source-digest`. Another workflow run in this repository, such as one a pull request adds, could also obtain a signature from the same generator, naming this repository as its source; only the release tag and its commit tie a file to a release.
 
 To pin the generator's tag as well as its commit, replace `--signer-workflow "$GEN"` with `--cert-identity "https://github.com/$GEN@refs/tags/v2.1.0"` and keep `--signer-digest`; gh does not take the two flags together.
 

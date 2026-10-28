@@ -302,7 +302,6 @@ def assemble(paths: dict[str, Path], plan: dict, env: dict, send=osv.post) -> di
         "tag": plan["tag"],
         "commit": plan["commit"],
         "tree": plan["tree"],
-        "mode": plan["mode"],
         "repository": plan["repository"],
         "run": run_record(env),
         "jobs": results,
@@ -341,7 +340,7 @@ def assemble(paths: dict[str, Path], plan: dict, env: dict, send=osv.post) -> di
 
 
 def summary(plan: dict, result: dict) -> str:
-    lines = [f"## {plan['tag']} ({plan['mode']})", "", f"Commit `{plan['commit']}`.", ""]
+    lines = [f"## {plan['tag']}", "", f"Commit `{plan['commit']}`.", ""]
     lines.append(
         f"The two package builds agree: {result['reproducible']['files']} files, SHA256SUMS {result['reproducible']['sums_sha256']}."
     )

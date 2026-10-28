@@ -89,7 +89,7 @@ class AssembleCase(unittest.TestCase):
         git(self.repo, "commit", "-q", "-m", "fixture")
         commit = git(self.repo, "rev-parse", "HEAD")
         self.plan = {
-            "schema": 1, "version": V, "tag": f"v{V}", "commit": commit, "tree": "t" * 40, "mode": "rehearsal",
+            "schema": 1, "version": V, "tag": f"v{V}", "commit": commit, "tree": "t" * 40,
             "repository": "example/mavlink-military", "source_date_epoch": 1700000000, "decision": None,
             "pins": {"mavlink": "a" * 40, "pymavlink": "b" * 40}, "previous": None,
             "generator": {"repository": "example/one", "commit": "b" * 40, "reports_version": None},
@@ -99,7 +99,7 @@ class AssembleCase(unittest.TestCase):
                          "assisted_by": []}],
             "dialect": {"version": "3", "previous": None, "dialect": "0", "previous_dialect": None},
             "pin_notes": [],
-            "policy": {"required": None, "breaches": [], "mismatches": []},
+            "policy": {"required": None, "mismatches": []},
             "wire": None, "closure": None, "generator_change": None, "id_reuse": [],
         }  # fmt: skip
         self.a, self.b = self.leg("a"), self.leg("b")
@@ -223,7 +223,7 @@ class AssembleTest(AssembleCase):
         )
         self.assertIn("SPDXRef-Package-fastcrc", {p["SPDXID"] for p in sbom["packages"]})
         notes = (self.out / f"mavlink-m-{V}-notes.md").read_text()
-        self.assertIn("This is a rehearsal", notes)
+        self.assertIn(f"Release v{V} of the MAVLink-M dialect", notes)
         self.assertIn(
             "`MAVLINK_MAX_PACKET_LEN` is 287; HEARTBEAT's `mavlink_version` on the wire is 3", notes
         )
@@ -461,7 +461,7 @@ class MainTest(AssembleCase):
         self.assertTrue(
             lines[0].startswith("subjects=") and lines[1].startswith("subjects_sha256=")
         )
-        self.assertIn(f"## v{V} (rehearsal)", step.read_text())
+        self.assertIn(f"## v{V}\n", step.read_text())
 
     def test_no_outputs_without_their_files(self) -> None:
         with mock.patch.dict(os.environ):

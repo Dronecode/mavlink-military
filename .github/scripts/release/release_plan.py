@@ -5,10 +5,8 @@ Usage: release_plan.py <out>
   out  directory for plan.json, created if missing
 
 Run from a checkout of this repository with its full history and tags, as the
-release workflow's preflight job does. The GitHub Actions variables decide what
-the run is: a push of a version tag vX.Y.Z is that release, and anything else
-(a pull request, a manual run, a tag anywhere outside Dronecode main) is a
-rehearsal of the next version the changes call for, or of the tag it runs on.
+release workflow's preflight job does, for the push of a version tag vX.Y.Z:
+the release of that tag. Any other run is refused.
 
 A release must pass, in this order: the tag is an annotated tag of the form
 vX.Y.Z and names the checked-out commit; the checkout is not shallow; the
@@ -24,15 +22,12 @@ extension-only or added row, a new row upstream, a change of military.xml's
 call for a major, minor or patch bump; before 1.0.0 a breaking change calls for
 a minor bump and anything else for a patch. The version must be one of the
 previous release's successors at that level or above, and above every release.
-A rehearsal reports breaches as warnings; a release stops on the first.
+Any breach stops the plan.
 
 The previous release is the highest final release published on GitHub whose
 tag is an ancestor of the commit and below the version; its military.xml asset
 must match both its SHA256SUMS and the tag's blob. Its absence makes this the
 first release, which may take any version.
-
-A rehearsal before the first release names its version 0.0.0, which no
-release can take after a real one, so nothing here fixes the first version.
 
 The run may publish only if, independently of the workflow's own condition,
 the repository is RELEASE_UPSTREAM (default Dronecode/mavlink-military) and the
@@ -502,15 +497,12 @@ def plan(env: dict[str, str]) -> dict:
     repo = env["GITHUB_REPOSITORY"]
     head = git("rev-parse", "HEAD").strip()
     tag = env.get("GITHUB_REF_NAME", "") if env.get("GITHUB_REF_TYPE") == "tag" else ""
-    release = env.get("GITHUB_EVENT_NAME") == "push" and bool(tag)
-    decision = release_checks(tag, head) if release else None
-    target = Version.parse(tag) if tag else None
-    if tag and target is None:
-        raise PlanError(f"{tag!r} is no release tag of the form vX.Y.Z")
+    if env.get("GITHUB_EVENT_NAME") != "push" or not tag:
+        raise PlanError("a release plan runs only for the push of a version tag vX.Y.Z")
+    decision = release_checks(tag, head)
+    target = Version.parse(tag)
     known = [r for r in published_releases(repo) if r.version != target]
-    earlier = [
-        r for r in known if is_ancestor(r.commit, head) and (target is None or r.version < target)
-    ]
+    earlier = [r for r in known if is_ancestor(r.commit, head) and r.version < target]
     previous = earlier[-1] if earlier else None
     current = pins()
     generator_repo = generator_repository()
@@ -543,11 +535,8 @@ def plan(env: dict[str, str]) -> dict:
         if previous and classes
         else None
     )
-    if target is None:
-        # A rehearsal of the next version; before the first release, 0.0.0.
-        target = successors(previous.version)[required or "patch"] if previous else Version(0, 0, 0)
     breaches = check_policy(target, previous, required, known, head)
-    if breaches and release:
+    if breaches:
         raise PlanError("; ".join(breaches))
     marked = any(c.breaking for c in found)
     tool_breaks = bool(
@@ -562,7 +551,6 @@ def plan(env: dict[str, str]) -> dict:
         )
     return {
         "schema": 1,
-        "mode": "release" if release else "rehearsal",
         "publish": publishing(env),
         "repository": repo,
         "version": str(target),
@@ -576,7 +564,7 @@ def plan(env: dict[str, str]) -> dict:
         "generator": generator_identity(generator_repo, current["pymavlink"]),
         "pin_notes": notes,
         "dialect": fields,
-        "policy": {"required": required, "breaches": breaches, "mismatches": mismatches},
+        "policy": {"required": required, "mismatches": mismatches},
         "changes": [
             {"commit": c.commit, "subject": c.subject, "kind": c.kind, "change": c.change,
              "signed_off": c.signed_off, "assisted_by": list(c.assisted)}
@@ -586,7 +574,7 @@ def plan(env: dict[str, str]) -> dict:
         "closure": closure,
         "generator_change": generator,
         "id_reuse": reused,
-        "warnings": warnings + breaches,
+        "warnings": warnings,
     }
 
 
@@ -610,7 +598,7 @@ def main(argv: list[str]) -> int:
         print(f"::warning title=release plan::{warning}")
     previous = result["previous"]["tag"] if result["previous"] else "none"
     print(
-        f"{result['tag']} ({result['mode']}), previous release {previous}, publish {result['publish']}"
+        f"{result['tag']}, previous release {previous}, publish {result['publish']}"
     )
     output = os.environ.get("GITHUB_OUTPUT")
     if output:
