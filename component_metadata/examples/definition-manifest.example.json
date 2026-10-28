@@ -6,7 +6,7 @@
     {
       "role": "dialect",
       "uri": "https://example.org/mavlink-m/definitions/0.1.0-draft/military.xml",
-      "sha256": "3fa29a21e67c94d49355979b270cc136f79a1157e9d24e75702d122b9725c5ce"
+      "sha256": "96d66fdba08d1697dd7e9033611b7dcec4f12f6cb8aa6f10d6f8a8bd7eab0e16"
     },
     {
       "role": "included-dialect",
