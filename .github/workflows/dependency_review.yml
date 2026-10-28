@@ -37,9 +37,12 @@ jobs:
           # "MPL-2.0 OR Apache-2.0" passes through Apache-2.0.
           allow-licenses: MIT, ISC, BSD-2-Clause, BSD-3-Clause, Apache-2.0, CC0-1.0, Unlicense, PSF-2.0, 0BSD
           # elkjs, mermaid's layout engine, is EPL-2.0: weak copyleft at
-          # the file level, and the site ships it unmodified. Named alone,
-          # so any other package under a license outside the list fails.
-          allow-dependencies-licenses: pkg:npm/elkjs
+          # the file level, and the site ships it unmodified.
+          # typing-extensions declares PSF-2.0 on PyPI, but GitHub reads
+          # its license file's history as Python-2.0 AND GPL-1.0-or-later
+          # AND others; it installs only into CI. Each is named alone, so
+          # any other package under a license outside the list fails.
+          allow-dependencies-licenses: pkg:npm/elkjs, pkg:pypi/typing-extensions
           # No call to a service outside GitHub, and no pull request
           # comment, which would need a write token.
           show-openssf-scorecard: false
