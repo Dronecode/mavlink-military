@@ -4,6 +4,8 @@ name: Lint CI Workflows
 # (expression types, runner labels, shellcheck on run blocks), shellcheck
 # for the helper scripts in .github/scripts, and zizmor for security
 # problems (persisted credentials, template injection, unpinned actions).
+# It also runs the release scripts' unit tests under their coverage gate, so
+# a change that breaks the release path fails before a tag is pushed.
 # zizmor reads its waivers from .github/zizmor.yml. Dependabot does not
 # see the release pins below; bump them by hand with their checksums.
 
@@ -99,3 +101,35 @@ jobs:
         run: |
           python3 -m pip install --quiet --require-hashes --only-binary :all: --no-deps -r .github/requirements/zizmor.txt
           zizmor --no-progress .
+
+  release-tests:
+    name: Release scripts' tests (100% line and branch coverage)
+    # release.yml, which calls this workflow, runs the same tests in its own
+    # test job and keeps their record; a called workflow takes its caller's
+    # name in github.workflow.
+    if: github.workflow == 'Lint CI Workflows'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up MAVLink generation tooling
+        uses: ./.github/actions/setup-mavlink-tooling
+
+      - name: Install the hash-locked test tools
+        run: |
+          python3 -m pip install --quiet --require-hashes --only-binary :all: --no-deps \
+            -r .github/requirements/test.txt
+
+      - name: Run the tests under the coverage gate
+        env:
+          MAVLINK_DIR: ${{ github.workspace }}/mavlink
+          PYMAVLINK_DIR: ${{ github.workspace }}/pymavlink
+        run: |
+          python3 -m coverage run --branch --data-file="$RUNNER_TEMP/.coverage" \
+            --source=.github/scripts/release --omit='*/tests/*' \
+            -m unittest discover --start-directory .github/scripts/release/tests --verbose
+          python3 -m coverage report --data-file="$RUNNER_TEMP/.coverage" --show-missing --fail-under=100
