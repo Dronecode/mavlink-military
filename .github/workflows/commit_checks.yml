@@ -33,3 +33,7 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: .github/scripts/commit_checks/check_commits.sh "$BASE_SHA..$HEAD_SHA"
+
+      - name: Script tests
+        if: ${{ !cancelled() }}
+        run: python3 -m unittest discover --start-directory .github/scripts/commit_checks/tests --verbose

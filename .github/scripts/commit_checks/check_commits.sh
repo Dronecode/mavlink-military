@@ -9,6 +9,10 @@
 # Every subject needs a scope. For ci it is a workflow basename under
 # .github/workflows; otherwise an upper-case scope must be defined in
 # military.xml or military_extensions.xml, or a lower-case one is an area.
+#
+# A squash merge on GitHub appends " (#<number>)" to the pull request's
+# title, which the title check measures on its own, so a commit that
+# GitHub committed is measured without that suffix.
 
 set -eu
 
@@ -33,6 +37,7 @@ report() {
 }
 
 check() {
+	# $1 = label, $2 = subject, $3 = committer email (commits only)
 	label=$1
 	subject=$2
 
@@ -40,7 +45,11 @@ check() {
 	'Revert "'*) return ;;
 	esac
 
-	if [ "${#subject}" -gt 72 ]; then
+	measured=$subject
+	if [ "${3:-}" = "noreply@github.com" ]; then
+		measured=$(printf '%s\n' "$subject" | sed 's/ (#[0-9][0-9]*)$//')
+	fi
+	if [ "${#measured}" -gt 72 ]; then
 		report "$label" "$subject" "longer than 72 characters"
 	fi
 
@@ -80,9 +89,9 @@ else
 	[ $# -eq 1 ] || { echo "usage: $0 <revision-range> | --title <title>" >&2; exit 2; }
 	list=$(mktemp)
 	trap 'rm -f "$list"' EXIT
-	git log --no-merges --format='%h %s' "$1" >"$list"
-	while read -r sha subject; do
-		check "$sha" "$subject"
+	git log --no-merges --format='%h %ce %s' "$1" >"$list"
+	while read -r sha committer subject; do
+		check "$sha" "$subject" "$committer"
 	done <"$list"
 fi
 
