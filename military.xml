@@ -104,12 +104,12 @@
 
     Official shared growth
       53062-53089 reserved for future shared messages in the initial compact
-      block, 53095-53099 reserved for future shared MAV_CMD entries, and
+      block, 53094-53099 reserved for future shared MAV_CMD entries, and
       53109-53899 reserved for future shared MAVLink-M allocations.
 
-    MAV_CMD entries (53090-53094):
-      STORE_ARM (deprecated), STORE_RUN_BIT, STORE_REQUEST_STATUS,
-      STORE_SET_DECEL_THRESHOLD, STORE_SAFE
+    MAV_CMD entries (53090-53093):
+      STORE_SAFE, STORE_RUN_BIT, STORE_REQUEST_STATUS,
+      STORE_SET_DECEL_THRESHOLD
 
     Private/downstream implementation block (53900-53999)
       Reserved for unshared implementor-specific messages carried in downstream
@@ -1228,16 +1228,15 @@
     <!-- ===== MAV_CMD additions (extends common MAV_CMD) ===== -->
     <enum name="MAV_CMD">
       <description>MAVLink-M store-handling commands. Sent via COMMAND_LONG/COMMAND_INT; responses via COMMAND_ACK.</description>
-      <entry value="53090" name="MAV_CMD_MAVLINK_M_STORE_ARM">
-        <deprecated since="2026-10" replaced_by="MAV_CMD_MAVLINK_M_STORE_SAFE">Its param 2 is not a codeword: a cleared value reads as a safe and one changed bit as an arm.</deprecated>
-        <description>Safe a store's ESAD. A command carries no time_usec, so no stop can be ordered against an arm sent this way (SAFETY BOUNDARIES): receivers answer an arm with MAV_RESULT_DENIED, and ESAD_ARMING arms.</description>
-        <param index="1" label="Store ID">Target store instance (0 = every store on the receiving system).</param>
-        <param index="2" label="Arm">0 = safe/disarm. 1 = arm, which receivers deny; arm with ESAD_ARMING.</param>
-        <param index="3" label="Challenge Hash">Ignored: a safe applies whatever the ESAD challenge holds, as an ESAD_ARMING DISARM does.</param>
-        <param index="4">Reserved (0).</param>
-        <param index="5">Reserved (0).</param>
-        <param index="6">Reserved (0).</param>
-        <param index="7">Reserved (0).</param>
+      <entry value="53090" name="MAV_CMD_MAVLINK_M_STORE_SAFE">
+        <description>Safe a store's ESAD. A command carries no time_usec, so no stop can be ordered against an arm sent this way (SAFETY BOUNDARIES): this command only safes, and ESAD_ARMING arms. A safe is a stop for the records of SAFETY BOUNDARIES, so an arm issued before it arrived is held. A receiver answers MAV_RESULT_DENIED to one whose param 2 is not MAVLINK_M_ESAD_REQUEST_DISARM, records the refusal as a stop and leaves the store's arming as it was, and answers MAV_RESULT_FAILED to one whose param 1 selects no store on the receiving system. A sender that sent MAVLINK_M_ESAD_REQUEST_DISARM and gets MAV_RESULT_DENIED sends the command again, up to the number of times set for the network and only while it has given no later command for that store, since a value changed on the way is the only reason this command is denied, and confirms the safe from STORE_STATUS or ESAD_STATE.</description>
+        <param index="1" label="Store ID">Target store instance, as in an ESAD_ARMING DISARM's store_id: 0 = every store on the receiving system.</param>
+        <param index="2" label="Request" enum="MAVLINK_M_ESAD_ARMING_REQUEST">MAVLINK_M_ESAD_REQUEST_DISARM, sent as that value in a float and compared as a float for exact equality before any rounding or conversion to an integer. Any other value, MAVLINK_M_ESAD_REQUEST_ARM, MAVLINK_M_ESAD_REQUEST_NONE, NaN and a value with a fractional part included, is refused and must not be corrected into a defined request.</param>
+        <param index="3" reserved="true" default="NaN" />
+        <param index="4" reserved="true" default="NaN" />
+        <param index="5" reserved="true">Reserved. INT32_MAX (COMMAND_INT or MISSION_ITEM_INT) or NaN (COMMAND_LONG).</param>
+        <param index="6" reserved="true">Reserved. INT32_MAX (COMMAND_INT or MISSION_ITEM_INT) or NaN (COMMAND_LONG).</param>
+        <param index="7" reserved="true" default="NaN" />
       </entry>
       <entry value="53091" name="MAV_CMD_MAVLINK_M_STORE_RUN_BIT">
         <description>Run a built-in self-test (BIT) on a store. Never sent with target_system 0; receivers ignore one that is.</description>
@@ -1268,16 +1267,6 @@
         <param index="5">Reserved (0).</param>
         <param index="6">Reserved (0).</param>
         <param index="7">Reserved (0).</param>
-      </entry>
-      <entry value="53094" name="MAV_CMD_MAVLINK_M_STORE_SAFE">
-        <description>Safe a store's ESAD. A command carries no time_usec, so no stop can be ordered against an arm sent this way (SAFETY BOUNDARIES): this command only safes, and ESAD_ARMING arms. A safe is a stop for the records of SAFETY BOUNDARIES, so an arm issued before it arrived is held. A receiver answers MAV_RESULT_DENIED to one whose param 2 is not MAVLINK_M_ESAD_REQUEST_DISARM, records the refusal as a stop and leaves the store's arming as it was, and answers MAV_RESULT_FAILED to one whose param 1 selects no store on the receiving system. A sender that sent MAVLINK_M_ESAD_REQUEST_DISARM and gets MAV_RESULT_DENIED sends the command again, up to the number of times set for the network and only while it has given no later command for that store, since a value changed on the way is the only reason this command is denied, and confirms the safe from STORE_STATUS or ESAD_STATE.</description>
-        <param index="1" label="Store ID">Target store instance, as in an ESAD_ARMING DISARM's store_id: 0 = every store on the receiving system.</param>
-        <param index="2" label="Request" enum="MAVLINK_M_ESAD_ARMING_REQUEST">MAVLINK_M_ESAD_REQUEST_DISARM, sent as that value in a float and compared as a float for exact equality before any rounding or conversion to an integer. Any other value, MAVLINK_M_ESAD_REQUEST_ARM, MAVLINK_M_ESAD_REQUEST_NONE, NaN and a value with a fractional part included, is refused and must not be corrected into a defined request.</param>
-        <param index="3" reserved="true" default="NaN" />
-        <param index="4" reserved="true" default="NaN" />
-        <param index="5" reserved="true">Reserved. INT32_MAX (COMMAND_INT or MISSION_ITEM_INT) or NaN (COMMAND_LONG).</param>
-        <param index="6" reserved="true">Reserved. INT32_MAX (COMMAND_INT or MISSION_ITEM_INT) or NaN (COMMAND_LONG).</param>
-        <param index="7" reserved="true" default="NaN" />
       </entry>
     </enum>
 
@@ -2011,7 +2000,7 @@
       <description>Electronic Safe and Arm Device (ESAD) telemetry for one ESAD instance on a store. Reports arming, munition, and ignition states, fault flags, and software identity. esad_id identifies the device; store_id identifies the physical bay/store.</description>
       <field type="uint64_t"  name="time_usec"         units="us"  >Timestamp (UNIX epoch, microseconds UTC).</field>
       <field type="uint8_t"   name="esad_id"                       >Vehicle-local ESAD instance identifier. Must be 1-254. 0 is invalid for ESAD_STATE, 255 is reserved. A command selects every ESAD with esad_id = 0 only in a DISARM, which checks no challenge (FIELD CONVENTIONS), so each ESAD advertises its own arming_challenge_hash.</field>
-      <field type="uint32_t"  name="arming_challenge_hash"         >Challenge for this ESAD instance, which an ARM or an ESAD_CONFIG must carry. The ESAD advertises a new value, one it has not advertised since the system last started, after every ESAD_ARMING, ESAD_CONFIG, MAV_CMD_MAVLINK_M_STORE_SAFE or MAV_CMD_MAVLINK_M_STORE_ARM it applies, a DISARM or safe that leaves it disarmed included, so an ARM or ESAD_CONFIG prepared before a later command no longer matches, whatever the clocks say, and does not apply; a repeat of a command the ESAD applied is still a duplicate (MAVLINK_M_ACK) and is answered as that command was, though its challenge no longer matches; a DISARM and a safe are never checked against it. No ESAD on a system advertises a value that another ESAD on that system advertises or has advertised since the system last started, so a selector changed on the way that names another ESAD carries a challenge that ESAD does not advertise. It ties a command to this state and is not secret.</field>
+      <field type="uint32_t"  name="arming_challenge_hash"         >Challenge for this ESAD instance, which an ARM or an ESAD_CONFIG must carry. The ESAD advertises a new value, one it has not advertised since the system last started, after every ESAD_ARMING, ESAD_CONFIG or MAV_CMD_MAVLINK_M_STORE_SAFE it applies, a DISARM or safe that leaves it disarmed included, so an ARM or ESAD_CONFIG prepared before a later command no longer matches, whatever the clocks say, and does not apply; a repeat of a command the ESAD applied is still a duplicate (MAVLINK_M_ACK) and is answered as that command was, though its challenge no longer matches; a DISARM and a safe are never checked against it. No ESAD on a system advertises a value that another ESAD on that system advertises or has advertised since the system last started, so a selector changed on the way that names another ESAD carries a challenge that ESAD does not advertise. It ties a command to this state and is not secret.</field>
       <field type="uint32_t"  name="fault_flags"       enum="MAVLINK_M_ESAD_FAULT_FLAGS">Active fault flag bitmask.</field>
       <field type="float"     name="input_1"                       >Analog/digital input 1 (implementation-defined). For the standard safety inputs use the typed fields below instead.</field>
       <field type="float"     name="input_2"                       >Analog/digital input 2 (implementation-defined). For the standard safety inputs use the typed fields below instead.</field>

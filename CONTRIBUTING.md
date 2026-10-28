@@ -61,7 +61,7 @@ write them for someone reading that log.
 Every commit has exactly one scope.
 
 - **A message, enum or command name**, copied exactly as it appears in the XML:
-  `TARGET_HANDOVER`, `MAVLINK_M_ACK_RESULT`, `MAV_CMD_MAVLINK_M_STORE_ARM`.
+  `TARGET_HANDOVER`, `MAVLINK_M_ACK_RESULT`, `MAV_CMD_MAVLINK_M_STORE_SAFE`.
   This keeps `git log --grep='(RWS_POSE)'` useful. For a message and its own
   enum, scope the message and mention the enum in the body. A new message uses
   its own name.

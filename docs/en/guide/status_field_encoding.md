@@ -215,8 +215,7 @@ Each enum kept its relative order, which was its old sequential numbering (the f
 - `TERMINAL_CONTROL.abort_authority_present` takes [ABORT_AUTHORITY](../messages/military.md#ABORT_AUTHORITY): its old 0 (not established) and 1 (established) now encode as 15 and 51, behind a new `UNKNOWN` at 0.
 - `CALL_FOR_FIRE.danger_close` and `CAS_9LINE.danger_close` take [DANGER_CLOSE](../messages/military.md#DANGER_CLOSE): their old 0 (not danger close) and 1 (danger close) now encode as 15 and 51, behind a new `UNKNOWN` at 0, which a receiver handles as danger close.
 
-`MAV_CMD_MAVLINK_M_STORE_SAFE` (53094) takes the `MAVLINK_M_ESAD_ARMING_REQUEST` value in param 2, so a receiver built before it answers `MAV_RESULT_UNSUPPORTED` instead of reading that value by an old meaning.
-[MAV_CMD_MAVLINK_M_STORE_ARM](../messages/military.md#MAV_CMD_MAVLINK_M_STORE_ARM) keeps its param 2 values, 0 to safe and 1 for an arm, which receivers deny, and is deprecated in its favour.
+`MAV_CMD_MAVLINK_M_STORE_SAFE` replaces `MAV_CMD_MAVLINK_M_STORE_ARM` at 53090. It only safes, and param 2 is the `MAVLINK_M_ESAD_ARMING_REQUEST` value `DISARM` (51), where `STORE_ARM` took 0 to safe and 1 to arm.
 
 The current values are always those in `military.xml`; this page does not repeat them per enum, so the two cannot drift apart.
 

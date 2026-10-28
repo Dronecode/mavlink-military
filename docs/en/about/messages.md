@@ -20,11 +20,10 @@ Arming, ignition and fault state for each Electronic Safe and Arm Device
 
 | Command | Number | What it does |
 | --- | --- | --- |
-| [MAV_CMD_MAVLINK_M_STORE_ARM](../messages/military.md#MAV_CMD_MAVLINK_M_STORE_ARM) | 53090 | Deprecated in favour of MAV_CMD_MAVLINK_M_STORE_SAFE. Safes a store's ESAD |
+| [MAV_CMD_MAVLINK_M_STORE_SAFE](../messages/military.md#MAV_CMD_MAVLINK_M_STORE_SAFE) | 53090 | Safes a store's ESAD, with the request as a codeword. Arming goes through ESAD_ARMING |
 | [MAV_CMD_MAVLINK_M_STORE_RUN_BIT](../messages/military.md#MAV_CMD_MAVLINK_M_STORE_RUN_BIT) | 53091 | Runs a built-in self-test on a store |
 | [MAV_CMD_MAVLINK_M_STORE_REQUEST_STATUS](../messages/military.md#MAV_CMD_MAVLINK_M_STORE_REQUEST_STATUS) | 53092 | Asks a store to push its status |
 | [MAV_CMD_MAVLINK_M_STORE_SET_DECEL_THRESHOLD](../messages/military.md#MAV_CMD_MAVLINK_M_STORE_SET_DECEL_THRESHOLD) | 53093 | Sets a store's deceleration or landing trigger threshold |
-| [MAV_CMD_MAVLINK_M_STORE_SAFE](../messages/military.md#MAV_CMD_MAVLINK_M_STORE_SAFE) | 53094 | Safes a store's ESAD, with the request as a codeword. Arming goes through ESAD_ARMING |
 
 ## Targeting and engagement
 
