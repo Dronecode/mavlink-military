@@ -132,7 +132,8 @@
       0x00 0x0F 0x33 0x3C 0x55 0x5A 0x66 0x69
       0x96 0x99 0xA5 0xAA 0xC3 0xCC 0xF0 0xFF
     A new entry uses a value from this set that the same enum has not yet
-    assigned. They are:
+    assigned, never 0xFF: erased memory reads 0xFF, as cleared memory reads
+    0x00, which every enum keeps for UNKNOWN, UNSPECIFIED or NONE. They are:
       - twenty-two safety-critical status, command and answer enums: ESAD
         arming, munition, ignition, pin, arm-delay and trigger-distance
         state, and the ESAD arming request; RWS arming state;
@@ -156,7 +157,8 @@
     positions, numbered from zero, XOR to zero: 2048 values with a minimum
     pairwise distance of four. The sixteen codewords up to 0x00FF are all
     assigned, so a new entry uses a codeword above 0x00FF, as 0x0303 (bits 0, 1,
-    8, and 9) and 0x030C (bits 2, 3, 8, and 9) do.
+    8, and 9) and 0x030C (bits 2, 3, 8, and 9) do, never 0xFFFF, which erased
+    memory reads.
 
     PAYLOAD_CAPABILITY_FLAGS is a bitmask and does not use this allocation.
 

@@ -93,6 +93,7 @@ The twenty-two enums in scope use this table:
 
 Order index 0 is wire value 0, and every in-scope enum reserves it for an `UNKNOWN`, `UNSPECIFIED` or `NONE` entry, as the FIELD CONVENTIONS require.
 A zero-filled reported field therefore decodes as unknown, never as a real state such as disarmed or safe, and a zero-filled commanded field decodes as a request for nothing, which [Commanded Values](#commanded-values) covers.
+Order index 15, wire value 255, is never assigned, because erased memory reads 255; a field read from erased memory is therefore not a valid value. An enum has at most 15 entries, 0 included.
 
 Any change of one to three bits to a codeword gives a byte that is not a codeword.
 A change of four or more bits can give another valid value, and every pair of values these enums use is four bits apart, such as 15 (`MAVLINK_M_ESAD_ARMING_DISARMED`) and 51 (`MAVLINK_M_ESAD_ARMING_ARMED`), except complementary codewords such as 60 and 195, which are eight bits apart.
