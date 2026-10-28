@@ -2,7 +2,7 @@
 
 ## Introduction
 
-MAVLink-M numbers most enums sequentially, so two valid values can differ in a single bit, as `MAVLINK_M_ESAD_ARMING_DISARMED` (0) and `MAVLINK_M_ESAD_ARMING_ARMED` (1) did.
+MAVLink-M numbers most enums sequentially, so two valid values can differ in a single bit.
 The packet [checksum](https://mavlink.io/en/guide/serialization.html#checksum) already detects any such change in transit, and this encoding neither replaces nor supplements it.
 
 The encoding targets faults the checksum can't see: on the sender before the checksum is computed, such as a bit flip in stored state or while the value is copied into the payload, and on the receiver after the checksum is validated, such as corruption in a buffer, queue or shared-memory copy.
@@ -59,15 +59,13 @@ Each in-scope field is either reported, carrying the sender's current state, or 
 | [MAVLINK_M_TASKING_STATUS](../messages/military.md#MAVLINK_M_TASKING_STATUS)                         | `SENSOR_TASKING.status`                                                                  |                                                                                                                            |
 | [MAVLINK_M_ACK_RESULT](../messages/military.md#MAVLINK_M_ACK_RESULT)                                 | `MAVLINK_M_ACK.result`                                                                   |                                                                                                                            |
 
-Producers and consumers of these fields inherit the new values.
-
 [TERMINAL_CONTROL](../messages/military.md#TERMINAL_CONTROL) and [LOITER_MUNITION_CONTROL](../messages/military.md#LOITER_MUNITION_CONTROL) travel both ways: an aircraft's call carries `clearance`, `tac_type` and `abort_authority_present` (`ABORT_AUTHORITY_UNKNOWN`, since the controller establishes the abort authority), and a munition's consent request carries `consent_state` and `terminate`, so the controller or human authority that receives them checks those fields the same way.
 
 Values are defined per enum: a value taken from another enum, such as a generic payload operation or health state, is mapped by entry name, never copied by number.
 
 ### Codewords
 
-Each in-scope enum is one `uint8_t` with at most 16 entries, except that param 2 of [MAV_CMD_MAVLINK_M_STORE_SAFE](../messages/military.md#MAV_CMD_MAVLINK_M_STORE_SAFE) carries a `MAVLINK_M_ESAD_ARMING_REQUEST` value as a float, compared exactly as that parameter's description says.
+Each in-scope enum is one `uint8_t` with at most 15 entries, except that param 2 of [MAV_CMD_MAVLINK_M_STORE_SAFE](../messages/military.md#MAV_CMD_MAVLINK_M_STORE_SAFE) carries a `MAVLINK_M_ESAD_ARMING_REQUEST` value as a float, compared exactly as that parameter's description says.
 Its entries use the 16 codewords of the extended Hamming[8,4,4] code (4 data bits, 3 Hamming parity bits and 1 overall parity bit), in ascending order.
 A new entry takes the next codeword its enum has not assigned and is listed after the existing entries, so no existing value changes.
 The twenty-two enums in scope use this table:
@@ -140,7 +138,7 @@ These requirements apply only to the twenty-two enums in scope.
 ### Reported Values
 
 A reported value that is not one of the enum's listed values is treated as unknown, as each enum's description requires.
-A byte that is not one of the 16 codewords comes from a fault, or from a peer on an older revision (see [Migrating From Sequential Values](#migrating-from-sequential-values)), and the same fault may have turned the message's other in-scope fields into other listed values, so a receiver:
+A byte that is not one of the 16 codewords comes from a fault, and the same fault may have turned the message's other in-scope fields into other listed values, so a receiver:
 
 - shows the message's in-scope fields as a detected invalid value, not as the enum's `UNKNOWN` entry or a `FAULT` the device reported, and acts on none of them
 - keeps the last listed value it accepted for each of those fields in view, marked as not current, until a report whose in-scope fields are all listed values arrives
@@ -191,34 +189,8 @@ A receiver behind a bridge or gateway can't tell a `FAULT` or `UNKNOWN` sent for
 
 A router that forwards frames unchanged, as [MAVLink routing](https://mavlink.io/en/guide/routing.html) requires, needs no step of its own: the sender's checksum still covers the value.
 
-## Migrating From Sequential Values
+## Dialect Revisions
 
-The new values are a deliberate breaking wire-format change for the twenty-two in-scope enums, and the codeword form of the store safe command is a new command, `MAV_CMD_MAVLINK_M_STORE_SAFE`; no other enum changes value.
-The dialect keeps message IDs stable once assigned, and its [contribution rules](https://github.com/Dronecode/mavlink-military/blob/main/CONTRIBUTING.md#breaking-changes) make renumbering an enum value a breaking change; this one is deliberate.
-
-Message lengths, field layouts and `CRC_EXTRA` don't change, because the [`CRC_EXTRA` calculation](https://mavlink.io/en/guide/serialization.html#crc_extra) covers the message name and each field's type and name, not enum values.
-A peer on the old values and a peer on the new ones therefore exchange the affected messages with no checksum or length error, and nothing in the frame tells the two apart:
-
-- a receiver on the new values reads every old 0 as `UNKNOWN` or `NONE`, so it refuses an old `DISARM` or `ABORT` addressed to it, which were 0, and does not act on one sent to every system (see [Commanded Values](#commanded-values)), and handles an old `danger_close` 0 as danger close. It refuses every other old commanded value and shows every other old reported value as a detected fault
-- a receiver on the old values reads the new `UNKNOWN` or `NONE` (0) of the eight enums whose old 0 was a real state as that state (`DISARMED`, `DISARM`, `NOT_PRESENT`, `OPEN`, `SAFE`, `ABORT`, the sensor health `NOT_PRESENT` or `RECEIVED`), and every other new value as out of range. A receiver on the old values that:
-  - tests `abort_authority_present` as a nonzero flag reads both of its new values as established
-  - tests `danger_close` as a nonzero flag reads both of its new values as danger close, the cautious reading, and an unset 0 as not danger close, as it does today
-  - compares `danger_close` with 1 reads every new value, `DANGER_CLOSE_YES` included, as not danger close
-  - treats any nonzero `arming_request` as an arm reads a new `DISARM` as an arm, and arms if that `DISARM` carries the challenge its ESAD advertises
-
-Both ends must therefore be built from the same dialect revision.
-
-Each enum kept its relative order, which was its old sequential numbering (the first-listed entry was 0, the second 1, and so on), except the two in the third item:
-
-- The twelve enums whose 0 was already `UNKNOWN`, `UNSPECIFIED` or `NONE` ([MAVLINK_M_ESAD_PIN_STATE](../messages/military.md#MAVLINK_M_ESAD_PIN_STATE), [MAVLINK_M_ESAD_ARM_DELAY_SETTING](../messages/military.md#MAVLINK_M_ESAD_ARM_DELAY_SETTING), [MAVLINK_M_ESAD_TRIGGER_DISTANCE_MODE](../messages/military.md#MAVLINK_M_ESAD_TRIGGER_DISTANCE_MODE), [MAVLINK_M_LM_CONSENT_STATE](../messages/military.md#MAVLINK_M_LM_CONSENT_STATE), [MAVLINK_M_LM_TERMINATE](../messages/military.md#MAVLINK_M_LM_TERMINATE), [MAVLINK_M_STORE_READINESS](../messages/military.md#MAVLINK_M_STORE_READINESS), [MAVLINK_M_CAS_CLEARANCE](../messages/military.md#MAVLINK_M_CAS_CLEARANCE), [MAVLINK_M_FIRE_MISSION_COMMAND](../messages/military.md#MAVLINK_M_FIRE_MISSION_COMMAND), [MAVLINK_M_TAC_TYPE](../messages/military.md#MAVLINK_M_TAC_TYPE), [MAVLINK_M_FIRE_CONTROL_METHOD](../messages/military.md#MAVLINK_M_FIRE_CONTROL_METHOD), [MAVLINK_M_SENSOR_MODE](../messages/military.md#MAVLINK_M_SENSOR_MODE) and [MAVLINK_M_TASKING_STATUS](../messages/military.md#MAVLINK_M_TASKING_STATUS)) use the old value as the order index. Old value 1 now encodes as 15, 2 as 51, and so on.
-- Six of the others ([MAVLINK_M_ESAD_ARMING_STATUS](../messages/military.md#MAVLINK_M_ESAD_ARMING_STATUS), [MAVLINK_M_ESAD_MUNITION_STATUS](../messages/military.md#MAVLINK_M_ESAD_MUNITION_STATUS), [MAVLINK_M_ESAD_IGNITION_STATUS](../messages/military.md#MAVLINK_M_ESAD_IGNITION_STATUS), [MAVLINK_M_RWS_ARMING_STATE](../messages/military.md#MAVLINK_M_RWS_ARMING_STATE), [MAVLINK_M_ENGAGEMENT_DIRECTIVE](../messages/military.md#MAVLINK_M_ENGAGEMENT_DIRECTIVE) and [MAVLINK_M_ACK_RESULT](../messages/military.md#MAVLINK_M_ACK_RESULT)) used 0 for a real state (`DISARMED`, `NOT_PRESENT`, `OPEN`, `SAFE`, `ABORT` and `RECEIVED`), so a cleared buffer or unset field read as that state. Each gained an `UNKNOWN` or `NONE` entry at 0, so old value `v` moves to order index `v + 1`: old 0 now encodes as 15, and old 1 as 51, as for `MAVLINK_M_ESAD_ARMING_ARMED`.
-- [MAVLINK_M_ESAD_ARMING_REQUEST](../messages/military.md#MAVLINK_M_ESAD_ARMING_REQUEST) gained `NONE` at 0 as well and lists `ARM` before `DISARM`, so `ARM` is 15 and `DISARM` is 51; [MAVLINK_M_SENSOR_HEALTH](../messages/military.md#MAVLINK_M_SENSOR_HEALTH) gained `UNKNOWN` at 0 and lists `OK`, `DEGRADED` and `FAULT` first (15, 51 and 60), then `NOT_PRESENT`, `CALIBRATING` and `OUT_OF_RANGE` (85, 90 and 102).
-- `TERMINAL_CONTROL.abort_authority_present` takes [ABORT_AUTHORITY](../messages/military.md#ABORT_AUTHORITY): its old 0 (not established) and 1 (established) now encode as 15 and 51, behind a new `UNKNOWN` at 0.
-- `CALL_FOR_FIRE.danger_close` and `CAS_9LINE.danger_close` take [DANGER_CLOSE](../messages/military.md#DANGER_CLOSE): their old 0 (not danger close) and 1 (danger close) now encode as 15 and 51, behind a new `UNKNOWN` at 0, which a receiver handles as danger close.
-
-`MAV_CMD_MAVLINK_M_STORE_SAFE` replaces `MAV_CMD_MAVLINK_M_STORE_ARM` at 53090. It only safes, and param 2 is the `MAVLINK_M_ESAD_ARMING_REQUEST` value `DISARM` (51), where `STORE_ARM` took 0 to safe and 1 to arm.
-
-The current values are always those in `military.xml`; this page does not repeat them per enum, so the two cannot drift apart.
-
-The entries other than `UNKNOWN` and `MANUAL` of `MAVLINK_M_ESAD_ARM_DELAY_SETTING` and `MAVLINK_M_ESAD_TRIGGER_DISTANCE_MODE` are renamed to device-defined numbered settings: `MAVLINK_M_ESAD_ARM_DELAY_SETTING_1` to `_3`, and `MAVLINK_M_ESAD_TRIG_DIST_STANDOFF_1` and `_2`, with `MAVLINK_M_ESAD_TRIG_DIST_MANUAL` unchanged.
-Order is preserved, so the old entry at order index n is now `SETTING_n` or `STANDOFF_n`, and each entry's description says its delay or standoff is defined in the device ICD.
+The [`CRC_EXTRA` calculation](https://mavlink.io/en/guide/serialization.html#crc_extra) covers the message name and each field's type and name, not enum values.
+Peers built from revisions with different enum values exchange messages with no checksum or length error, and nothing in the frame tells them apart.
+Both ends must be built from the same dialect revision.
