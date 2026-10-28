@@ -27,8 +27,8 @@ those schemas state but their structure cannot enforce.
 A capabilityProfileRef is resolved to the profile example with the same
 profileId and profileVersion, as check_example_digests.py resolves it.
 
-Requires jsonschema, at the version pinned in requirements.txt beside this
-script.
+Requires jsonschema, at the version .github/requirements/validate_dialect.txt
+locks.
 
 Usage: check_example_schemas.py [<repository root>]
 """
