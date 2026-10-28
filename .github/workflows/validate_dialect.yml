@@ -77,7 +77,9 @@ jobs:
 
       - name: Install the checkers' Python packages
         # check_example_schemas.py, and so its tests, import jsonschema.
-        run: python3 -m pip install --quiet -r .github/scripts/validate_dialect/requirements.txt
+        run: |
+          python3 -m pip install --quiet --require-hashes --only-binary :all: --no-deps \
+            -r .github/requirements/validate.txt
 
       - name: Run the unit tests of the check scripts
         env:
@@ -183,7 +185,7 @@ jobs:
 
   example-digests:
     name: Metadata example digests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Check out this repository
@@ -198,7 +200,7 @@ jobs:
 
   example-schemas:
     name: Metadata example schemas
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Check out this repository
@@ -209,10 +211,12 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: "3.x"
+          python-version: "3.12.15"
 
       - name: Install the checkers' Python packages
-        run: python3 -m pip install --quiet -r .github/scripts/validate_dialect/requirements.txt
+        run: |
+          python3 -m pip install --quiet --require-hashes --only-binary :all: --no-deps \
+            -r .github/requirements/validate.txt
 
       - name: Validate the metadata examples against their schemas
         # Also checks the uniqueness and reference rules the schemas state
