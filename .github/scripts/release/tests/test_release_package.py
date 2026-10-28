@@ -218,11 +218,12 @@ class BuildTest(Fixture):
 
     def test_the_c_facts_are_measured(self) -> None:
         # The values the compiled probe prints at the pinned generator: military.xml's
-        # <version> becomes MAVLINK_VERSION, and the 32-bit system ID extension makes the
-        # message struct 298 bytes and the largest frame 287 (255 payload, 12 header and
-        # checksum, 7 extension and 13 signature bytes).
+        # <version> becomes MAVLINK_VERSION, or the generator's default of 2 when it has
+        # none, and the 32-bit system ID extension makes the message struct 298 bytes and
+        # the largest frame 287 (255 payload, 12 header and checksum, 7 extension and 13
+        # signature bytes).
         table = json.loads((self.out / "mavlink-m-9.9.9-wire.json").read_text())
-        version = int(ET.fromstring((REPO / "military.xml").read_bytes()).findtext("version"))
+        version = int(ET.fromstring((REPO / "military.xml").read_bytes()).findtext("version") or 2)
         self.assertEqual(
             table["c"],
             {"MAVLINK_VERSION": version, "sizeof_mavlink_message_t": 298,
