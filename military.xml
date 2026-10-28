@@ -119,23 +119,37 @@
       shared growth range above.
 
   PROTECTED ENUM VALUE ALLOCATION
-    The safety-related PAYLOAD_* enums listed below keep a minimum pairwise
-    Hamming distance of four between defined values, as each enum's description
-    states. Values are allocated independently for each enum; using a value in
-    one enum does not reserve it in another.
+    The safety-related enums listed below keep a minimum pairwise Hamming
+    distance of four between defined values, as each enum's description
+    states; FIELD CONVENTIONS says what this protects against and where the
+    receiver and sender rules are. Values are allocated independently for
+    each enum; using a value in one enum does not reserve it in another. Any
+    other enum keeps sequential values unless its own description gives a
+    minimum pairwise Hamming distance between its values.
 
-    8-bit enums (PAYLOAD_ACTIVATION_PATTERN, PAYLOAD_ACTIVATION_STATE,
-    PAYLOAD_CHANGE_SOURCE, PAYLOAD_SELF_ACTIVATION, PAYLOAD_OPERATION,
-    PAYLOAD_OPERATION_STAGE, PAYLOAD_TIME_BASIS, PAYLOAD_AVAILABILITY,
-    PAYLOAD_HEALTH, PAYLOAD_DATA_QUALITY, PAYLOAD_RESOURCE_STATE,
-    PAYLOAD_INHIBIT_STATE, PAYLOAD_INHIBIT_MEASUREMENT_ROLE,
-    PAYLOAD_MEASUREMENT_VALIDITY, PAYLOAD_CATALOGUE_STATE) take values from this
-    extended-Hamming codebook, in which every pair differs in at least four
-    bits:
+    8-bit enums take values from this extended-Hamming codebook, in which
+    every pair differs in at least four bits:
       0x00 0x0F 0x33 0x3C 0x55 0x5A 0x66 0x69
       0x96 0x99 0xA5 0xAA 0xC3 0xCC 0xF0 0xFF
     A new entry uses a value from this set that the same enum has not yet
-    assigned.
+    assigned. They are:
+      - twenty-two safety-critical status, command and answer enums: ESAD
+        arming, munition, ignition, pin, arm-delay and trigger-distance
+        state, and the ESAD arming request; RWS arming state;
+        loitering-munition consent and terminate; store readiness and store
+        sensor health; engagement directive; CAS clearance, terminal attack
+        control type and abort authority; fire-mission command and
+        call-for-fire method of control; the danger-close declaration of a
+        call for fire or CAS brief; sensor mode and tasking status; and the
+        MAVLINK_M_ACK result. Param 2 of MAV_CMD_MAVLINK_M_STORE_SAFE carries
+        a MAVLINK_M_ESAD_ARMING_REQUEST codeword.
+      - the generic payload service's PAYLOAD_ACTIVATION_PATTERN,
+        PAYLOAD_ACTIVATION_STATE, PAYLOAD_CHANGE_SOURCE,
+        PAYLOAD_SELF_ACTIVATION, PAYLOAD_OPERATION, PAYLOAD_OPERATION_STAGE,
+        PAYLOAD_TIME_BASIS, PAYLOAD_AVAILABILITY, PAYLOAD_HEALTH,
+        PAYLOAD_DATA_QUALITY, PAYLOAD_RESOURCE_STATE, PAYLOAD_INHIBIT_STATE,
+        PAYLOAD_INHIBIT_MEASUREMENT_ROLE, PAYLOAD_MEASUREMENT_VALIDITY and
+        PAYLOAD_CATALOGUE_STATE.
 
     PAYLOAD_OPERATION_RESULT is a 16-bit field. Its values are codewords of the
     extended-Hamming code whose codewords have even parity and whose set-bit
@@ -167,30 +181,23 @@
     - Enums reserve value 0 for an UNKNOWN / UNSPECIFIED / NONE state, so a
       zero-filled (unset, trailing-zero-truncated) field never decodes as a
       substantive default the sender did not choose.
-    - Twenty-two safety-critical status, command and answer enums (ESAD
-      arming, munition, ignition, pin, arm-delay and trigger-distance state,
-      and the ESAD arming request; RWS arming state; loitering-munition
-      consent and terminate; store readiness and store sensor health;
-      engagement directive; CAS clearance, terminal attack control type and
-      abort authority; fire-mission command and call-for-fire method of
-      control; the danger-close declaration of a call for fire or CAS brief;
-      sensor mode and tasking status; the MAVLINK_M_ACK result) use extended
-      Hamming[8,4,4] codewords instead of sequential values, as does param 2
-      of MAV_CMD_MAVLINK_M_STORE_SAFE. Any two valid values differ in at
-      least four bits, so a change of one to three bits to a valid value
-      yields a byte that is not a valid value. This targets corruption the
-      packet CRC cannot see (before the sender computes it, or after the
-      receiver validates it). It does not reject every corrupted value, it
-      does not protect against a message deliberately changed or replayed,
-      which message signing (SAFETY BOUNDARIES) is for, and the dialect does
-      not itself implement the required receiver check. See
+    - The enums that PROTECTED ENUM VALUE ALLOCATION lists use
+      extended-Hamming codewords instead of sequential values. Any two valid
+      values differ in at least four bits, so a change of one to three bits
+      to a valid value yields a value that is not valid. This targets
+      corruption the packet CRC cannot see (before the sender computes it, or
+      after the receiver validates it). It does not reject every corrupted
+      value, it does not protect against a message deliberately changed or
+      replayed, which message signing (SAFETY BOUNDARIES) is for, and the
+      dialect does not itself implement the required receiver check. See
       https://mavlink-m.dronecode.org/en/guide/status_field_encoding.html
-      for the affected fields, the codeword table, the receiver and sender
-      requirements, and wire-compatibility notes, and
+      for the twenty-two safety-critical enums' affected fields, the codeword
+      table, the receiver and sender requirements, and wire-compatibility
+      notes,
       https://mavlink-m.dronecode.org/en/guide/refusals_and_resends.html
-      for what follows a refused message. Any other enum in this
-      dialect keeps sequential values unless its own description gives a
-      minimum pairwise Hamming distance between its values.
+      for what follows a refused message, and
+      https://mavlink-m.dronecode.org/en/services/generic_payload.html#enum-values
+      for how the generic payload service's receivers handle its enums.
     - Numeric sentinels are out of range, never a legal value: lat/lon use
       INT32_MAX for "not provided" (0,0 is a valid point); headings/attitude use
       0xFFFF (0 is a valid bearing); altitude uses NaN; counts/durations use 0

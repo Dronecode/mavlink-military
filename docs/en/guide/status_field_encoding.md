@@ -12,7 +12,7 @@ The protection starts wherever the value is held as a codeword.
 A sender should hold the state as the codeword, since a sender that keeps sequential values and converts them when it builds the message turns a corrupted stored value into a valid codeword.
 [Bridges and Gateways](#bridges-and-gateways) covers a bridge to a component bus and a gateway to another network or protocol.
 
-The FIELD CONVENTIONS in the [military.xml](https://github.com/Dronecode/mavlink-military/blob/main/military.xml) header summarise the encoding and refer to this page for the affected fields, the codeword table and the receiver and sender requirements, and to [Refusals and Resends](refusals_and_resends.md) for what follows a refused message.
+The [military.xml](https://github.com/Dronecode/mavlink-military/blob/main/military.xml) header lists the enums that use codewords and the codebook under PROTECTED ENUM VALUE ALLOCATION, and its FIELD CONVENTIONS refer to this page for the affected fields, the codeword table and the receiver and sender requirements, and to [Refusals and Resends](refusals_and_resends.md) for what follows a refused message.
 
 ## Concepts
 
@@ -29,6 +29,7 @@ That includes:
 Assessments of a target that people weigh before they decide, such as [MAVLINK_M_PID_STATUS](../messages/military.md#MAVLINK_M_PID_STATUS), [MAVLINK_M_CDE_LEVEL](../messages/military.md#MAVLINK_M_CDE_LEVEL), [MAVLINK_M_ROE_STATE](../messages/military.md#MAVLINK_M_ROE_STATE) and [MAVLINK_M_NOSTRIKE_STATUS](../messages/military.md#MAVLINK_M_NOSTRIKE_STATUS), are out of scope: no receiver acts on them by itself, and a decision taken on them travels in an in-scope field, such as a withdrawal of consent or a terminate.
 In [LOITER_MUNITION_CONTROL](../messages/military.md#LOITER_MUNITION_CONTROL), `pid_status` and `cde_level` record what the consent rests on, and the munition acts only on `consent_state` and `terminate`.
 
+The [generic payload service](../services/generic_payload.md)'s safety-related enums, such as `PAYLOAD_OPERATION` and `PAYLOAD_ACTIVATION_STATE`, use the same codewords, but this page does not cover them: their receivers follow that service's rules for a value that is not listed ([Enum Values](../services/generic_payload.md#enum-values)), and a refused request is answered in `PAYLOAD_OPERATION_STATUS`, not `MAVLINK_M_ACK`.
 Any other enum keeps sequential numbering unless its own description gives a minimum pairwise Hamming distance between its values.
 
 Each in-scope field is either reported, carrying the sender's current state, or commanded, asking the receiver to act:
