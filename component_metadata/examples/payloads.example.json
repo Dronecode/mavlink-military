@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "definitionManifest": {
     "uri": "https://example.org/mavlink-m/definitions/0.1.0-draft/manifest.json",
-    "sha256": "694a1feb9de54c61634d84ff12d2a982e12e8fb9d6bf7cd855695a6b8579c038"
+    "sha256": "ae6f7b5a08878362ac521851e534c84db669a367fe052eb5e6b7314f5619a706"
   },
   "managerEpoch": "42001",
   "catalogueRevision": 7,
