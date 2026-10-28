@@ -75,6 +75,37 @@ class GhApiTest(unittest.TestCase):
         self.assertEqual(len(self.gh.calls()), 3)
         self.assertEqual([c.args for c in sleep.call_args_list], [(1.5,), (3.0,)])
 
+    def test_a_write_is_sent_once(self) -> None:
+        for args in (
+            ("api", "-X", "DELETE", "repos/o/r/releases/1"),
+            ("api", "--method=PATCH", "repos/o/r/releases/1"),
+            ("api", "repos/o/r/releases", "-f", "tag_name=v1.0.0"),
+            ("api", "repos/o/r/releases", "--input=release.json"),
+            ("release", "create", "v1.0.0", "--draft"),
+            ("release", "upload", "v1.0.0", "file"),
+        ):
+            with self.subTest(args=args):
+                self.gh.responses.clear()
+                self.gh.on(*args, exit=1, stderr="HTTP 502: Bad Gateway\n")
+                before = len(self.gh.calls())
+                with mock.patch.object(gh_api.time, "sleep") as sleep:
+                    with self.assertRaises(gh_api.GitHubError):
+                        gh_api.run(*args)
+                self.assertEqual(len(self.gh.calls()) - before, 1)
+                sleep.assert_not_called()
+
+    def test_reads(self) -> None:
+        for args in (
+            ("api", "repos/o/r"),
+            ("api", "-X", "GET", "search/code", "-f", "q=x"),
+            ("api", "--method", "get", "repos/o/r"),
+            ("release", "download", "v1.0.0"),
+            ("attestation", "verify", "file"),
+        ):
+            with self.subTest(args=args):
+                self.assertTrue(gh_api.is_read(args))
+        self.assertFalse(gh_api.is_read(("api", "-X")))
+
     def test_the_command_defaults_to_gh(self) -> None:
         with mock.patch.dict(os.environ), mock.patch.object(gh_api.subprocess, "run") as run:
             os.environ.pop("GH", None)
