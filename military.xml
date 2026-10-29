@@ -448,6 +448,29 @@
     - ATR confidence is carried as a raw score plus a model id; the coarse tier is
       advisory display only and MUST NOT be an automated rules-of-engagement input.
 
+  EXTERNAL TARGET PACKAGE RETRIEVAL (normative for implementers)
+    TARGET carries an optional reference to an externally hosted target package
+    (package_endpoint_ip_*, package_endpoint_port, package_transport,
+    package_path). Signing authenticates the TARGET message, i.e. the reference,
+    not the package bytes, which are retrieved over a transport outside the
+    MAVLink signing boundary. A consumer that retrieves the package:
+    - verifies package_sha256 over the exact retrieved bytes before using the
+      package, and acts on nothing that does not match. package_id_hash is a
+      non-security correlation/cache key and is never an integrity check.
+    - retrieves only over HTTPS (package_transport HTTPS), with certificate and
+      hostname validation. HTTP is retained for closed benches and is never used
+      to retrieve a package over a shared or routed link.
+    - resolves packages only to hosts a local policy or application profile
+      allows, and rejects non-routable, loopback and link-local endpoints by
+      default, so the sender cannot steer the consumer at internal services.
+    - bounds the retrieved size (profile-defined) and fails closed when exceeded.
+    - treats package_path as a URL path component only, used to form the request
+      to the validated endpoint, never to build a local filesystem path; it
+      rejects "..", NUL, and the percent-encoded separators %2F and %5C.
+    The same rules apply to any match media referenced by TARGET_HANDOVER
+    (match_media_url), which a consumer does not fetch during message handling or
+    display unless an application profile opts in.
+
   JOINT INTEROPERABILITY (implementer note)
     The stanag_identity, environment, track-number, and PPLI enums, the
     external_track_number fields, and PARTICIPANT_POSITION are structural
@@ -1852,7 +1875,7 @@
       <field type="float"    name="cep_desired"   units="m"   >Desired circular error probable.</field>
       <field type="float"    name="cep_max"       units="m"   >Maximum acceptable circular error probable.</field>
       <field type="uint32_t" name="flags"         enum="MAVLINK_M_TARGET_FLAGS">Target warning and status flags.</field>
-      <field type="uint32_t" name="package_endpoint_ip_1"     >Primary IPv4 endpoint address for target package retrieval, packed as (a&lt;&lt;24)|(b&lt;&lt;16)|(c&lt;&lt;8)|d for address a.b.c.d; for example, 192.168.1.10 is 0xC0A8010A. 0 if unused.</field>
+      <field type="uint32_t" name="package_endpoint_ip_1"     >Primary IPv4 endpoint address for target package retrieval, packed as (a&lt;&lt;24)|(b&lt;&lt;16)|(c&lt;&lt;8)|d for address a.b.c.d; for example, 192.168.1.10 is 0xC0A8010A. 0 if unused. A consumer resolves packages only to hosts a local policy or application profile allows, rejecting non-routable, loopback and link-local addresses by default. See EXTERNAL TARGET PACKAGE RETRIEVAL in the header.</field>
       <field type="uint32_t" name="package_endpoint_ip_2"     >Secondary IPv4 endpoint address for target package retrieval, packed as (a&lt;&lt;24)|(b&lt;&lt;16)|(c&lt;&lt;8)|d for address a.b.c.d. 0 if unused.</field>
       <field type="uint32_t" name="package_endpoint_ip_3"     >Third IPv4 endpoint address for target package retrieval, packed as (a&lt;&lt;24)|(b&lt;&lt;16)|(c&lt;&lt;8)|d for address a.b.c.d. 0 if unused.</field>
       <field type="uint8_t"  name="target_class"  enum="MAVLINK_M_TARGET_CLASS">Target classification.</field>
@@ -1862,12 +1885,14 @@
       <field type="uint16_t" name="confidence"                >Classification or detection confidence scaled from 0 to 10000, where 0 = 0.0 and 10000 = 1.0.</field>
       <field type="uint16_t" name="package_endpoint_port"     >TCP port for target package retrieval. 0 if no package is associated.</field>
       <field type="uint8_t"  name="sensor_type"   enum="MAVLINK_M_TARGET_SENSOR_TYPE">Primary sensor source used for target identification.</field>
-      <field type="uint8_t"  name="package_transport" enum="MAVLINK_M_TARGET_PACKAGE_TRANSPORT">Transport protocol used to retrieve the target package.</field>
-      <field type="char[80]" name="package_path"              >Path component for target package retrieval, null-terminated. Empty if no package is associated.</field>
+      <field type="uint8_t"  name="package_transport" enum="MAVLINK_M_TARGET_PACKAGE_TRANSPORT">Transport protocol used to retrieve the target package. A consumer retrieves a package only over HTTPS; HTTP is never used over a shared or routed link. See EXTERNAL TARGET PACKAGE RETRIEVAL in the header.</field>
+      <field type="char[80]" name="package_path"              >Path component for target package retrieval, null-terminated. Empty if no package is associated. It is a URL path component only, used to form the request to the validated endpoint, and is never used to build a local filesystem path; a consumer rejects "..", NUL, and the percent-encoded separators %2F and %5C. See EXTERNAL TARGET PACKAGE RETRIEVAL in the header.</field>
       <field type="uint16_t" name="prf_code"                  >Laser designator PRF code for SAL engagement (e.g. 1111-1788). 0 = no laser code assigned.</field>
       <field type="uint8_t"  name="tle_category" enum="MAVLINK_M_TLE_CATEGORY">Target-location-error category (label only, not a mensuration figure).</field>
       <field type="uint8_t"  name="dmpi_reference_kind" enum="MAVLINK_M_DMPI_REFERENCE_KIND">How the DMPI reference is expressed. A mensurated DMPI tied to a weapon solution is NOT carried.</field>
       <field type="uint8_t"  name="restricted_target_flags" enum="MAVLINK_M_RESTRICTED_TARGET_FLAGS">No-strike / restricted-target / no-fire-area context flags (bitmask).</field>
+      <extensions/>
+      <field type="uint8_t[32]" name="package_sha256">SHA-256 of the exact target-package bytes, as the 32 bytes SHA-256 produces in order; all-zero if not provided. A consumer MUST verify this digest over the retrieved bytes before using a package and MUST act on nothing that does not match. It is set by the authority that created the target, not by the host that serves the file, so it binds the package to the signed TARGET; package_id_hash remains a non-security correlation/cache key only. See EXTERNAL TARGET PACKAGE RETRIEVAL in the header.</field>
     </message>
 
     <!-- ============================================================ -->
