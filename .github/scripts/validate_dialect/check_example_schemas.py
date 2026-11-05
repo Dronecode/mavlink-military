@@ -97,12 +97,16 @@ def repeated(values: Iterable[object]) -> list[object]:
 
 def declarations(profile: dict, collection: str) -> Iterator[dict]:
     """The entries of one of a profile's arrays. Bindings are declared inside
-    properties and actions, so "bindings" gathers them from both."""
+    properties and actions, as lists, and inside events and outputs, one
+    each, so "bindings" gathers them from all four."""
     if collection != "bindings":
         yield from profile.get(collection, [])
         return
     for item in (*profile.get("properties", []), *profile.get("actions", [])):
         yield from item.get("bindings", [])
+    for item in (*profile.get("events", []), *profile.get("outputs", [])):
+        if "binding" in item:
+            yield item["binding"]
 
 
 def profile_problems(name: str, profile: dict) -> list[str]:
