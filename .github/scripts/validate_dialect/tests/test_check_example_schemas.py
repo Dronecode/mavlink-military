@@ -142,6 +142,13 @@ class CheckExampleSchemasTest(unittest.TestCase):
         self.write(ACTUATOR, profile)
         self.assertOneProblem(ACTUATOR, "bindingId 1 is declared more than once")
 
+    def test_an_event_binding_that_repeats_an_action_binding_id_fails(self) -> None:
+        recorder = "capability-profile-survey-recorder.example.json"
+        profile = self.read(recorder)
+        profile["events"][0]["binding"]["bindingId"] = profile["actions"][0]["bindings"][0]["bindingId"]
+        self.write(recorder, profile)
+        self.assertOneProblem(recorder, "bindingId 1 is declared more than once")
+
     def test_bound_profiles_whose_ids_collide_fail(self) -> None:
         catalogue = self.catalogue()
         actuator = self.function(catalogue, 13, 1)["capabilityProfiles"][0]
